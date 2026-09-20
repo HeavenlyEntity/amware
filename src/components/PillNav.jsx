@@ -699,14 +699,7 @@ const PillNav = ({
             )
           })}
           {mobileBottomContent && (
-            <li
-              className="mt-1 w-full"
-              onClick={() => {
-                if (isMobileMenuOpen) toggleMobileMenu()
-              }}
-            >
-              {mobileBottomContent}
-            </li>
+            <li className="mt-1 w-full">{mobileBottomContent}</li>
           )}
         </ul>
       </div>

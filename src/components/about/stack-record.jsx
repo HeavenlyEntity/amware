@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { RotateCcw } from 'lucide-react'
-import { useReducedMotion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { useMediaQuery } from '@/hooks/use-client-value'
 import logoCreem from '@/images/logos/creem.png'
 import logoPolar from '@/images/logos/polar.png'

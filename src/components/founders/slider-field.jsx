@@ -62,6 +62,10 @@ export function SliderField({
         <div className="min-w-0 flex-1">
           <Slider
             aria-label={label}
+            aria-valuetext={`${format(sliderValue)}${unit}`}
+            aria-describedby={
+              clampedNote || hint ? `${inputId}-hint` : undefined
+            }
             min={track.min}
             max={track.max}
             step={step}

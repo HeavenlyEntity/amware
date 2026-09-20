@@ -1,11 +1,7 @@
-'use client'
+import Link from 'next/link'
 
-import { useEffect, useRef } from 'react'
-import { mountScrollWorld } from '@/lib/scroll-world/scrub-engine'
-
-/* The /story film: the AMWARE journey as a continuous camera flight.
-   Section copy follows a problem, cost, mechanism, offer, proof, close
-   arc; the engine scrubs pre-rendered clips by scroll position. */
+/* The narrative is available without JavaScript, scrolling effects or video.
+   Silent decorative clips are optional; the adjacent text carries the message. */
 
 const SECTIONS = [
   {
@@ -83,47 +79,86 @@ const SECTIONS = [
   },
 ]
 
-const CONNECTORS = [
-  '/story/vid/conn_1.mp4',
-  '/story/vid/conn_2.mp4',
-  '/story/vid/conn_3.mp4',
-  '/story/vid/conn_4.mp4',
-  '/story/vid/conn_5.mp4',
-]
-
 export default function StoryWorld() {
-  const hostRef = useRef(null)
-
-  useEffect(() => {
-    const host = hostRef.current
-    if (!host) return
-    host.replaceChildren()
-    mountScrollWorld(host, {
-      brand: { name: 'AMWARE', href: '/' },
-      diveScroll: 1.3,
-      connScroll: 0.9,
-      hint: 'scroll to fly in',
-      nav: true,
-      atmosphere: true,
-      sections: SECTIONS,
-      connectors: CONNECTORS,
-    })
-    return () => {
-      host.replaceChildren()
-    }
-  }, [])
-
   return (
-    <div
-      ref={hostRef}
-      style={{
-        '--sw-bg': '#0b0b0f',
-        '--sw-ink': '#f4f4f5',
-        '--sw-ink-soft': '#a1a1aa',
-        '--sw-accent': '#3ce8ce',
-        '--sw-font-display': 'Layer, sans-serif',
-        '--sw-font-body': 'var(--font-sans), sans-serif',
-      }}
-    />
+    <article className="amw mx-auto max-w-5xl px-6 py-12 text-zinc-900 dark:text-zinc-100 sm:px-8">
+      <header className="mb-12 max-w-3xl">
+        <p className="amw-eyebrow">The AMWARE story</p>
+        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+          A Masterpiece Will Always Require Effort.
+        </h1>
+        <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
+          From the midnight grind to shipped products. Read the story below;
+          each silent scene is optional and plays only when you choose.
+        </p>
+      </header>
+      <nav aria-label="Story chapters" className="mb-12">
+        <ol className="flex flex-wrap gap-x-6 gap-y-2">
+          {SECTIONS.map((section) => (
+            <li key={section.id}>
+              <a
+                href={`#story-${section.id}`}
+                className="min-h-11 inline-flex items-center underline underline-offset-4"
+              >
+                {section.label}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+      <div className="space-y-16">
+        {SECTIONS.map((section) => (
+          <section
+            key={section.id}
+            id={`story-${section.id}`}
+            aria-labelledby={`story-title-${section.id}`}
+          >
+            <p className="amw-eyebrow">{section.eyebrow}</p>
+            <h2
+              id={`story-title-${section.id}`}
+              className="text-3xl font-semibold tracking-tight sm:text-4xl"
+            >
+              {section.title}
+            </h2>
+            <p
+              id={`story-copy-${section.id}`}
+              className="mt-4 max-w-3xl text-lg leading-relaxed text-zinc-600 dark:text-zinc-400"
+            >
+              {section.body}
+            </p>
+            <div className="mt-6 overflow-hidden rounded-xl bg-[#0b0b0f]">
+              {/* These silent clips illustrate, rather than add to, the adjacent text. */}
+              <video
+                controls
+                muted
+                playsInline
+                preload="none"
+                poster={section.still}
+                aria-label={`${section.label}: optional silent illustration`}
+                aria-describedby={`story-copy-${section.id}`}
+                className="aspect-video w-full object-contain"
+              >
+                <source src={section.clip} type="video/mp4" />
+                Your browser cannot play this optional scene. The complete story
+                is in the text above.
+              </video>
+            </div>
+            {section.cta && (
+              <div className="mt-6 flex flex-wrap gap-4">
+                {Object.values(section.cta).map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="min-h-11 inline-flex items-center rounded-md border border-zinc-500 px-5 py-3 font-medium underline underline-offset-4"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
+    </article>
   )
 }

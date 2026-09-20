@@ -74,7 +74,7 @@ export default async function BlogPostPage({
       <TrackView type="blog" id={slug} name={post.title} />
       <article className="mx-auto max-w-2xl">
         <header>
-          <p className="text-sm text-zinc-400 dark:text-zinc-500">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
             {post.publishedDate
               ? formatDate(String(post.publishedDate).slice(0, 10))
               : ''}

@@ -17,7 +17,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as THREE from 'three'
-import { useReducedMotion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 
 /* The AMWARE crown as teal glass. A procedural room environment gives the
    transmission something to refract; hovering fades in a holographic

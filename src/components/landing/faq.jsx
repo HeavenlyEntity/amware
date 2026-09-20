@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { AnimatePresence, motion, useInView } from 'motion/react'
 import Link from 'next/link'
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { SectionEyebrow } from './section-eyebrow'
 
 /* Ported from the "minimal" landing template (components/faq.tsx): an
@@ -42,7 +42,7 @@ const faqs = [
 ]
 
 function FAQItem({ faq, index, isOpen, onToggle }) {
-  const panelId = `faq-panel-${index}`
+  const panelId = useId()
 
   return (
     <motion.div
@@ -52,24 +52,26 @@ function FAQItem({ faq, index, isOpen, onToggle }) {
       viewport={{ once: true, amount: 0.5 }}
       transition={{ duration: 0.5, delay: index * 0.05, ease: easeOut }}
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={isOpen}
-        aria-controls={panelId}
-        className="group flex w-full cursor-pointer items-center justify-between py-6 text-left"
-      >
-        <span className="pr-8 text-lg font-medium text-zinc-50 md:text-xl">
-          {faq.question}
-        </span>
-        <motion.div
-          className="shrink-0 text-zinc-50/50"
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.3, ease: easeOut }}
+      <h3>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? panelId : undefined}
+          className="group flex w-full cursor-pointer items-center justify-between py-6 text-left"
         >
-          <ChevronDown className="h-5 w-5" aria-hidden="true" />
-        </motion.div>
-      </button>
+          <span className="pr-8 text-lg font-medium text-zinc-50 md:text-xl">
+            {faq.question}
+          </span>
+          <motion.div
+            className="shrink-0 text-zinc-50/50"
+            animate={{ rotate: isOpen ? 180 : 0 }}
+            transition={{ duration: 0.3, ease: easeOut }}
+          >
+            <ChevronDown className="h-5 w-5" aria-hidden="true" />
+          </motion.div>
+        </button>
+      </h3>
       <AnimatePresence initial={false}>
         {isOpen && (
           <motion.div

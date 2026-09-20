@@ -55,7 +55,10 @@ export default async function OnboardingPage({
         <p className="mt-6 text-zinc-600 dark:text-zinc-400">
           Use the link in your purchase email. If you no longer have it, reply
           to your receipt and I will send a new one, or{' '}
-          <Link href="/contact" className="text-teal-500">
+          <Link
+            href="/contact"
+            className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+          >
             get in touch
           </Link>
           .
@@ -82,7 +85,7 @@ export default async function OnboardingPage({
           here. Your payment is safe either way, and the receipt in your inbox
           has a link back to this page.
         </p>
-        <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-500">
+        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
           Still nothing after a minute or two? Reply to that receipt and I will
           sort it by hand.
         </p>
@@ -128,7 +131,7 @@ export default async function OnboardingPage({
         cliCommand={process.env.WAREKIT_CLI_COMMAND || null}
       />
 
-      <p className="mt-12 text-sm text-zinc-500 dark:text-zinc-500">
+      <p className="mt-12 text-sm text-zinc-600 dark:text-zinc-400">
         Keep the link to this page. It is in your purchase email, and it is how
         you get back here.
       </p>

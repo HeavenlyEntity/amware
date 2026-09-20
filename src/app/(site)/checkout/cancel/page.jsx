@@ -15,7 +15,10 @@ export default function CheckoutCancel() {
         </h1>
         <p className="mt-6 text-base text-zinc-600 dark:text-zinc-400">
           No charge was made.{' '}
-          <Link href="/products" className="text-teal-500">
+          <Link
+            href="/products"
+            className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+          >
             Browse products
           </Link>
           .

@@ -414,7 +414,7 @@ function ArchiveRow({ project }) {
             />
           ) : (
             <Lock
-              className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500"
+              className="h-3.5 w-3.5 text-zinc-600 dark:text-zinc-400"
               aria-hidden="true"
             />
           )}

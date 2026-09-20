@@ -2,13 +2,8 @@
 
 import { useRef } from 'react'
 import Image from 'next/image'
-import {
-  motion,
-  useMotionValue,
-  useSpring,
-  useTransform,
-  useReducedMotion,
-} from 'motion/react'
+import { motion, useMotionValue, useSpring, useTransform } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import atTheDesk from '@/images/photos/at-the-desk.jpg'
 import cappuccino from '@/images/photos/cappuccino.jpg'
 import waterfall from '@/images/photos/image-3.jpg'

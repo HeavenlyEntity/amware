@@ -364,7 +364,7 @@ function CatalogFallback({ error }) {
         <p className="amw-mono amw-cursor mt-3 text-sm text-zinc-700 dark:text-zinc-300">
           {error ? 'link interrupted, retrying' : '0 published, provisioning'}
         </p>
-        <p className="mx-auto mt-5 max-w-sm text-sm text-zinc-500 dark:text-zinc-500">
+        <p className="mx-auto mt-5 max-w-sm text-sm text-zinc-600 dark:text-zinc-400">
           {error
             ? 'The catalog could not be reached. Refresh to try again, or head straight to the listings.'
             : 'The catalog is being prepared. Check back soon, or head straight to the listings.'}
@@ -831,7 +831,7 @@ function Resume() {
               </dd>
               <dt className="sr-only">Date</dt>
               <dd
-                className="amw-mono ml-auto text-xs text-zinc-400 dark:text-zinc-500"
+                className="amw-mono ml-auto text-xs text-zinc-600 dark:text-zinc-400"
                 aria-label={`${role.start.label ?? role.start} until ${
                   role.end.label ?? role.end
                 }`}

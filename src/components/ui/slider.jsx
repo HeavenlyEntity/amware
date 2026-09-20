@@ -15,6 +15,10 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledby,
+  'aria-describedby': ariaDescribedby,
+  'aria-valuetext': ariaValueText,
   ...props
 }) {
   const values = React.useMemo(
@@ -35,7 +39,7 @@ function Slider({
       min={min}
       max={max}
       className={cn(
-        'amw data-[disabled]:opacity-50 relative flex w-full touch-none select-none items-center py-2',
+        'amw data-[disabled]:opacity-50 min-h-11 relative flex w-full touch-none select-none items-center py-2',
         className
       )}
       {...props}
@@ -53,7 +57,13 @@ function Slider({
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
-          className="border-[var(--amw-accent-ink)] bg-[var(--amw-card)] size-5 hover:ring-[var(--amw-accent)]/20 focus-visible:ring-[var(--amw-accent)]/30 block shrink-0 select-none rounded-full border-2 shadow-sm transition-[box-shadow] hover:ring-4 focus-visible:outline-none focus-visible:ring-4 disabled:pointer-events-none"
+          aria-label={Array.isArray(ariaLabel) ? ariaLabel[index] : ariaLabel}
+          aria-labelledby={ariaLabelledby}
+          aria-describedby={ariaDescribedby}
+          aria-valuetext={
+            Array.isArray(ariaValueText) ? ariaValueText[index] : ariaValueText
+          }
+          className="border-[var(--amw-accent-ink)] bg-[var(--amw-card)] size-6 hover:ring-[var(--amw-accent)]/20 focus-visible:ring-[var(--amw-accent)]/30 block shrink-0 select-none rounded-full border-2 shadow-sm transition-[box-shadow] hover:ring-4 focus-visible:outline-none focus-visible:ring-4 disabled:pointer-events-none"
         />
       ))}
     </SliderPrimitive.Root>

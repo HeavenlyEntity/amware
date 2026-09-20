@@ -1,12 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
-import {
-  useInView,
-  useMotionValue,
-  useReducedMotion,
-  useSpring,
-} from 'motion/react'
+import { useInView, useMotionValue, useSpring } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 
 /* Ported from React Bits "CountUp" (reactbits.dev/r/CountUp-JS-TW, MIT).
    A number springs from `from` to `to` once it scrolls into view, writing

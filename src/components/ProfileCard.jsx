@@ -1,3 +1,6 @@
+'use client'
+
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import React, { useEffect, useRef, useCallback, useMemo } from 'react'
 
 const DEFAULT_INNER_GRADIENT =
@@ -61,8 +64,9 @@ const ProfileCardComponent = ({
   const enterTimerRef = useRef(null)
   const leaveRafRef = useRef(null)
 
+  const reduce = useReducedMotion()
   const tiltEngine = useMemo(() => {
-    if (!enableTilt) return null
+    if (!enableTilt || reduce) return null
 
     let rafId = null
     let running = false
@@ -178,7 +182,7 @@ const ProfileCardComponent = ({
         lastTs = 0
       },
     }
-  }, [enableTilt])
+  }, [enableTilt, reduce])
 
   const getOffsets = (evt, el) => {
     const rect = el.getBoundingClientRect()

@@ -1,7 +1,8 @@
 'use client'
 
 import { ChevronRight } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import Link from 'next/link'
 import { BuyButton } from '@/components/commerce/BuyButton'
 import { BookCallButton } from '@/components/commerce/BookCallButton'
@@ -359,7 +360,7 @@ export function ServiceCard({ service, index = 0, description = null }) {
           </Link>
         )}
         {!depositPlan && service.depositNote && (
-          <p className="mt-4 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
+          <p className="mt-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
             {service.depositNote}
           </p>
         )}

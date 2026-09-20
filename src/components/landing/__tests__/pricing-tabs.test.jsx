@@ -142,7 +142,7 @@ describe('Pricing retainers and the deposit', () => {
     // It sits inside the Fractional CTO card, not beside another tier.
     const card = buttons[0].closest('li')
     expect(card).toHaveTextContent('Fractional CTO')
-    const guarantee = within(card).getByRole('complementary', {
+    const guarantee = within(card).getByRole('note', {
       name: /first call value and refund terms/i,
     })
     expect(guarantee).toHaveTextContent('Know what to fix next in 60 minutes.')

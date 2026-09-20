@@ -4,7 +4,12 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useRootTheme } from '@/hooks/use-client-value'
+import {
+  MotionToggle,
+  useReducedMotion,
+} from '@/components/AccessibilityProvider'
 import { ArrowUpRight, ChevronRight } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -78,6 +83,7 @@ function MoonIcon(props) {
 
 /* Same theme logic the old header used, restyled for the inverse bar. */
 export function ModeToggle({ className }) {
+  const theme = useRootTheme()
   function disableTransitionsTemporarily() {
     document.documentElement.classList.add('[&_*]:transition-none!')
     window.setTimeout(() => {
@@ -100,7 +106,8 @@ export function ModeToggle({ className }) {
   return (
     <button
       type="button"
-      aria-label="Toggle dark mode"
+      aria-label="Dark mode"
+      aria-pressed={theme === 'dark'}
       onClick={toggleMode}
       className={clsx(
         'group flex h-11 w-11 items-center justify-center rounded-md transition-colors hover:bg-white/10 dark:hover:bg-zinc-900/10',
@@ -229,7 +236,7 @@ function MenuCard({ card, pathname, onNavigate }) {
       )}
 
       {card.footnote && (
-        <p className="amw-mono mt-4 text-[10px] uppercase tracking-widest opacity-50">
+        <p className="amw-mono mt-4 text-[10px] uppercase tracking-widest opacity-80">
           {card.footnote}
         </p>
       )}
@@ -264,6 +271,7 @@ function MenuActions({ onNavigate }) {
         </span>
       </Link>
       <ModeToggle className="md:hidden" />
+      <MotionToggle />
     </motion.div>
   )
 }
@@ -276,6 +284,7 @@ export function SiteHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [hasScrolled, setHasScrolled] = useState(false)
   const buttonRef = useRef(null)
+  const headerRef = useRef(null)
   const cards = menuCards()
   const heightDelay = isDesktop ? 0.2 : 0
   const cardsDelay = isDesktop ? 0.7 : 0.2
@@ -299,17 +308,70 @@ export function SiteHeader() {
 
   useEffect(() => {
     if (!isMenuOpen) return
+    const header = headerRef.current
+    const outside = [
+      document.getElementById('site-content'),
+      document.querySelector('.skip-link'),
+    ].filter(Boolean)
+    const previousInert = outside.map((element) => element.inert)
+    outside.forEach((element) => {
+      element.inert = true
+    })
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    buttonRef.current?.focus()
     const onKey = (event) => {
       if (event.key === 'Escape') {
+        event.preventDefault()
         setIsMenuOpen(false)
         buttonRef.current?.focus()
       }
+      if (event.key === 'Tab') {
+        const controls = [
+          ...header.querySelectorAll(
+            'a[href], button:not(:disabled), [tabindex="0"]'
+          ),
+        ].filter((element) => {
+          const style = getComputedStyle(element)
+          return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            !element.closest('[hidden]')
+          )
+        })
+        const first = controls[0]
+        const last = controls.at(-1)
+        if (
+          event.shiftKey &&
+          (document.activeElement === first ||
+            !header.contains(document.activeElement))
+        ) {
+          event.preventDefault()
+          last?.focus()
+        } else if (
+          !event.shiftKey &&
+          (document.activeElement === last ||
+            !header.contains(document.activeElement))
+        ) {
+          event.preventDefault()
+          first?.focus()
+        }
+      }
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      outside.forEach((element, index) => {
+        element.inert = previousInert[index]
+      })
+      document.body.style.overflow = overflow
+    }
   }, [isMenuOpen])
 
-  const close = () => setIsMenuOpen(false)
+  const close = () => {
+    setIsMenuOpen(false)
+    buttonRef.current?.focus()
+  }
   const width = !isDesktop
     ? '100%'
     : isMenuOpen
@@ -335,6 +397,10 @@ export function SiteHeader() {
       </AnimatePresence>
 
       <motion.header
+        ref={headerRef}
+        role={isMenuOpen ? 'dialog' : undefined}
+        aria-modal={isMenuOpen ? true : undefined}
+        aria-label={isMenuOpen ? 'Site navigation' : undefined}
         data-print="hide"
         className="fixed left-0 top-0 z-50 flex w-full justify-center px-4 pt-4"
         initial={reduce ? false : { y: -100, opacity: 0 }}
@@ -382,7 +448,7 @@ export function SiteHeader() {
                 ref={buttonRef}
                 type="button"
                 aria-expanded={isMenuOpen}
-                aria-controls={menuId}
+                aria-controls={isMenuOpen ? menuId : undefined}
                 onClick={() => setIsMenuOpen((open) => !open)}
                 className="flex h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-current transition-colors hover:bg-white/10 dark:hover:bg-zinc-900/10"
               >
@@ -394,61 +460,59 @@ export function SiteHeader() {
             </div>
           </div>
 
-          <AnimatePresence>
-            {isMenuOpen && (
-              <motion.div
-                id={menuId}
-                className="overflow-hidden"
-                style={{ maxHeight: 'calc(100vh - 6rem)' }}
-                initial={reduce ? { height: 'auto' } : { height: 0 }}
-                animate={{
-                  height: 'auto',
-                  transition: reduce
-                    ? { duration: 0 }
-                    : { duration: 0.5, ease: easeInOut, delay: heightDelay },
-                }}
-                exit={{
-                  height: 0,
-                  transition: reduce
-                    ? { duration: 0 }
-                    : { duration: 0.4, ease: easeInOut },
-                }}
-              >
-                <div className="scrollbar-hide max-h-[calc(100vh-6rem)] overflow-y-auto">
-                  <motion.div
-                    className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4"
-                    initial="hidden"
-                    animate="visible"
-                    exit="hidden"
-                    variants={{
-                      hidden: {
-                        transition: {
-                          staggerChildren: 0.05,
-                          staggerDirection: -1,
-                        },
+          {isMenuOpen && (
+            <motion.div
+              id={menuId}
+              className="overflow-hidden"
+              style={{ maxHeight: 'calc(100dvh - 6rem)' }}
+              initial={reduce ? { height: 'auto' } : { height: 0 }}
+              animate={{
+                height: 'auto',
+                transition: reduce
+                  ? { duration: 0 }
+                  : { duration: 0.5, ease: easeInOut, delay: heightDelay },
+              }}
+              exit={{
+                height: 0,
+                transition: reduce
+                  ? { duration: 0 }
+                  : { duration: 0.4, ease: easeInOut },
+              }}
+            >
+              <div className="scrollbar-hide max-h-[calc(100dvh-6rem)] overflow-y-auto">
+                <motion.div
+                  className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4"
+                  initial="hidden"
+                  animate="visible"
+                  exit="hidden"
+                  variants={{
+                    hidden: {
+                      transition: {
+                        staggerChildren: 0.05,
+                        staggerDirection: -1,
                       },
-                      visible: {
-                        transition: {
-                          staggerChildren: reduce ? 0 : 0.1,
-                          delayChildren: reduce ? 0 : cardsDelay,
-                        },
+                    },
+                    visible: {
+                      transition: {
+                        staggerChildren: reduce ? 0 : 0.1,
+                        delayChildren: reduce ? 0 : cardsDelay,
                       },
-                    }}
-                  >
-                    {cards.map((card) => (
-                      <MenuCard
-                        key={card.id}
-                        card={card}
-                        pathname={pathname}
-                        onNavigate={close}
-                      />
-                    ))}
-                    <MenuActions onNavigate={close} />
-                  </motion.div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    },
+                  }}
+                >
+                  {cards.map((card) => (
+                    <MenuCard
+                      key={card.id}
+                      card={card}
+                      pathname={pathname}
+                      onNavigate={close}
+                    />
+                  ))}
+                  <MenuActions onNavigate={close} />
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
         </motion.nav>
       </motion.header>
 

@@ -8,7 +8,8 @@
 export function DepositRiskReversal({ children, className = '' }) {
   return (
     <div className={className}>
-      <aside
+      <div
+        role="note"
         aria-label="First call value and refund terms"
         className="border-(--amw-line) border-t pt-4"
       >
@@ -22,7 +23,7 @@ export function DepositRiskReversal({ children, className = '' }) {
         <p className="amw-kicker text-(--amw-accent-ink) mt-3">
           Free tool included: CTO Systems Audit Prompt
         </p>
-      </aside>
+      </div>
       <div className="mt-4">{children}</div>
       <p className="mt-2.5 text-center text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
         Full refund if we don’t work together.

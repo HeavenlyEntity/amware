@@ -2,12 +2,8 @@
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import {
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useTransform,
-} from 'motion/react'
+import { motion, useMotionValue, useTransform } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { CarouselStacked } from '@/components/ui/carousel-stacked'
 
 /* The story as flash cards on a diagonal arc. The current chapter is a
@@ -221,10 +217,14 @@ export function StoryFan({ chapters }) {
         />
       </div>
 
+      {/* Keyboard-operable carousel region: arrow keys supplement its buttons. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
         role="group"
         aria-roledescription="carousel"
         aria-label="The story, one chapter per card"
+        // Keyboard focus enables the carousel’s arrow-key controls.
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
         onKeyDown={onKeyDown}
         /* No rounded-2xl here: a stylesheet rule gives that class a card
@@ -257,7 +257,7 @@ export function StoryFan({ chapters }) {
               }`}
             />
           ))}
-          <span className="amw-mono ml-3 text-xs tabular-nums text-zinc-500 dark:text-zinc-500">
+          <span className="amw-mono ml-3 text-xs tabular-nums text-zinc-600 dark:text-zinc-400">
             {current.number} / {String(total).padStart(2, '0')}
           </span>
         </div>

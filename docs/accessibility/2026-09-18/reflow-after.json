@@ -1,0 +1,132 @@
+[
+  {
+    "path": "/",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/about",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/projects",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/articles",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/uses",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/services",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/pricing",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/products",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/courses",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/contact",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/contact/offer-review",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/founders",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/founders/equity",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/founders/job-offer",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/access/resend",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/checkout/cancel",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/thank-you",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/blog",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/story",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/speaking",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/articles/neatsuite-http",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/articles/suitecloud-monorepo-support-pr-865",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/products/switch-clone-quick-key-rotation-guide",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/checkout/success",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/checkout/onboarding",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "path": "/checkout/deposit",
+    "scroll": 320,
+    "width": 320
+  }
+]

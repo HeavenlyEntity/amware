@@ -165,6 +165,7 @@ export function StackLogos({ stack = [], className = '', onCard = false }) {
               style={{ '--logo': stackColor(tech) }}
               /* Focusable so a keyboard user can reach the label the same way
                  a pointer user hovers it. Not a button: nothing happens. */
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard access to the visible technology tooltip.
               tabIndex={0}
             >
               <Icon size={20} stroke={1.6} aria-hidden="true" />

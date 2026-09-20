@@ -9,7 +9,10 @@ export default function BlogNotFound() {
       </h1>
       <p className="mt-4 text-zinc-600 dark:text-zinc-400">
         That post doesn&apos;t exist or isn&apos;t published.{' '}
-        <Link href="/blog" className="text-teal-500">
+        <Link
+          href="/blog"
+          className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+        >
           Back to the blog
         </Link>
         .

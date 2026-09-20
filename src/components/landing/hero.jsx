@@ -1,5 +1,7 @@
 'use client'
 
+import { useReducedMotion } from '@/components/AccessibilityProvider'
+
 import { ChevronRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import Image from 'next/image'
@@ -90,13 +92,14 @@ function Highlight({ children, pill = false }) {
 export function Hero() {
   const sectionRef = useRef(null)
   const headlineRef = useRef(null)
+  const [paused, setPaused] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [shouldRender, setShouldRender] = useState(false)
   const [opacity, setOpacity] = useState(0)
   /* Server assumes the conservative case (small screen, reduced motion) and
      the client corrects on its first post-hydration render. */
   const isMobile = useMediaQuery('(max-width: 767px)', true)
-  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)', true)
+  const reduceMotion = useReducedMotion()
   const opacityRef = useRef(0)
   const animationRef = useRef(null)
 
@@ -214,6 +217,16 @@ export function Hero() {
         </motion.p>
       </div>
 
+      {!reduceMotion && (
+        <button
+          type="button"
+          aria-pressed={paused}
+          onClick={() => setPaused(!paused)}
+          className="min-h-11 relative z-10 mt-5 rounded-md px-4 py-2 text-sm text-zinc-700 underline underline-offset-4 dark:text-zinc-300"
+        >
+          Pause project animation
+        </button>
+      )}
       {/* Carousel */}
       <div
         className="h-100 sm:h-125 md:h-137.5 lg:h-150 xl:h-175 relative mt-2 w-full overflow-hidden"
@@ -235,7 +248,7 @@ export function Hero() {
               cardHeight={275}
               duration={100}
               pauseOnHover={true}
-              autoPlay={!reduceMotion}
+              autoPlay={!reduceMotion && !paused}
               initialRotation={-90}
               showTrackLine={true}
               trackLineOffset={25}

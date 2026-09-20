@@ -2,7 +2,8 @@
 
 import { useId, useState } from 'react'
 import { Check, ChevronRight } from 'lucide-react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import Link from 'next/link'
 import { SectionEyebrow } from './section-eyebrow'
 import { DepositCheckout } from '@/components/commerce/DepositCheckout'

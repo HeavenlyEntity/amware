@@ -47,7 +47,7 @@ export function Verdict({ read }) {
         className="mt-6 text-5xl font-bold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-50 md:text-6xl"
       >
         <CountUp to={offer.range.lo} duration={0.8} format={pct} />
-        <span className="text-zinc-400 dark:text-zinc-500">–</span>
+        <span className="text-zinc-600 dark:text-zinc-400">–</span>
         <CountUp to={offer.range.hi} duration={1.0} format={pct} />
       </p>
       <p className="amw-kicker mt-2">

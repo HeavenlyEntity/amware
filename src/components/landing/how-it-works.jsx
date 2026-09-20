@@ -1,6 +1,7 @@
 'use client'
 
-import { motion, useInView, useReducedMotion } from 'motion/react'
+import { motion, useInView } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { useRef } from 'react'
 import { SectionEyebrow } from './section-eyebrow'
 import { ArchitectFigure, EntryPointFigure, ShipFigure } from './ship-figures'

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { motion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { cn } from '@/lib/utils'
 
 /* Ported from PaceUI "gsap-rolling-number" (paceui.com/r): each digit is
@@ -13,6 +14,7 @@ import { cn } from '@/lib/utils'
 const roll = [0.16, 1, 0.3, 1]
 
 const RollingDigit = ({ digit, duration = 1, height = 32 }) => {
+  const reduce = useReducedMotion()
   const num = parseInt(digit, 10)
   const isNumber = !isNaN(num)
 
@@ -34,9 +36,9 @@ const RollingDigit = ({ digit, duration = 1, height = 32 }) => {
     >
       <motion.div
         className="flex flex-col items-center"
-        initial={{ y: -height }}
+        initial={reduce ? false : { y: -height }}
         animate={{ y: -height * (num + 1) }}
-        transition={{ duration, ease: roll }}
+        transition={{ duration: reduce ? 0 : duration, ease: roll }}
       >
         <span
           style={{ height, lineHeight: `${height}px` }}
@@ -82,14 +84,17 @@ export const RollingNumber = ({
 
   return (
     <div className={cn('inline-flex items-center', className)}>
-      {digits.map((digit, i) => (
-        <RollingDigit
-          key={i}
-          digit={digit}
-          duration={duration}
-          height={height}
-        />
-      ))}
+      <span className="sr-only">{targetNumber}</span>
+      <span aria-hidden="true" className="inline-flex">
+        {digits.map((digit, i) => (
+          <RollingDigit
+            key={i}
+            digit={digit}
+            duration={duration}
+            height={height}
+          />
+        ))}
+      </span>
     </div>
   )
 }

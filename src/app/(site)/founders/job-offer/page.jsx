@@ -11,5 +11,10 @@ export const metadata = withSocialImage(
 )
 
 export default function JobOfferCalculatorPage() {
-  return <JobOfferCalculator />
+  return (
+    <>
+      <h1 className="sr-only">Job offer calculator</h1>
+      <JobOfferCalculator />
+    </>
+  )
 }

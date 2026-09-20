@@ -37,7 +37,10 @@ export default async function BlogPage() {
         </h1>
         <p className="mt-6 text-base text-zinc-600 dark:text-zinc-400">
           Posts authored in the CMS. Looking for the older essays?{' '}
-          <Link href="/articles" className="text-teal-500">
+          <Link
+            href="/articles"
+            className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+          >
             Read the articles archive
           </Link>
           .
@@ -50,7 +53,7 @@ export default async function BlogPage() {
         <ul className="mt-16 space-y-12">
           {docs.map((post) => (
             <li key={post.id}>
-              <p className="text-sm text-zinc-400 dark:text-zinc-500">
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
                 {post.publishedDate
                   ? formatDate(String(post.publishedDate).slice(0, 10))
                   : ''}

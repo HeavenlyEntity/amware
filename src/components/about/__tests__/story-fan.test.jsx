@@ -4,8 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 /* Reduced motion on: the fan snaps instead of springing, so which card is
    in front can be asserted without waiting on animation frames. The arc
    geometry itself is Motion's business, not this test's. */
-vi.mock('motion/react', async (importOriginal) => ({
-  ...(await importOriginal()),
+vi.mock('@/components/AccessibilityProvider', () => ({
   useReducedMotion: () => true,
 }))
 

@@ -1,7 +1,8 @@
 'use client'
 
 import { useRef } from 'react'
-import { motion, useInView, useReducedMotion } from 'motion/react'
+import { motion, useInView } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 
 /* The one figure the desk is about: a thin axis, the benchmark band as a
    soft accent fill with accent edges, and the offer as an ink marker.
@@ -85,7 +86,7 @@ export function GapFigure({
           <span
             key={tick}
             aria-hidden="true"
-            className="amw-mono absolute bottom-full mb-1 -translate-x-1/2 text-[10px] text-zinc-400 dark:text-zinc-500"
+            className="amw-mono absolute bottom-full mb-1 -translate-x-1/2 text-[10px] text-zinc-600 dark:text-zinc-400"
             style={{ left: pct(tick, axisMax) }}
           >
             {tick}%

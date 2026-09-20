@@ -15,7 +15,10 @@ function InvalidLink() {
       </h1>
       <p className="mt-4 text-zinc-600 dark:text-zinc-400">
         Request a fresh link:{' '}
-        <Link href="/access/resend" className="text-teal-500">
+        <Link
+          href="/access/resend"
+          className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+        >
           resend my access link
         </Link>
         .
@@ -49,7 +52,10 @@ export default async function AccessPage({ params }) {
           <p className="mt-4 text-zinc-600 dark:text-zinc-400">
             Your access is delivered via a GitHub repository invitation to the
             username you provided at checkout. If you haven’t received it,{' '}
-            <Link href="/contact" className="text-teal-500">
+            <Link
+              href="/contact"
+              className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+            >
               contact us
             </Link>
             .

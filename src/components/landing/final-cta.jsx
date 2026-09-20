@@ -1,5 +1,7 @@
 'use client'
 
+import { useReducedMotion } from '@/components/AccessibilityProvider'
+
 import { ChevronRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import Link from 'next/link'
@@ -18,7 +20,7 @@ export function FinalCTA() {
   /* Server assumes the conservative case (small screen, reduced motion) and
      the client corrects on its first post-hydration render. */
   const isMobile = useMediaQuery('(max-width: 767px)', true)
-  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)', true)
+  const reduceMotion = useReducedMotion()
 
   return (
     <section className="px-6 pt-24 md:pt-36">

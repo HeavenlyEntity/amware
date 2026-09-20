@@ -90,9 +90,12 @@ export default async function PricingPage() {
               Tell me when they are ready
             </Link>
           </p>
-          <p className="mt-10 text-sm text-zinc-500 dark:text-zinc-500">
+          <p className="mt-10 text-sm text-zinc-600 dark:text-zinc-400">
             Looking for the retainers instead?{' '}
-            <Link href="/services" className="text-teal-500">
+            <Link
+              href="/services"
+              className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+            >
               The engagements are live
             </Link>
             .
@@ -212,7 +215,7 @@ export default async function PricingPage() {
         ))}
 
         {copy?.footnote && (
-          <p className="mt-14 max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-500">
+          <p className="mt-14 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
             {copy.footnote}
           </p>
         )}

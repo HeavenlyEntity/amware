@@ -145,7 +145,7 @@ describe('catalog cards', () => {
     expect(
       screen.queryByRole('link', { name: /book an intro call/i })
     ).toBeNull()
-    const guarantee = screen.getByRole('complementary', {
+    const guarantee = screen.getByRole('note', {
       name: /first call value and refund terms/i,
     })
     expect(guarantee).toHaveTextContent('Know what to fix next in 60 minutes.')

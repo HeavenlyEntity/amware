@@ -1,7 +1,8 @@
 'use client'
 
 import { useRef } from 'react'
-import { motion, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 
 /* A two-way toggle in the segmented-control vocabulary the Founders' Desk
    already uses, done as real tabs: roving tabindex, arrow keys, Home/End,

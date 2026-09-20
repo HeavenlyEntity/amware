@@ -1,3 +1,4 @@
+import jsxA11y from 'eslint-plugin-jsx-a11y'
 import coreWebVitals from 'eslint-config-next/core-web-vitals'
 
 /*
@@ -27,6 +28,15 @@ const config = [
     ],
   },
   ...coreWebVitals,
+  {
+    files: ['src/**/*.{jsx,tsx}'],
+    ignores: ['src/components/ai/**', 'src/app/(machine)/**'],
+    rules: {
+      ...jsxA11y.configs.recommended.rules,
+      // Explicit lists preserve VoiceOver semantics when CSS removes markers.
+      'jsx-a11y/no-redundant-roles': ['error', { ul: ['list'], ol: ['list'] }],
+    },
+  },
   {
     rules: {
       /* Carried over from .eslintrc.json. */

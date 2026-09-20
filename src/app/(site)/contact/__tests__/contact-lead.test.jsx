@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useEffect } from 'react'
 
 import ContactForm from '../ContactForm'
 
@@ -9,14 +10,35 @@ import ContactForm from '../ContactForm'
    reaches it as nothing. */
 
 let track
+let challenge
+
+vi.mock('next/script', () => ({
+  default: function Script({ onReady }) {
+    useEffect(() => {
+      onReady()
+    }, [onReady])
+    return null
+  },
+}))
 
 beforeEach(() => {
   track = vi.fn()
   window.whop = { track }
+  vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'site-key')
+  window.turnstile = {
+    render: (_container, options) => {
+      challenge = options
+      options.callback('verified-token')
+      return 'widget'
+    },
+    remove: vi.fn(),
+  }
 })
 
 afterEach(() => {
   delete window.whop
+  delete window.turnstile
+  vi.unstubAllEnvs()
   vi.unstubAllGlobals()
 })
 
@@ -39,6 +61,30 @@ const submit = () =>
   fireEvent.submit(screen.getByRole('button', { name: /send/i }))
 
 describe('ContactForm lead event', () => {
+  it.each(['expired-callback', 'error-callback', 'timeout-callback'])(
+    'blocks stale verification after %s',
+    async (callback) => {
+      vi.stubGlobal('fetch', vi.fn())
+      render(<ContactForm />)
+      fill()
+      act(() => challenge[callback]())
+      submit()
+      expect(fetch).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: /send/i })).toBeDisabled()
+      expect(screen.getByLabelText(/message/i)).toHaveValue('A question.')
+    }
+  )
+
+  it('blocks a submission until verification finishes', async () => {
+    window.turnstile.render = () => 'widget'
+    vi.stubGlobal('fetch', vi.fn())
+    render(<ContactForm />)
+    fill()
+    submit()
+    expect(fetch).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /send/i })).toBeDisabled()
+  })
+
   it('reports one lead with the submission id, name and email on success', async () => {
     vi.stubGlobal(
       'fetch',
@@ -52,6 +98,9 @@ describe('ContactForm lead event', () => {
     submit()
 
     await waitFor(() => expect(track).toHaveBeenCalledTimes(1))
+    expect(fetch.mock.calls[0][1].headers['x-turnstile-token']).toBe(
+      'verified-token'
+    )
     expect(track).toHaveBeenCalledWith('lead', {
       event_id: 'contact_42',
       name: 'Ada Lovelace',
@@ -87,5 +136,7 @@ describe('ContactForm lead event', () => {
 
     await screen.findByText(/did not send/i)
     expect(track).not.toHaveBeenCalled()
+    await waitFor(() => expect(window.turnstile.remove).toHaveBeenCalled())
+    expect(screen.getByLabelText(/message/i)).toHaveValue('A question.')
   })
 })

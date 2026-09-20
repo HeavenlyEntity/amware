@@ -1,0 +1,158 @@
+[
+  {
+    "route": "/",
+    "title": "Alec Mingione - Fractional CTO, Software Engineer & Founder",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/about",
+    "title": "About - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/projects",
+    "title": "Projects - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/articles",
+    "title": "Articles - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/uses",
+    "title": "Uses - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/services",
+    "title": "Services - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/pricing",
+    "title": "Pricing - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/products",
+    "title": "Products - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/courses",
+    "title": "Courses - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/contact",
+    "title": "Contact - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/contact/offer-review",
+    "title": "Offer review - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/founders",
+    "title": "Founders’ Desk - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/founders/equity",
+    "title": "Founder equity calculator - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/founders/job-offer",
+    "title": "Job offer calculator - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/access/resend",
+    "title": "Resend access link - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/checkout/cancel",
+    "title": "Checkout canceled - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/thank-you",
+    "title": "You're subscribed - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/blog",
+    "title": "Blog - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/story",
+    "title": "The AMWARE Story - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/speaking",
+    "title": "Speaking - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/articles/neatsuite-http",
+    "title": "Introducing neatsuite/http — a TypeScript‑first NetSuite HTTP client - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/articles/suitecloud-monorepo-support-pr-865",
+    "title": "SuiteCloud Monorepo Support: 15 Months to Merge an OSS PR to Oracle's NetSuite SDK - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/products/switch-clone-quick-key-rotation-guide",
+    "title": "Switch Clone: Quick Key Rotation Guide - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/checkout/success",
+    "title": "Payment received - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/checkout/onboarding",
+    "title": "Set up your kit - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  },
+  {
+    "route": "/checkout/deposit",
+    "title": "Deposit - Alec Mingione",
+    "h1": 1,
+    "main": 1
+  }
+]

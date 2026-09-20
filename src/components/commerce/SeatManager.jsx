@@ -70,7 +70,7 @@ export function SeatManager({ token, initialSeats, repo }) {
           </ul>
         )}
 
-        <p className="mt-5 text-xs text-zinc-500 dark:text-zinc-500">
+        <p className="mt-5 text-xs text-zinc-600 dark:text-zinc-400">
           Seats are counted per GitHub account on{' '}
           <span className="font-medium">{repo}</span>. Removing someone from the
           repository on GitHub frees their seat.
@@ -137,7 +137,7 @@ export function SeatManager({ token, initialSeats, repo }) {
             licence can still be re-invited when a full team needs it, and a
             dead form with no explanation is the worse failure. */}
         {full && (
-          <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-500">
+          <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
             Every seat is in use. You can still re-send an invitation to someone
             already on the licence.
           </p>

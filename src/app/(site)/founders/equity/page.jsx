@@ -11,5 +11,10 @@ export const metadata = withSocialImage(
 )
 
 export default function EquityCalculatorPage() {
-  return <EquityCalculator />
+  return (
+    <>
+      <h1 className="sr-only">Founder equity calculator</h1>
+      <EquityCalculator />
+    </>
+  )
 }

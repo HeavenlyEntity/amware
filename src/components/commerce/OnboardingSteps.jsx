@@ -114,7 +114,7 @@ export function OnboardingSteps({
                 )}
               </>
             )}
-            <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-500">
+            <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
               A copy is in your inbox. Wrong account? Reply to that email and I
               will move it.
             </p>

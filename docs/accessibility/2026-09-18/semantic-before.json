@@ -1,0 +1,313 @@
+[
+  {
+    "page": "about-before.html",
+    "violations": [],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "access--resend-before.html",
+    "violations": [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "help": "Heading levels should only increase by one",
+        "nodes": [
+          {
+            "html": "<h3 class=\"amw-mono text-zinc-950/70 mb-4 text-xs font-semibold uppercase tracking-[0.14em]\">Catalog</h3>",
+            "target": [
+              ".grid-cols-2 > div:nth-child(1) > h3"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "articles-before.html",
+    "violations": [],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "blog-before.html",
+    "violations": [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "help": "Heading levels should only increase by one",
+        "nodes": [
+          {
+            "html": "<h3 class=\"amw-mono text-zinc-950/70 mb-4 text-xs font-semibold uppercase tracking-[0.14em]\">Catalog</h3>",
+            "target": [
+              ".grid-cols-2 > div:nth-child(1) > h3"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "checkout--cancel-before.html",
+    "violations": [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "help": "Heading levels should only increase by one",
+        "nodes": [
+          {
+            "html": "<h3 class=\"amw-mono text-zinc-950/70 mb-4 text-xs font-semibold uppercase tracking-[0.14em]\">Catalog</h3>",
+            "target": [
+              ".grid-cols-2 > div:nth-child(1) > h3"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "contact--offer-review-before.html",
+    "violations": [],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "contact-before.html",
+    "violations": [],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "courses-before.html",
+    "violations": [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "help": "Heading levels should only increase by one",
+        "nodes": [
+          {
+            "html": "<h3 class=\"amw-mono text-zinc-950/70 mb-4 text-xs font-semibold uppercase tracking-[0.14em]\">Catalog</h3>",
+            "target": [
+              ".grid-cols-2 > div:nth-child(1) > h3"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "founders--equity-before.html",
+    "violations": [
+      {
+        "id": "landmark-unique",
+        "impact": "moderate",
+        "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+        "nodes": [
+          {
+            "html": "<aside aria-label=\"Your read so far\" class=\"bg-[var(--amw-card)] border-[var(--amw-line)] rounded-2xl border p-5 \">",
+            "target": [
+              ".md\\:block.lg\\:hidden.mb-8 > aside"
+            ],
+            "failureSummary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "aria-prohibited-attr",
+      "aria-valid-attr-value",
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "founders--job-offer-before.html",
+    "violations": [],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "founders-before.html",
+    "violations": [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "help": "Heading levels should only increase by one",
+        "nodes": [
+          {
+            "html": "<h3 class=\"amw-mono text-zinc-950/70 mb-4 text-xs font-semibold uppercase tracking-[0.14em]\">Catalog</h3>",
+            "target": [
+              ".grid-cols-2 > div:nth-child(1) > h3"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "home-before.html",
+    "violations": [
+      {
+        "id": "landmark-unique",
+        "impact": "moderate",
+        "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+        "nodes": [
+          {
+            "html": "<aside aria-label=\"First call value and refund terms\" class=\"border-(--amw-line) border-t pt-4\">",
+            "target": [
+              ".p-6.md\\:p-8.rounded-2xl:nth-child(1) > .pt-6.mt-auto > aside"
+            ],
+            "failureSummary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "pricing-before.html",
+    "violations": [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "help": "Heading levels should only increase by one",
+        "nodes": [
+          {
+            "html": "<h3 class=\"amw-mono text-zinc-950/70 mb-4 text-xs font-semibold uppercase tracking-[0.14em]\">Catalog</h3>",
+            "target": [
+              ".grid-cols-2 > div:nth-child(1) > h3"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "products-before.html",
+    "violations": [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "help": "Heading levels should only increase by one",
+        "nodes": [
+          {
+            "html": "<h3 class=\"text-2xl font-medium tracking-tight text-zinc-900 dark:text-zinc-100 md:text-3xl\">",
+            "target": [
+              ".md\\:text-3xl"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "projects-before.html",
+    "violations": [],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "services-before.html",
+    "violations": [
+      {
+        "id": "landmark-unique",
+        "impact": "moderate",
+        "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+        "nodes": [
+          {
+            "html": "<aside aria-label=\"First call value and refund terms\" class=\"border-(--amw-line) border-t pt-4\">",
+            "target": [
+              "#advisor > .mt-auto.pt-8 > div > aside"
+            ],
+            "failureSummary": "Fix any of the following:\n  The landmark must have a unique aria-label, aria-labelledby, or title to make landmarks distinguishable"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "thank-you-before.html",
+    "violations": [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "help": "Heading levels should only increase by one",
+        "nodes": [
+          {
+            "html": "<h3 class=\"amw-mono text-zinc-950/70 mb-4 text-xs font-semibold uppercase tracking-[0.14em]\">Catalog</h3>",
+            "target": [
+              ".grid-cols-2 > div:nth-child(1) > h3"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  },
+  {
+    "page": "uses-before.html",
+    "violations": [],
+    "incomplete": [
+      "landmark-one-main",
+      "page-has-heading-one"
+    ]
+  }
+]

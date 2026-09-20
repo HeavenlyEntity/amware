@@ -1,0 +1,293 @@
+[
+  {
+    "overflow": [
+      {
+        "class": "lg:sticky lg:top-60 lg:w-96 lg:shrink-0",
+        "tag": "DIV",
+        "text": "// SEC.02 / FIELD EVIDENCEShipped, not stagedEvery foundation in "
+      },
+      {
+        "class": "amw-eyebrow mb-4 ",
+        "tag": "P",
+        "text": "// SEC.02 / FIELD EVIDENCE"
+      },
+      {
+        "class": "mb-4 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 md:mb-6 md:text-3xl lg:text-4xl",
+        "tag": "H2",
+        "text": "Shipped, not staged"
+      },
+      {
+        "class": "mb-6 max-w-sm text-base text-zinc-600 dark:text-zinc-400 md:mb-8 md:text-lg",
+        "tag": "P",
+        "text": "Every foundation in the catalog was proven on a real build first."
+      },
+      {
+        "class": "group inline-flex w-full items-center justify-center gap-3 rounded-md bg-zinc-900 py-3 pl-5 pr-3 font-medium text-white no-underline transition-all duration-500 ease-out hover:rounded-[50px] dark:bg-zinc-100 dark:text-zinc-900 sm:w-auto",
+        "tag": "A",
+        "text": "View All Projects"
+      },
+      {
+        "class": "bg-[var(--amw-muted)] min-h-112.5 md:w-100 flex w-[calc(100vw-3rem)] flex-none snap-start flex-col rounded-2xl p-8 md:p-10",
+        "tag": "FIGURE",
+        "text": "The Call I Make Before Committing“I can tell you exactly what I w"
+      },
+      {
+        "class": "mb-6 text-3xl font-medium leading-[1.1] tracking-tight md:text-4xl",
+        "tag": "H3",
+        "text": "The Call I Make Before Committing"
+      },
+      {
+        "class": "flex flex-1 flex-col",
+        "tag": "DIV",
+        "text": "“I can tell you exactly what I want the business to do. I cannot "
+      },
+      {
+        "class": "mb-6 text-base leading-relaxed text-zinc-600 dark:text-zinc-400",
+        "tag": "BLOCKQUOTE",
+        "text": "“I can tell you exactly what I want the business to do. I cannot "
+      },
+      {
+        "class": "mt-auto",
+        "tag": "FIGCAPTION",
+        "text": "Grace L.Founder of GleeCreative"
+      },
+      {
+        "class": "font-medium text-zinc-900 dark:text-zinc-100",
+        "tag": "P",
+        "text": "Grace L."
+      },
+      {
+        "class": "amw-mono text-sm text-zinc-600 dark:text-zinc-400",
+        "tag": "P",
+        "text": "Founder of GleeCreative"
+      }
+    ],
+    "path": "/",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [
+      {
+        "class": "flex flex-col items-center gap-6 lg:sticky lg:w-96 lg:shrink-0 lg:items-start lg:self-start",
+        "tag": "DIV",
+        "text": "Alec MingioneFounder & EngineerAlec Mingione@AmwareDotDevamware.d"
+      },
+      {
+        "class": "max-w-68 flex w-full justify-center sm:max-w-xs lg:w-[325px] lg:max-w-none",
+        "tag": "DIV",
+        "text": "Alec MingioneFounder & Engineer"
+      },
+      {
+        "class": "relative touch-none",
+        "tag": "DIV",
+        "text": "Alec MingioneFounder & Engineer"
+      },
+      {
+        "class": "pointer-events-none absolute inset-0 z-0 transition-opacity duration-200 ease-out",
+        "tag": "DIV",
+        "text": ""
+      },
+      {
+        "class": "group relative z-[1]",
+        "tag": "DIV",
+        "text": "Alec MingioneFounder & Engineer"
+      },
+      {
+        "class": "backface-hidden relative grid h-[var(--card-height-mobile)] max-h-[var(--card-max-height-mobile)] overflow-hidden sm:h-[var(--card-height-desktop)] sm:max-h-[var(--card-max-height-desktop)]",
+        "tag": "SECTION",
+        "text": "Alec MingioneFounder & Engineer"
+      },
+      {
+        "class": "absolute inset-0",
+        "tag": "DIV",
+        "text": "Alec MingioneFounder & Engineer"
+      },
+      {
+        "class": "",
+        "tag": "DIV",
+        "text": ""
+      },
+      {
+        "class": "",
+        "tag": "DIV",
+        "text": ""
+      },
+      {
+        "class": "backface-hidden overflow-visible",
+        "tag": "DIV",
+        "text": ""
+      },
+      {
+        "class": "backface-hidden absolute left-1/2 bottom-[-1px] w-full transition-transform duration-[120ms] ease-out will-change-transform",
+        "tag": "IMG",
+        "text": ""
+      },
+      {
+        "class": "relative z-[5] max-h-full overflow-hidden text-center",
+        "tag": "DIV",
+        "text": "Alec MingioneFounder & Engineer"
+      }
+    ],
+    "path": "/about",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [
+      {
+        "class": "lg:sticky lg:top-28 lg:w-80 lg:shrink-0",
+        "tag": "DIV",
+        "text": "// SEC.01 / ON THE BENCHWhat I am building nowThe three newest bu"
+      },
+      {
+        "class": "amw-eyebrow mb-4 ",
+        "tag": "P",
+        "text": "// SEC.01 / ON THE BENCH"
+      },
+      {
+        "class": "mb-4 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 md:mb-6 md:text-3xl lg:text-4xl",
+        "tag": "H2",
+        "text": "What I am building now"
+      },
+      {
+        "class": "mb-6 max-w-sm text-base text-zinc-600 dark:text-zinc-400 md:mb-8 md:text-lg",
+        "tag": "P",
+        "text": "The three newest builds. Founder products first, then the client "
+      },
+      {
+        "class": "group inline-flex w-full items-center justify-center gap-3 rounded-md bg-zinc-900 py-3 pl-5 pr-3 font-medium text-white no-underline transition-all duration-500 ease-out hover:rounded-[50px] dark:bg-zinc-100 dark:text-zinc-900 sm:w-auto",
+        "tag": "A",
+        "text": "Build With Me"
+      },
+      {
+        "class": "pointer-events-none absolute z-[1] rounded-[inherit]",
+        "tag": "SPAN",
+        "text": ""
+      },
+      {
+        "class": "pointer-events-none absolute z-[1] rounded-[inherit]",
+        "tag": "SPAN",
+        "text": ""
+      },
+      {
+        "class": "pointer-events-none absolute z-[1] rounded-[inherit]",
+        "tag": "SPAN",
+        "text": ""
+      },
+      {
+        "class": "pointer-events-none absolute z-[1] rounded-[inherit]",
+        "tag": "SPAN",
+        "text": ""
+      },
+      {
+        "class": "pointer-events-none absolute z-[1] rounded-[inherit]",
+        "tag": "SPAN",
+        "text": ""
+      },
+      {
+        "class": "pointer-events-none absolute z-[1] rounded-[inherit]",
+        "tag": "SPAN",
+        "text": ""
+      },
+      {
+        "class": "pointer-events-none absolute z-[1] rounded-[inherit]",
+        "tag": "SPAN",
+        "text": ""
+      }
+    ],
+    "path": "/projects",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/articles",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/uses",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/services",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/pricing",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/products",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/courses",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/contact",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/contact/offer-review",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/founders",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/founders/equity",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/founders/job-offer",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/access/resend",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/checkout/cancel",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/thank-you",
+    "scroll": 320,
+    "width": 320
+  },
+  {
+    "overflow": [],
+    "path": "/blog",
+    "scroll": 320,
+    "width": 320
+  }
+]

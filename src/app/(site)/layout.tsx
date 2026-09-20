@@ -15,6 +15,8 @@ import '@/styles/global.css'
 import '@/styles/globals.css'
 import '@/styles/storefront.css'
 import 'focus-visible'
+import '@/styles/accessibility.css'
+import { AccessibilityProvider } from '@/components/AccessibilityProvider'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -94,16 +96,28 @@ export default function SiteLayout({
         <script dangerouslySetInnerHTML={{ __html: WHOP_PIXEL }} />
       </head>
       <body className="flex h-full flex-col bg-zinc-50 font-sans dark:bg-black">
-        <div className="fixed inset-0 flex justify-center sm:px-8">
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 flex justify-center sm:px-8"
+        >
           <div className="flex w-full max-w-7xl lg:px-8">
             <div className="w-full bg-white ring-1 ring-zinc-100 dark:bg-zinc-900 dark:ring-zinc-300/20" />
           </div>
         </div>
-        <div className="relative flex w-full flex-col">
-          <SiteHeader />
-          <main className="flex-auto">{children}</main>
-          <Footer />
-        </div>
+        <AccessibilityProvider>
+          <div className="relative flex w-full flex-col">
+            <a className="skip-link" href="#main-content">
+              Skip to main content
+            </a>
+            <SiteHeader />
+            <div id="site-content">
+              <main id="main-content" tabIndex={-1} className="flex-auto">
+                {children}
+              </main>
+              <Footer />
+            </div>
+          </div>
+        </AccessibilityProvider>
         <Analytics />
         <SpeedInsights />
         <StagewiseInit />

@@ -1,5 +1,7 @@
 'use client'
 
+import { useReducedMotion } from '@/components/AccessibilityProvider'
+
 import { Component, useCallback, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -75,6 +77,7 @@ export default function AmwareCreed({
   const runRef = useRef(0)
   const playedRef = useRef(false)
   const lastStartRef = useRef(-Infinity)
+  const reduce = useReducedMotion()
   const reduceRef = useRef(false)
 
   const words = useMemo(() => {
@@ -156,20 +159,15 @@ export default function AmwareCreed({
   }, [stop])
 
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    reduceRef.current = mq.matches
-    const onChange = (e) => {
-      reduceRef.current = e.matches
-      if (e.matches) {
-        stop()
-        resolveAll()
-      }
+    reduceRef.current = reduce
+    if (reduce) {
+      stop()
+      resolveAll()
     }
-    mq.addEventListener('change', onChange)
 
     const el = rootRef.current
     let io
-    if (el && !mq.matches && typeof IntersectionObserver !== 'undefined') {
+    if (el && !reduce && typeof IntersectionObserver !== 'undefined') {
       io = new IntersectionObserver(
         (entries) => {
           if (
@@ -186,11 +184,10 @@ export default function AmwareCreed({
     }
 
     return () => {
-      mq.removeEventListener('change', onChange)
       io?.disconnect()
       stop()
     }
-  }, [play, resolveAll, stop])
+  }, [play, resolveAll, stop, reduce])
 
   const onPointerEnter = useCallback(() => {
     if (reduceRef.current || !playedRef.current) return

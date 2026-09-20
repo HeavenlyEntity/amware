@@ -51,7 +51,7 @@ export function StoreEmpty({ label = 'catalog' }) {
         <p className="amw-mono amw-cursor mt-3 text-sm text-zinc-700 dark:text-zinc-300">
           0 published, provisioning
         </p>
-        <p className="mx-auto mt-5 max-w-sm text-sm text-zinc-500 dark:text-zinc-500">
+        <p className="mx-auto mt-5 max-w-sm text-sm text-zinc-600 dark:text-zinc-400">
           This {label} is being prepared. Publish items in the admin to bring
           this page to life.
         </p>

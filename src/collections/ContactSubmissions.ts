@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { sendContactEmails } from '../lib/resend'
+import { verifyContactToken } from '../lib/turnstile'
 
 export const ContactSubmissions: CollectionConfig = {
   slug: 'contact-submissions',
@@ -32,6 +33,15 @@ export const ContactSubmissions: CollectionConfig = {
     },
   ],
   hooks: {
+    beforeValidate: [
+      async ({ data, operation, req }) => {
+        // Protect REST and GraphQL creation before persistence or email hooks.
+        if (operation === 'create') {
+          await verifyContactToken(req.headers.get('x-turnstile-token'))
+        }
+        return data
+      },
+    ],
     afterChange: [
       async ({ doc, operation }) => {
         if (operation === 'create') {

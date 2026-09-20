@@ -7,6 +7,7 @@ import {
   useMotionValue,
   useTransform,
 } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { useEffect, useRef } from 'react'
 import { SectionEyebrow } from './section-eyebrow'
 
@@ -43,6 +44,7 @@ const stats = [
 ]
 
 function AnimatedNumber({ value, suffix, decimals = 0 }) {
+  const reduce = useReducedMotion()
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, amount: 0.5 })
 
@@ -63,11 +65,11 @@ function AnimatedNumber({ value, suffix, decimals = 0 }) {
   useEffect(() => {
     if (!isInView) return undefined
     const controls = animate(count, value, {
-      duration: 1,
+      duration: reduce ? 0 : 1,
       ease: [0, 0, 0.58, 1],
     })
     return () => controls.stop()
-  }, [isInView, count, value])
+  }, [isInView, count, value, reduce])
 
   useEffect(() => {
     const unsubscribe = display.on('change', (latest) => {
@@ -79,9 +81,16 @@ function AnimatedNumber({ value, suffix, decimals = 0 }) {
   }, [display, suffix])
 
   return (
-    <span ref={ref} className="amw-price">
-      0{suffix}
-    </span>
+    <>
+      <span className="sr-only">
+        {value.toFixed(decimals)}
+        {suffix}
+      </span>
+      <span ref={ref} aria-hidden="true" className="amw-price">
+        {value.toFixed(decimals)}
+        {suffix}
+      </span>
+    </>
   )
 }
 

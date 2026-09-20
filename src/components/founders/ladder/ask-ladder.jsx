@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useReducedMotion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 
 import CountUp from '@/components/react-bits/count-up'
 import { fmtMoney, fmtPct, fmtPts } from '@/components/founders/format'

@@ -67,7 +67,10 @@ export default async function CheckoutSuccess({ searchParams }) {
           Check your email. For a kit it carries the link that sets up your
           repository access; for a download it carries the file. Didn&apos;t get
           it?{' '}
-          <Link href="/access/resend" className="text-teal-500">
+          <Link
+            href="/access/resend"
+            className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+          >
             Resend my access link
           </Link>
           .

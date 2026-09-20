@@ -1,13 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import {
-  AnimatePresence,
-  motion,
-  useReducedMotion,
-  useSpring,
-  useTransform,
-} from 'motion/react'
+import { AnimatePresence, motion, useSpring, useTransform } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 
 import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-client-value'

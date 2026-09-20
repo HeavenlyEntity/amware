@@ -1,8 +1,9 @@
 'use client'
 
+import { useReducedMotion } from '@/components/AccessibilityProvider'
+
 import { useEffect, useRef, useState } from 'react'
 import { Pause, Play } from 'lucide-react'
-import { useMediaQuery } from '@/hooks/use-client-value'
 import {
   chooseScene,
   DESCRIPTIONS,
@@ -36,7 +37,7 @@ export function MasterpieceInterlude() {
   const descriptionRef = useRef(null)
   const controllerRef = useRef(null)
   const [paused, setPaused] = useState(false)
-  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)', true)
+  const reduceMotion = useReducedMotion()
 
   useEffect(() => {
     const canvas = canvasRef.current

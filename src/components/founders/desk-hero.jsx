@@ -1,6 +1,7 @@
 'use client'
 
-import { motion, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 
 import { ExampleLadder } from '@/components/founders/example-ladder'
 import { GapFigure } from '@/components/founders/gap-figure'

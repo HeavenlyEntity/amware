@@ -1,5 +1,6 @@
 'use client'
 
+import { MotionToggle } from '@/components/AccessibilityProvider'
 import { identity } from '@/content/site/identity'
 import { ChevronRight } from 'lucide-react'
 import { motion } from 'motion/react'
@@ -59,9 +60,9 @@ const socialLinks = [
 function LinkColumn({ title, links, delay }) {
   return (
     <motion.div {...fadeInUp} transition={{ ...fadeInUp.transition, delay }}>
-      <h3 className="amw-mono text-zinc-950/70 mb-4 text-xs font-semibold uppercase tracking-[0.14em]">
+      <h2 className="amw-mono text-zinc-950/70 mb-4 text-xs font-semibold uppercase tracking-[0.14em]">
         {title}
-      </h3>
+      </h2>
       <ul className="space-y-3">
         {links.map((link) => (
           <li key={link.label}>
@@ -195,6 +196,9 @@ export function Footer() {
       data-print="hide"
     >
       <FooterCard />
+      <div className="flex justify-center py-4 text-zinc-700 dark:text-zinc-300">
+        <MotionToggle />
+      </div>
     </footer>
   )
 }

@@ -892,8 +892,10 @@
 /* Segmented control: the same chip vocabulary fused into one pill row. */
 .amw-segmented {
   display: inline-flex;
+  max-width: 100%;
+  flex-wrap: wrap;
   border: 1px solid var(--amw-line-strong);
-  border-radius: 999px;
+  border-radius: 0.75rem;
   background: var(--amw-card);
   overflow: hidden;
 }

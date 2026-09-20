@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useCallback, useRef } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { STEPS } from '@/lib/founders/steps'
@@ -26,16 +27,20 @@ export function WizardShell({
   children,
 }) {
   const reduce = useReducedMotion()
-  const headingRef = useRef(null)
   const current = steps.find((s) => s.index === step) ?? steps[0]
   const isFirst = current.index === 1
   const isLast = current.index === steps.length
 
-  useEffect(() => {
-    /* Move focus to the new headline after the first render of a step. */
-    if (current.index === 1) return
-    headingRef.current?.focus({ preventScroll: false })
-  }, [current.index])
+  const hasMountedHeading = useRef(false)
+  const headingRef = useCallback(
+    (node) => {
+      if (!node) return
+      if (hasMountedHeading.current || current.index !== 1)
+        node.focus({ preventScroll: false })
+      hasMountedHeading.current = true
+    },
+    [current.index]
+  )
 
   return (
     <div>

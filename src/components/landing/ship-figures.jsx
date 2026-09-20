@@ -564,7 +564,7 @@ export function ShipFigure({ active = false }) {
           <div className="amw-price flex items-baseline gap-0.5 text-2xl font-semibold leading-none text-zinc-900 dark:text-zinc-50">
             <RollingNumber
               key={active ? 'live' : 'idle'}
-              targetNumber={active ? '99.98' : '00.00'}
+              targetNumber="99.98"
               height={28}
               duration={1.4}
             />

@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { WhopCheckoutEmbed } from '@whop/checkout/react'
 import { ChevronRight } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { BookCallButton } from '@/components/commerce/BookCallButton'
 import {
   DEPOSIT_CHECK_FRAMES,

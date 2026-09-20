@@ -20,7 +20,10 @@ function InvalidLink() {
         </h1>
         <p className="mt-4 text-zinc-600 dark:text-zinc-400">
           Seat links expire. Request a fresh one:{' '}
-          <Link href="/access/resend" className="text-teal-500">
+          <Link
+            href="/access/resend"
+            className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+          >
             resend my access link
           </Link>
           .
@@ -78,7 +81,7 @@ export default async function SeatsPage({ params }) {
                   href={`https://github.com/${repo}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-teal-500"
+                  className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
                 >
                   {repo}
                 </a>
@@ -88,7 +91,10 @@ export default async function SeatsPage({ params }) {
           </p>
           <p className="mt-4 text-zinc-600 dark:text-zinc-400">
             Need it on more accounts?{' '}
-            <Link href="/products" className="text-teal-500">
+            <Link
+              href="/products"
+              className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+            >
               The Team licence
             </Link>{' '}
             covers five.
