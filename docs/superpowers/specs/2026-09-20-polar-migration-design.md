@@ -1,19 +1,24 @@
-# Polar Migration — Consolidating Creem + Whop onto Polar.sh — Design Spec
+# Polar Migration — Creem to Polar.sh, Whop retained for services — Design Spec
 
 **Date:** 2026-09-20
 **Status:** Draft for review
 **Author:** Alec M (with Claude)
-**Supersedes:** the commerce provider decisions in `2026-06-08-payload-commerce-b2-design.md` (Creem.io hosted checkout) and the Whop deposit path added afterwards.
+**Supersedes:** the Creem.io checkout decisions in `2026-06-08-payload-commerce-b2-design.md`. The Whop deposit path added afterwards is **retained unchanged**.
 
 ## Goal
 
-Replace **both** payment providers with **Polar.sh**, and replace our own GitHub
-invitation code with Polar's **GitHub Repository Access benefit**, so that:
+Replace **Creem** with **Polar.sh** for everything digital, and replace our own
+GitHub invitation code with Polar's **GitHub Repository Access benefit**, so that:
 
-- there is one provider, one webhook, one ledger shape, and one checkout path;
 - kit delivery is automatic and the buyer's GitHub account is **proven by OAuth**
   rather than typed into a form and hoped for;
-- inviting a buyer as a repository collaborator costs nothing.
+- inviting a buyer as a repository collaborator costs nothing;
+- license keys enforce something, instead of merely being displayed.
+
+**Whop keeps every human service** — fractional CTO, advisory, embedded CTO,
+coaching, mentoring, website development. See "Why services cannot move" below.
+This is a two-provider design on purpose, split along a line Polar draws itself:
+**Polar sells the software, Whop sells the hours.**
 
 ## Why now, and what is actually being fixed
 
@@ -36,9 +41,42 @@ Investigation changed the shape of that:
 So the plan is *not* "move repos to a personal account." It is "put the org on
 GitHub Free, and let Polar drive the invitations."
 
-The genuine wins are consolidation and deletion: one provider instead of two, and
+A fourth finding, later in review, removed consolidation from the goal entirely:
+Polar's Acceptable Use Policy prohibits selling human services, so the three
+engagement offerings cannot move. See the next section.
+
+The genuine wins are therefore **deletion and enforcement**, not consolidation:
 roughly a dozen modules of bespoke fulfillment code retired in favour of a
-platform feature.
+platform feature, and license keys that finally do something.
+
+## Why services cannot move
+
+Polar's Acceptable Use Policy, under Prohibited Products:
+
+> Polar serves software companies (including B2B SaaS, Consumer Software, and
+> Games). **If your company's primary offering is human services or the sale of
+> physical goods, the Services are not designed for and should not be used by
+> you.**
+
+And its acceptable list is narrow and concrete:
+
+> Generally, acceptable services are digital goods, software, or services that
+> can be fulfilled by (1) Polar on your behalf (License Keys, File Downloads,
+> GitHub or Discord invites, or private links) or (2) your site/service using our
+> APIs to grant immediate access to digital assets or services.
+
+WareKit sits squarely inside that — it is code, fulfilled by a GitHub invite,
+which Polar names explicitly. Fractional CTO, Advisor, Embedded CTO, coaching,
+mentoring and website development are human services and sit squarely outside it.
+Running them through Polar would be a policy breach, and the realistic
+consequence is not a polite email but a frozen account holding the kit revenue
+too.
+
+So the deposit flow stays exactly where it is: Whop plan ids on the Services
+collection, the Whop embed on the page, the Whop webhook recording the sale.
+**None of that code is touched by this migration.** The line is drawn where Polar
+draws it, which also makes it easy to explain later: Polar sells the software,
+Whop sells the hours.
 
 ## Migration risk: effectively nil
 
@@ -66,13 +104,14 @@ the kits launch"* than as *"migrate a running store."*
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Scope | Replace **both** Creem and Whop | One provider, one webhook, one ledger |
+| Scope | Replace **Creem only**. Whop retained for services | Polar's AUP prohibits selling human services |
+| Services (CTO, advisory, coaching, mentoring, web dev) | **Stay on Whop**, untouched | "If your company's primary offering is human services … the Services are not designed for and should not be used by you" |
 | GitHub delivery | **Polar's GitHub Repository Access benefit** | Deletes our invite code; OAuth-verified identity |
 | Repo ownership | Stay in the **`amwaredotdev` org**, downgraded to **GitHub Free** | Free collaborators *and* a Read-only role; personal repos force write access |
 | Collaborator role | **Read** | Buyers clone and fork; they never push to the product |
 | Free WareKit Lite | A **$0 Polar product** with the same benefit | One delivery path for free and paid alike |
 | Team tier | Polar **seat-based one-time** pricing (perpetual seats) | Benefits are granted per member, which is what a 5-seat licence means |
-| Deposits | Polar **embedded** checkout | Preserves today's on-page Whop sheet feel |
+| Deposits | **Whop embed, unchanged** | Deposits buy hours, not software; they cannot move |
 | Kits / guide | Polar **hosted redirect** | Matches today's Creem behaviour |
 | Post-purchase proof | `success_url` + `checkout_id={CHECKOUT_ID}`, verified via Polar's API | Stronger than our HMAC, and retires `ACCESS_LINK_SECRET` |
 | Digital downloads | Polar **File Downloads** benefit | Nothing uses `/access/*` today; do not port dead machinery |
@@ -80,8 +119,9 @@ the kits launch"* than as *"migrate a running store."*
 | Activation limit | **Equal to the seat count** — Pro 1, Team 5 | A shared key hits its activation cap; this is the control that actually bites |
 | Where validation runs | In the **WareKit CLI**, against Polar's customer-portal endpoint | It needs no secret, so the CLI calls Polar directly with no proxy of ours |
 | Whop ads pixel | **Keep**, unchanged | Ad attribution is independent of who processes payments |
+| `purchase` pixel event | Fire for **Polar** sales only, never for Whop deposits | Whop reports its own sales and rejects the duplicate; this rule was already documented and is still live |
 | Sandbox | Polar's separate sandbox org | Mirrors the existing `whopEnv` dual-id pattern |
-| Idempotency | Polar checkout id, unique on `purchases` | Same discipline as the Creem order id today |
+| Idempotency | Polar checkout id for Polar rows; Whop payment id stays for Whop rows | Two providers means two keys; `provider` says which one is authoritative |
 | Schema change | **Payload's schema push**, not a written migration | This project has no `src/migrations` directory and has never used written migrations; with all four rows deleted first, there is no data to preserve through the change |
 | Polar organization | The **existing pre-2026-05-27 org**. Never create a new one | The Early Member rate (4% + 40¢) attaches to the *organization*, not the account. A new org starts on Starter (5% + 50¢) "even if created by customers who signed up earlier" |
 | Polar plan | **Stay on Early Member.** Never accept a Pro/Growth/Scale upgrade | Upgrading retires Early Member for that org irreversibly, and it does not pay off until roughly $10k/mo in sales |
@@ -89,7 +129,11 @@ the kits launch"* than as *"migrate a running store."*
 
 ## Non-goals
 
-- Porting historical Creem/Whop rows. They are test data and get deleted.
+- Porting historical Creem rows. They are test data and get deleted.
+- **Touching the Whop deposit path at all.** `whop.ts`, `whopEnv.ts`,
+  `webhooks/whop/route.ts`, `DepositCheckout.jsx` and the Services collection's
+  Whop plan ids are out of scope and stay as they are.
+- Consolidating onto one provider. Polar's AUP forecloses it.
 - Customer accounts or login. Delivery stays account-free on our side; Polar's
   customer portal is where a buyer connects GitHub.
 - Changing prices, tiers, or the catalogue's shape.
@@ -115,8 +159,11 @@ tested until this exists.
 4. **Create the License Keys benefits** — one per paid tier, prefix `WAREKIT_`,
    no expiry, `limit_activations` equal to the seat count (Pro 1, Team 5). Lite
    gets none. Record each `benefit_id`: the CLI has to check it.
-5. **Recreate the catalogue in Polar** — 8 products and 3 deposit products. Team
-   tiers use seat-based one-time pricing with 5 seats. Lite tiers are $0.
+5. **Recreate the digital catalogue in Polar** — the 8 products only. Team tiers
+   use seat-based one-time pricing with 5 seats; Lite tiers are $0. **Do not
+   create the three deposit products in Polar.** They stay on Whop, and creating
+   them here is the single most likely way to put the account in breach of the
+   AUP without meaning to.
 6. **Repeat 2–5 in `sandbox.polar.sh`.** Polar's sandbox is a fully separate
    account with its own product ids, exactly like Whop's was.
 7. **Record both product id sets** — they are what Phase 2 writes into Payload.
@@ -178,25 +225,35 @@ dissolves: this is competitive with Creem rather than a clear step up in cost.
         └─ stamp githubRepo + githubInviteUrl, append seatMembers,
            fulfillmentStatus = 'sent'
 
-(site) services page
-  └─ deposit → Polar embedded checkout (on-page)
-  Polar ──order.paid (itemType: service)──► deposit receipt + owner notification
-                                            fulfillmentStatus = 'not_required'
+─────────────────────────── unchanged by this migration ───────────────────────
+
+(site) services page  (fractional CTO, advisor, embedded CTO, coaching, …)
+  └─ deposit → Whop embed (on-page)               [DepositCheckout.jsx, untouched]
+  Whop ──payment.succeeded──► POST /webhooks/whop [untouched]
+        ├─ dedupe on whopPaymentId
+        ├─ create Purchase (provider: 'whop', fulfillmentStatus: 'not_required')
+        └─ deposit receipt + owner notification
 ```
 
 ## Data model
 
 ### `purchases`
 
-Two provider id families collapse into one. Because every existing row is test
-data, the old columns are **dropped**, not deprecated.
+Only the **Creem** id family is replaced. The Whop columns stay, because Whop
+still takes deposits. Because every existing row is test data, the Creem columns
+are **dropped**, not deprecated.
 
-| Removed | Added |
-|---|---|
-| `provider` | — (only one provider now) |
-| `creemOrderId`, `creemProductId`, `creemRequestId`, `creemSubscriptionId`, `creemTransactionId` | `polarCheckoutId` (**unique, indexed** — the idempotency key), `polarOrderId`, `polarProductId`, `polarCustomerId`, `polarSubscriptionId` |
-| `whopPaymentId`, `whopEnvironment` | `polarEnvironment` (`production` \| `sandbox`) |
-| `accessTokenJti` | — (access links retired) |
+| Removed | Added | Untouched |
+|---|---|---|
+| `creemOrderId`, `creemProductId`, `creemRequestId`, `creemSubscriptionId`, `creemTransactionId` | `polarCheckoutId` (**unique, indexed** — the idempotency key for a Polar row), `polarOrderId`, `polarProductId`, `polarCustomerId`, `polarSubscriptionId`, `polarEnvironment` | `whopPaymentId`, `whopEnvironment` |
+| `accessTokenJti` | — (access links retired) | |
+
+`provider` **survives**, with its options changing from `creem | whop` to
+`polar | whop`, and its admin description rewritten: *"Polar for kits, downloads
+and courses; Whop for engagement deposits. Decides which id below is the
+idempotency key."* It was nearly deleted when this spec assumed one provider —
+keeping it is what stops a Whop row and a Polar row being indistinguishable in
+the ledger.
 
 Kept, but with a changed writer: `githubUsername`, `githubRepo`,
 `githubInviteUrl`, and `seatMembers` are now populated from `benefit_grant.*`
@@ -208,7 +265,9 @@ a leaked key) and `licenseKeyBenefitId` (which tier the key belongs to — see
 Licensing below for why that matters). Both are written from
 `benefit_grant.created`.
 
-`admin.listSearchableFields` becomes `['email', 'githubUsername', 'polarCheckoutId']`.
+`admin.listSearchableFields` becomes
+`['email', 'githubUsername', 'polarCheckoutId', 'whopPaymentId']` — chasing a
+sale has to start from whichever provider took it.
 
 ### `products` / `courses`
 
@@ -219,9 +278,15 @@ display metadata; Polar is the enforcer.
 
 ### `services`
 
-`whopPlanId`, `whopSandboxPlanId` and `creemProductId` → `polarProductId` +
-`polarSandboxProductId`. `bookingUrl` is unchanged and still drives the
-post-deposit Cal.com step.
+**Almost unchanged.** `whopPlanId` and `whopSandboxPlanId` stay — they are how a
+deposit finds its service, and services are not moving. `bookingUrl` stays and
+still drives the post-deposit Cal.com step.
+
+The one change is a deletion: `creemProductId` goes. No service has ever carried
+one (all three published services have it empty), and the retainer-subscription
+path it was added for was never used — `handleSubscriptionPaid` in the Creem
+webhook has no live subscription to its name. If retainers are wanted later they
+have to be a Whop plan, not a Polar product, for the same AUP reason.
 
 ## Components
 
@@ -244,8 +309,6 @@ post-deposit Cal.com step.
   buyer-facing "this item is not on sale yet. Nothing has been charged." path.
   Only the provider call underneath changes. The `needsOnboarding` branch
   simplifies: every checkout now returns to the same URL carrying `checkout_id`.
-- `src/components/commerce/DepositCheckout.jsx` — Whop embed → Polar embedded
-  checkout. Same sheet, same trigger, same analytics event.
 - `src/app/(site)/checkout/onboarding/page.tsx` — stops asking for a GitHub
   username. Verifies `checkout_id` against Polar's API, then shows the next
   steps: connect GitHub in Polar's portal, join Discord, run the CLI command.
@@ -254,21 +317,31 @@ post-deposit Cal.com step.
   branch (Polar owns that now) and gains a "connect your GitHub account" branch.
 - `src/lib/analytics/whop.ts` and `docs/whop-events.md` — the `purchase` event
   fires off Polar instead of Creem; `event_id` becomes the Polar checkout id.
-  The documented rule "never fire `purchase` for a sale Whop processed" now
-  applies to **no** sale, since Whop processes none — worth restating in the doc
-  so the next reader does not have to rediscover why it was there.
+  The documented rule **"never fire `purchase` for a sale Whop processed"
+  remains live and load-bearing**: deposits are still Whop checkouts, Whop still
+  reports them itself, and firing our own would be rejected as a duplicate. The
+  doc's wording needs one edit — "checkout is Creem, not Whop" becomes "checkout
+  is Polar, not Whop" — and nothing else.
+
+**Untouched — say it out loud, because an over-eager cleanup is the likeliest
+way to break this**
+
+`src/lib/commerce/whop.ts`, `whopEnv.ts`, `src/app/(commerce)/webhooks/whop/route.ts`,
+`src/components/commerce/DepositCheckout.jsx`, `DepositRiskReversal.jsx`,
+`deposit-check-frames.js`, `BookCallButton.jsx`, `calLink.ts`, the Services
+collection's Whop plan ids, and every Whop analytics module. None of these are
+Creem's, and none of them move.
 
 **Deleted**
 
-`creem.ts`, `creemPriceEndpoint.ts`, `whop.ts`, `whopEnv.ts`, `githubInvite.ts`,
-`githubUsername.ts`, `claim.ts`, `accessToken.ts`, `onboardingLink.ts`,
-`seats.ts`, `addSeat.ts`, `webhooks/creem/route.ts`, `webhooks/whop/route.ts`,
-`app/(site)/access/*`, `GithubAccountField.jsx`, `SeatManager.jsx`,
-`ClaimFreeKit.jsx`, `fields/creem/*`, and their tests.
+`creem.ts`, `creemPriceEndpoint.ts`, `githubInvite.ts`, `githubUsername.ts`,
+`claim.ts`, `accessToken.ts`, `onboardingLink.ts`, `seats.ts`, `addSeat.ts`,
+`webhooks/creem/route.ts`, `app/(site)/access/*`, `GithubAccountField.jsx`,
+`SeatManager.jsx`, `ClaimFreeKit.jsx`, `fields/creem/*`, and their tests.
 
 **Environment variables removed:** `CREEM_API_URL`, `CREEM_API_KEY`,
-`CREEM_WEBHOOK_SECRET`, `WHOP_API_KEY`, `WHOP_WEBHOOK_SECRET`, `WHOP_ENV`,
-`NEXT_PUBLIC_WHOP_ENV`, `GITHUB_TOKEN`, `ACCESS_LINK_SECRET`.
+`CREEM_WEBHOOK_SECRET`, `GITHUB_TOKEN`, `ACCESS_LINK_SECRET`. The `WHOP_*`
+variables all stay.
 
 **Added:** `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`, `POLAR_ENV`,
 `NEXT_PUBLIC_POLAR_ENV`.
@@ -418,8 +491,10 @@ preserving.
   including a tampered body, event routing), `polarEnv.test.js` (the
   default-to-production guarantee), webhook handler tests for the duplicate path,
   the unknown-product path, the refund path, and the write-failure 500.
-- **Component** — `DepositCheckout`, `BuyButton`, `catalog-cards`, the onboarding
-  page, and the rewired `purchase` analytics event.
+- **Component** — `BuyButton`, `catalog-cards`, the onboarding page, and the
+  rewired `purchase` analytics event. `DepositCheckout`'s existing tests stay as
+  they are and **must keep passing untouched** — they are the regression alarm
+  for the half of commerce this migration is not allowed to disturb.
 - **Sim (`pnpm sim`)** — rewritten against Polar's sandbox. `0-github-token.sim`
   becomes a **benefit-configuration preflight**: assert that every published
   product's `polarProductId` resolves in Polar, and that each kit product has a
@@ -439,13 +514,21 @@ and sells, so the migration can stop between any two of them.
 | Phase | Work | Done when |
 |---|---|---|
 | **0** | Manual setup (above): GitHub Free, Polar org + sandbox, GitHub + License Key benefits, products | Both product id sets recorded, both `benefit_id`s noted |
-| **1** | `polar.ts`, `polarEnv.ts`, the webhook route, and their unit tests. Nothing wired to a page yet; Creem and Whop still serve traffic | Sandbox `order.paid` writes a purchase row |
-| **2** | Schema change (delete the 4 test rows, drop Creem/Whop columns, add Polar ones incl. `licenseKeyId` / `licenseKeyBenefitId`), then repoint `checkout.ts`, `DepositCheckout`, the onboarding page, and the `purchase` analytics event | A sandbox Pro purchase delivers a repo invite **and** a `WAREKIT_` key shown on the onboarding page |
-| **3** | Delete the dead modules, routes, components, tests, env vars and `docs/github-token.md`; rewrite the sim suite as a benefit-configuration preflight | `grep -ri 'creem\|whop' src/` returns only the ads-pixel files |
+| **1** | `polar.ts`, `polarEnv.ts`, the webhook route, and their unit tests. Nothing wired to a page yet; Creem still serves kit traffic | Sandbox `order.paid` writes a purchase row |
+| **2** | Schema change (delete the 4 test rows, drop the Creem columns, add the Polar ones incl. `licenseKeyId` / `licenseKeyBenefitId`, repoint `provider` to `polar \| whop`), then repoint `checkout.ts`, the onboarding page, and the `purchase` analytics event | A sandbox Pro purchase delivers a repo invite **and** a `WAREKIT_` key shown on the onboarding page, **and a Whop sandbox deposit still records normally** |
+| **3** | Delete the dead Creem modules, route, components, tests, env vars and `docs/github-token.md`; rewrite the sim suite as a benefit-configuration preflight | `grep -ri creem src/` returns nothing |
 
-Phase 3's grep is the completion test, and it is deliberately narrow: the Whop
-**ads pixel** files are the one expected survivor, and naming that up front stops
-a future reader from "finishing the job" by deleting a working ad channel.
+Phase 3's completion test greps for **`creem` only**. Do not grep for `whop` and
+do not treat its hits as leftovers: the deposit path, the Services plan ids and
+the ads pixel are all supposed to survive. The previous draft of this spec had a
+`whop` grep here, back when the plan was to consolidate onto one provider —
+running it now would read a working payment path as unfinished cleanup, which is
+exactly the mistake this note exists to prevent.
+
+Phase 2's "and a Whop sandbox deposit still records normally" is not padding. The
+schema change touches `provider` and the shared `purchases` table, which is the
+one place the two providers meet and therefore the only place this migration can
+break the half it is not supposed to touch.
 
 ## Open items for the implementation plan
 
@@ -453,23 +536,29 @@ a future reader from "finishing the job" by deleting a working ad channel.
    2026-05-27 and holds Polar's Early Member rate at 4% + 40¢. The remaining
    action is not a decision but a discipline — sell through the **existing**
    org and never accept a plan upgrade. Both are now Locked Decisions.
-2. **Confirm `amwaredotdev` can move to GitHub Free** without losing a feature
+2. **Confirm Polar is comfortable with the account's shape.** The AUP's phrase
+   is "if your company's **primary offering** is human services." Amware's public
+   positioning is fractional CTO, while what it would sell through Polar is
+   strictly software. That split is legitimate and common, but Polar runs account
+   reviews, so it is better raised in advance than discovered at payout. Worth a
+   short note to them describing the split before the kits leave `draft`.
+3. **Confirm `amwaredotdev` can move to GitHub Free** without losing a feature
    the kit repos rely on (protected branches and code owners are Team-only on
    private repos).
-3. **Confirm Polar seat claiming grants the GitHub benefit per member**, not once
+4. **Confirm Polar seat claiming grants the GitHub benefit per member**, not once
    to the payer, in the sandbox before the Team tier goes on sale. The docs say
    benefits are granted to members, not to the billing customer; at $999 for five
    seats this should be proven, not assumed.
-4. **Confirm Polar's personal-repo policy is not needed.** It is not, under this
+5. **Confirm Polar's personal-repo policy is not needed.** It is not, under this
    design — but if the org route is ever abandoned, note that enabling personal
    repos requires contacting Polar *and* accepts write access for every buyer.
-5. **Schedule the WareKit CLI licensing work separately.** This spec fixes the
+6. **Schedule the WareKit CLI licensing work separately.** This spec fixes the
    contract; the CLI lives in the kit repos. Until that lands, license keys are
    issued and displayed but still enforce nothing — the same position as today,
    so the migration does not regress anything, but the anti-piracy benefit is
    not realised until the CLI ships. Worth sequencing before the kits leave
    `draft`.
-6. **Draft and review `LICENSE.md` for each kit repo**, to the shape above, in
+7. **Draft and review `LICENSE.md` for each kit repo**, to the shape above, in
    our own words rather than MakerKit's, with legal review before the kits leave
    `draft`. This is the only layer that addresses redistribution, so it gates
    launch in a way the CLI does not.
