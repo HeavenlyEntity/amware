@@ -83,6 +83,9 @@ the kits launch"* than as *"migrate a running store."*
 | Sandbox | Polar's separate sandbox org | Mirrors the existing `whopEnv` dual-id pattern |
 | Idempotency | Polar checkout id, unique on `purchases` | Same discipline as the Creem order id today |
 | Schema change | **Payload's schema push**, not a written migration | This project has no `src/migrations` directory and has never used written migrations; with all four rows deleted first, there is no data to preserve through the change |
+| Polar organization | The **existing pre-2026-05-27 org**. Never create a new one | The Early Member rate (4% + 40¢) attaches to the *organization*, not the account. A new org starts on Starter (5% + 50¢) "even if created by customers who signed up earlier" |
+| Polar plan | **Stay on Early Member.** Never accept a Pro/Growth/Scale upgrade | Upgrading retires Early Member for that org irreversibly, and it does not pay off until roughly $10k/mo in sales |
+| Redistribution control | A **`LICENSE.md`** in each kit repo, not the license key | Legal terms are what govern redistribution of source; the key governs concurrent use |
 
 ## Non-goals
 
@@ -101,9 +104,11 @@ tested until this exists.
    actually removes the collaborator cost. Confirm first that the kit repos do not
    depend on Team-only features on private repos (protected branches, code
    owners, required reviews).
-2. **Create the Polar organization**, then install Polar's **dedicated GitHub
-   App**. This is a separate authorization from Polar's GitHub login: the
-   collaborator-management permission is not requested by the core app.
+2. **Use the existing Polar organization — do not create a new one.** See the
+   fee note below; this step is worth real money. Then install Polar's
+   **dedicated GitHub App** on it. This is a separate authorization from Polar's
+   GitHub login: the collaborator-management permission is not requested by the
+   core app.
 3. **Create two GitHub benefits**, one per repo family, role **Read**:
    - `amwaredotdev/warekit-next-netsuite` and `…-next-netsuite-lite`
    - `amwaredotdev/warekit-react-netsuite` and `…-react-netsuite-lite`
@@ -116,11 +121,38 @@ tested until this exists.
    account with its own product ids, exactly like Whop's was.
 7. **Record both product id sets** — they are what Phase 2 writes into Payload.
 
-**Before writing this spec into an implementation plan, confirm the Creem rate
-currently being paid.** Polar Starter is **5% + 50¢, +1.5% on international
-cards**, and the cheaper Early Member rate closed on 2026-05-27. This migration
-very likely costs margin per sale; it buys automation and consolidation. At
-WareKit Pro's $499 the delta is a few dollars an order.
+### The fee note, and why step 2 says what it says
+
+This account qualifies for Polar's **Early Member** rate: **4% + 40¢, no monthly
+fee**, plus 0.5% on subscription payments and the usual +1.5% on international
+cards. Polar has committed to honouring it indefinitely.
+
+But the rate attaches to the **organization**, not to the account. Polar's fee
+page is explicit:
+
+> Organizations created on or after May 27, 2026 start on Starter (5% + 50¢).
+> This applies to new organizations even if they're created by customers who
+> signed up earlier.
+
+So creating a fresh org for this migration would silently cost **1% + 10¢ on
+every sale, forever**. Sell through the existing org.
+
+Two further guardrails on the same page:
+
+- **Never accept an upgrade to Pro, Growth or Scale.** "The moment you upgrade to
+  a paid plan, Early Member is retired for that organization," and downgrading
+  later lands on Starter, not back on Early Member. It is one-way.
+- **The dashboard's breakeven figures are measured against Starter, not against
+  Early Member**, so they will overstate the case for upgrading. Against Early
+  Member, Pro ($20/mo to save 0.2%) does not pay off until roughly **$10,000/mo**
+  in sales, and Growth ($100/mo to save 0.4% + 5¢) not until roughly **$25,000/mo**.
+  Below those, upgrading costs money *and* burns the Early Member rate.
+
+The sandbox organization's creation date does not matter — no real money moves
+through it.
+
+At 4% + 40¢ the fee objection that shaped the original draft of this spec largely
+dissolves: this is competitive with Creem rather than a clear step up in cost.
 
 ## Architecture
 
@@ -264,7 +296,8 @@ wrong thing:
 
 - **It cannot stop source redistribution.** WareKit ships as a Git repository.
   Once a buyer has cloned it they hold the source, and no key changes that. Any
-  design that claims otherwise is selling a lock with no door.
+  design that claims otherwise is selling a lock with no door. Redistribution is
+  governed by the **licence document**, not the licence key — see below.
 - **It can cap concurrent use.** With activations limited to the seat count, one
   key shared around a Discord stops working after the Nth machine.
 - **It can make a leak attributable and revocable.** Keys are per purchase, so a
@@ -314,14 +347,41 @@ separate, a leaked *repo* shows up instead as an unexpected name in the
 collaborator list — worth a periodic look, and a reason to keep `seatMembers`
 accurate.
 
+### `LICENSE.md` — the redistribution control
+
+The licence *key* caps concurrent use. The licence *document* is what makes
+redistribution a breach, and it is the only layer that addresses the "someone
+uploads the kit to a torrent" case at all. Each kit repository carries a
+`LICENSE.md`, in the shape commercial boilerplates like MakerKit use:
+
+- **A commercial, non-exclusive, non-transferable licence**, not an open-source
+  one. State plainly that it is not OSI-licensed, so nobody assumes MIT by habit.
+- **Seats named in the terms, matching the tier and the key's activation cap** —
+  Pro one developer, Team five named developers. The legal limit and the
+  technical limit must be the same number, or one of them is decoration.
+- **Unlimited end products.** The buyer can ship as many of their own projects
+  and client projects from the kit as they like. This is the thing buyers
+  actually want to know, and burying it costs sales.
+- **No redistribution, resale, sublicensing, or publishing the kit's source**,
+  in whole or in substantial part, including to a public repository — and no
+  sharing with developers outside the licensed seat count.
+- **The end product must be a product, not the kit.** Shipping a
+  lightly-reskinned WareKit as a competing starter kit is out.
+- **Perpetual for the version received**, no warranty, no obligation to support.
+
+Two cautions. Write our own text rather than copying MakerKit's — a licence
+document is itself a copyrighted work, and theirs is drafted for their product,
+not ours. And have a lawyer look at it before the kits leave `draft`; this spec
+fixes the *shape*, not the wording.
+
 ### Scope boundary
 
-The CLI itself lives in the WareKit repositories, not in this one. This spec
-fixes the **contract** — benefit shape, activation limits, which endpoints,
-`benefit_id` checking, warn-don't-brick — and the site's job is to issue the key,
-store `licenseKeyId` / `licenseKeyBenefitId`, and show the key on the onboarding
-page. Implementing the CLI side is separate work in a separate repo and should
-not block this migration.
+Both the CLI and `LICENSE.md` live in the WareKit repositories, not in this one.
+This spec fixes the **contract** — benefit shape, activation limits, which
+endpoints, `benefit_id` checking, warn-don't-brick, and the licence terms above —
+and the site's job is to issue the key, store `licenseKeyId` /
+`licenseKeyBenefitId`, and show the key on the onboarding page. Implementing
+either is separate work in a separate repo and should not block this migration.
 
 ## Error handling
 
@@ -389,8 +449,10 @@ a future reader from "finishing the job" by deleting a working ad channel.
 
 ## Open items for the implementation plan
 
-1. **Confirm the current Creem rate** before committing to Polar's 5% + 50¢.
-   This is the one decision in the spec that can make the migration a net loss.
+1. ~~Confirm the current Creem rate.~~ **Resolved:** this account predates
+   2026-05-27 and holds Polar's Early Member rate at 4% + 40¢. The remaining
+   action is not a decision but a discipline — sell through the **existing**
+   org and never accept a plan upgrade. Both are now Locked Decisions.
 2. **Confirm `amwaredotdev` can move to GitHub Free** without losing a feature
    the kit repos rely on (protected branches and code owners are Team-only on
    private repos).
@@ -407,3 +469,7 @@ a future reader from "finishing the job" by deleting a working ad channel.
    so the migration does not regress anything, but the anti-piracy benefit is
    not realised until the CLI ships. Worth sequencing before the kits leave
    `draft`.
+6. **Draft and review `LICENSE.md` for each kit repo**, to the shape above, in
+   our own words rather than MakerKit's, with legal review before the kits leave
+   `draft`. This is the only layer that addresses redistribution, so it gates
+   launch in a way the CLI does not.
