@@ -88,6 +88,8 @@ no back-compat columns.
 | Collaborator role | **Read** (`permission: 'pull'`) | Buyers clone and fork; they never push to the product |
 | Repo ownership | **`amwaredotdev` org, already on GitHub Free** | Free collaborators *and* a read-only role; personal repos force write access |
 | Free WareKit Lite | A **$0 Whop plan**, not a bespoke claim route | One delivery path; a free claim becomes a real membership and joins the community |
+| Lite vs Pro | **Separate repos**, as today. Lite is the blank AMWARE kit: skeleton, welcome, getting-started, branding language. No UI, no build-out | Lite teaches the architecture; Pro implements it |
+| Why Lite is gated | To **capture a member**, not to protect code | Blank scaffolding has no extractable value; the invite is what turns a download into someone in `#warekit` |
 | Team tier | Our own `seats.ts` / `SeatManager`, unchanged | Whop has no seat primitive matching a 5-account perpetual licence |
 | Checkout | Whop **embedded** checkout (`data-whop-checkout-plan-id`) | Already proven on the deposit flow; keeps buyers on our domain |
 | Deposits | **Unchanged** | Already Whop; this migration must not disturb them |
@@ -240,7 +242,7 @@ and a **Chat Element** that embeds in our own pages with our own theming.
 
 | Someone who… | Lands in | Purpose |
 |---|---|---|
-| Claims free Lite | `#warekit` | Turns a download into a member |
+| Claims free Lite | `#warekit` | Turns a download into a member — Lite's whole purpose |
 | Buys Pro | `+ #pro-support` | Support that others can read; answers compound |
 | Buys Team | `+ private channel` | Seat holders together |
 | Books an engagement | 1:1 support chat | The chat *is* the engagement's workspace |
@@ -351,15 +353,49 @@ real work in its own right and does not block this migration, but the licensing
 model above depends on it, so it should be sequenced before the kits leave
 `draft`.
 
-One consequence to decide in that work rather than here: GitHub grants access per
-**repository**, not per directory, so tiers cannot be folders in one monorepo.
-Either Lite and Pro stay separate repos — in which case a Lite buyer upgrading to
-Pro changes repos, which is friction worth designing for — or every tier shares
-one repo and the differences are gated some other way.
+**Resolved: separate repos per tier**, which is what the catalogue already does.
+GitHub grants access per repository rather than per directory, so this was always
+forced; the existing layout is already correct:
 
-Whatever is chosen: **warn, do not brick.** A starter kit that refuses to build
+| Repo | Tiers |
+|---|---|
+| `amwaredotdev/warekit-next-netsuite-lite` | Lite (free) |
+| `amwaredotdev/warekit-next-netsuite` | Pro, Team (differ only by seat count) |
+| `amwaredotdev/warekit-react-netsuite-lite` | Lite (free) |
+| `amwaredotdev/warekit-react-netsuite` | Pro, Team |
+
+Whatever else changes: **warn, do not brick.** A starter kit that refuses to build
 when the network is down costs more in support and reputation than the piracy it
 prevents.
+
+### What Lite actually is
+
+Lite is **not a crippled Pro**. It is the blank AMWARE kit: the Turborepo
+skeleton, a welcome, a getting-started guide, and the branding language — no UI
+elements and no build-out. Pro is the implementation of the same architecture.
+
+That distinction does real work:
+
+- **Lite is a preview of the architecture, not of the features.** Its value is
+  that a developer sees how `apps/web` and `packages/*` relate before paying. A
+  Lite that did not share Pro's shape would fail at its only job.
+- **Lite's code has no extractable value**, because there is nothing in it to
+  extract. So its `LICENSE.md` can be far more permissive than Pro's, and a copy
+  of Lite circulating is marketing rather than leakage.
+- **Which means Lite is gated to capture a member, not to protect code.** Keeping
+  it private and invite-only is what converts an anonymous download into a real
+  Whop membership, a person in `#warekit`, and someone the Pro upgrade can reach.
+  That is the entire point of routing a free kit through checkout at all, and it
+  is worth stating plainly so a future reader does not "simplify" Lite into a
+  public repo and quietly delete the top of the funnel.
+
+**A design constraint that follows, for the restructure work:** because Lite and
+Pro are separate repos, upgrading is a repo change, and a Lite user's own work
+lives in `apps/web` — which in Pro is already built out. The cleaner that seam
+is, the cheaper the upgrade. **Push as much of Pro's value into `packages/*` as
+possible and keep `apps/web` thin in both repos.** The same architectural
+principle then serves twice: it keeps upstream merges clean *and* it makes
+Lite → Pro a matter of pointing at new packages rather than restarting.
 
 ## Error handling
 
@@ -440,13 +476,20 @@ The completion grep is **`creem` only**. Every `whop` hit is supposed to be ther
    the ongoing value, and `githubInvite.ts` already grants and can revoke them.
    The licence key keeps only identity and status. Nothing to build.
 5. **Draft and review `LICENSE.md` per kit repo**, lawyer-reviewed before launch.
-   This gates the kits leaving `draft`. Note it now has a second job: the terms
-   should say plainly that access to updates ends with the licence, because that
-   is the enforcement mechanism and it should not be a surprise.
+   This gates the kits leaving `draft`. Two notes. It has a second job now: the
+   terms should say plainly that access to updates ends with the licence, since
+   that is the enforcement mechanism and should not be a surprise. And **Lite and
+   Pro want different licences** — Lite holds no extractable value and can be
+   permissive, while Pro's is the commercial licence described above. Writing one
+   document for both would either over-restrict the funnel or under-protect the
+   product.
 6. **Restructure the kit repos into the Turborepo layout** (Licensing → Kit
    architecture). Separate work in the kit repos, not blocking this migration,
-   but the licensing model rests on it. Decide the Lite-vs-Pro repo question
-   there: GitHub grants access per repository, not per directory.
+   but the licensing model rests on it. The Lite-vs-Pro repo question is
+   **resolved** — separate repos, as the catalogue already has them. The live
+   constraint for that work is the seam: keep `apps/web` thin in both repos and
+   push Pro's value into `packages/*`, so Lite → Pro is an upgrade rather than a
+   restart.
 7. **Chargebacks cannot claw back a cloned repo.** Whatever the platform, a
    refunded buyer keeps whatever they already forked. Revoking collaborator
    access on refund is worth wiring, while understanding it closes the door after
