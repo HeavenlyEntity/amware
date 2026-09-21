@@ -87,6 +87,22 @@ export const Purchases: CollectionConfig = {
       },
     },
     {
+      name: 'whopPlanId',
+      type: 'text',
+      index: true,
+      admin: { description: 'The plan this sale was made against.' },
+    },
+    {
+      name: 'whopMembershipId',
+      type: 'text',
+      index: true,
+      admin: {
+        description:
+          'The membership the sale created. Carries the licence key and is ' +
+          'what community access follows from.',
+      },
+    },
+    {
       name: 'whopEnvironment',
       type: 'select',
       options: [

@@ -84,7 +84,7 @@ export type WhopPayment = {
     name?: string | null
     username?: string | null
   } | null
-  membership?: { id?: string | null } | null
+  membership?: { id?: string | null; license_key?: string | null } | null
   metadata?: Record<string, unknown> | null
   checkout_configuration_id?: string | null
 }

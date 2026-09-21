@@ -1,9 +1,16 @@
 import { getPayloadClient } from '@/lib/getPayloadClient'
-import { verifyWhopWebhook, type WhopPayment } from '@/lib/commerce/whop'
+import {
+  verifyWhopWebhook,
+  customFieldAnswer,
+  type WhopPayment,
+} from '@/lib/commerce/whop'
 import { whopEnvironment } from '@/lib/commerce/whopEnv'
+import { inviteToRepo } from '@/lib/commerce/githubInvite'
+import { seatLimit } from '@/lib/commerce/seats'
 import {
   sendDepositReceivedEmail,
   notifyDepositReceived,
+  sendBoilerplateConfirmationEmail,
 } from '@/lib/commerce/fulfillment'
 
 export const dynamic = 'force-dynamic'
@@ -41,6 +48,11 @@ const ITEM_TYPE = {
   courses: 'course',
 } as const
 
+/* Must match the custom field's name on every kit plan in the Whop
+   dashboard. Matching is case-insensitive and trimmed (see
+   customFieldAnswer), so "Github username" on a plan still works. */
+const GITHUB_FIELD = 'GitHub username'
+
 async function findByPlan(payload: any, plan: string | null) {
   if (!plan) return { collection: null, item: null }
   const field =
@@ -73,6 +85,7 @@ export async function POST(req: Request) {
   const paymentId = payment.id
   const planId = payment.plan?.id || null
   const email = payment.user?.email || null
+  const githubUsername = customFieldAnswer(payment, GITHUB_FIELD)
   if (!paymentId || !email) {
     console.error('Whop payment without id or email', { paymentId, planId })
     return new Response('ignored (missing fields)', { status: 200 })
@@ -100,13 +113,15 @@ export async function POST(req: Request) {
   const { collection, item } = await findByPlan(payload, planId)
   const itemType = collection ? ITEM_TYPE[collection] : undefined
   const service = collection === 'services' ? item : null
+  const isBoilerplate = itemType === 'product' && item?.type === 'boilerplate'
 
   const major = payment.total ?? payment.usd_total ?? 0
   const amount = Math.round(Number(major) * 100)
   const currency = (payment.currency || 'usd').toLowerCase()
 
+  let purchase
   try {
-    await payload.create({
+    purchase = await payload.create({
       collection: 'purchases',
       overrideAccess: true,
       data: {
@@ -120,10 +135,18 @@ export async function POST(req: Request) {
           ? { relationTo: collection, value: item.id }
           : undefined,
         itemType,
+        githubUsername: githubUsername || undefined,
+        licenseKey: payment.membership?.license_key || undefined,
+        whopMembershipId: payment.membership?.id || undefined,
+        whopPlanId: planId || undefined,
         amount,
         currency,
         status: 'paid',
-        fulfillmentStatus: service ? 'not_required' : 'failed',
+        fulfillmentStatus: isBoilerplate
+          ? 'pending_invite'
+          : item
+          ? 'not_required'
+          : 'failed',
       },
     })
   } catch (err) {
@@ -138,6 +161,96 @@ export async function POST(req: Request) {
     }
     console.error('Whop purchase create failed', paymentId, err)
     return new Response('error', { status: 500 })
+  }
+
+  /* A kit is delivered by a repository invitation.
+   *
+   * Lifted from the Creem route, minus the part that no longer applies:
+   * there is no "the buyer has not named an account yet" case, because
+   * Whop asked for the username on the checkout form before taking the
+   * card. An order with no username here is a buyer who left an optional
+   * field blank, not a buyer mid-flow.
+   *
+   * Nothing in this block is allowed to throw. The sale is already
+   * captured by the time it runs, so GitHub being unreachable must leave
+   * a recorded order a human can finish -- never a 500 that makes Whop
+   * redeliver a payment we already banked. */
+  if (isBoilerplate) {
+    /* try/catch, not just the .catch()s below: the sale is already banked,
+       so this whole block must answer 200 no matter what goes wrong inside
+       it -- a synchronous surprise here must not do what an unhandled
+       rejection would (500, and Whop redelivers a payment we already have). */
+    try {
+      const repo = typeof item?.githubRepo === 'string' ? item.githubRepo : null
+      const invite = githubUsername
+        ? await inviteToRepo({ repo, username: githubUsername })
+        : null
+
+      if (invite && !invite.ok) {
+        console.error('Repo invite failed for payment', paymentId, {
+          repo,
+          reason: invite.reason,
+        })
+      }
+      if (!githubUsername) {
+        console.error('Kit purchase with no GitHub username', {
+          paymentId,
+          planId,
+        })
+      }
+
+      await payload
+        .update({
+          collection: 'purchases',
+          id: purchase.id,
+          overrideAccess: true,
+          data: {
+            githubRepo: repo || undefined,
+            githubInviteUrl: (invite?.ok && invite.url) || undefined,
+            /* The buyer is seat one. Recording it is what keeps a team
+               licence honest -- otherwise a five-seat buyer invites five
+               more people and gets six. */
+            ...(githubUsername
+              ? {
+                  seatMembers: [
+                    {
+                      githubUsername,
+                      inviteUrl: (invite?.ok && invite.url) || undefined,
+                      addedAt: new Date().toISOString(),
+                    },
+                  ],
+                }
+              : {}),
+            fulfillmentStatus: invite?.ok ? 'sent' : 'pending_invite',
+          },
+        })
+        .catch(() =>
+          console.error('Purchase invite update failed for payment', paymentId)
+        )
+
+      await sendBoilerplateConfirmationEmail({
+        to: email,
+        itemName: item?.name || 'your kit',
+        githubUsername: githubUsername || undefined,
+        repo: repo || undefined,
+        inviteUrl: invite?.ok ? invite.url : null,
+        alreadyHadAccess:
+          invite?.ok && invite.state === 'already-a-collaborator',
+        seats: seatLimit(item),
+        seatsUrl: null,
+        onboardingUrl: null,
+      }).catch((err) =>
+        console.error('Kit confirmation email failed', paymentId, err)
+      )
+    } catch (err) {
+      console.error(
+        'Boilerplate fulfillment failed for payment',
+        paymentId,
+        err
+      )
+    }
+
+    return new Response('ok', { status: 200 })
   }
 
   if (!service) {

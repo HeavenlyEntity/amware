@@ -532,6 +532,14 @@ export interface Purchase {
   provider?: ('creem' | 'whop') | null
   creemOrderId?: string | null
   whopPaymentId?: string | null
+  /**
+   * The plan this sale was made against.
+   */
+  whopPlanId?: string | null
+  /**
+   * The membership the sale created. Carries the licence key and is what community access follows from.
+   */
+  whopMembershipId?: string | null
   whopEnvironment?: ('production' | 'sandbox') | null
   /**
    * Retainers only. Ties every renewal row back to one subscription.
@@ -937,6 +945,8 @@ export interface PurchasesSelect<T extends boolean = true> {
   provider?: T
   creemOrderId?: T
   whopPaymentId?: T
+  whopPlanId?: T
+  whopMembershipId?: T
   whopEnvironment?: T
   creemSubscriptionId?: T
   creemTransactionId?: T

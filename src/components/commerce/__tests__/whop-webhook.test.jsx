@@ -9,16 +9,20 @@ vi.mock('@/lib/commerce/whop', async (importOriginal) => ({
   ...(await importOriginal()),
   verifyWhopWebhook: vi.fn(),
 }))
+vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
 vi.mock('@/lib/commerce/fulfillment', () => ({
   sendDepositReceivedEmail: vi.fn().mockResolvedValue(undefined),
   notifyDepositReceived: vi.fn().mockResolvedValue(undefined),
+  sendBoilerplateConfirmationEmail: vi.fn().mockResolvedValue(undefined),
 }))
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { verifyWhopWebhook } from '@/lib/commerce/whop'
+import { inviteToRepo } from '@/lib/commerce/githubInvite'
 import {
   sendDepositReceivedEmail,
   notifyDepositReceived,
+  sendBoilerplateConfirmationEmail,
 } from '@/lib/commerce/fulfillment'
 import { POST } from '@/app/(commerce)/webhooks/whop/route'
 
@@ -79,6 +83,21 @@ const db = ({ existing = [], services = [service] } = {}) => {
     collection === 'purchases' ? { docs: existing } : { docs: services }
   )
 }
+
+const kitDb = () =>
+  find.mockImplementation(async ({ collection }) => {
+    if (collection === 'purchases') return { docs: [] }
+    if (collection === 'products') return { docs: [product] }
+    return { docs: [] }
+  })
+
+const kitPayment = (over = {}) =>
+  payment({
+    plan: { id: 'plan_pro' },
+    total: 499,
+    custom_field_responses: [{ name: 'GitHub username', value: 'octocat' }],
+    ...over,
+  })
 
 describe('Whop webhook', () => {
   it('rejects a request whose signature does not verify', async () => {
@@ -219,6 +238,83 @@ describe('Whop webhook', () => {
           itemType: 'product',
           amount: 49900,
         }),
+      })
+    )
+  })
+
+  it('invites the buyer and marks the order sent', async () => {
+    verifyWhopWebhook.mockReturnValue(event(kitPayment()))
+    kitDb()
+    const update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    inviteToRepo.mockResolvedValue({
+      ok: true,
+      state: 'invited',
+      url: 'https://github.com/invite/1',
+      id: 1,
+    })
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(inviteToRepo).toHaveBeenCalledWith({
+      repo: 'amwaredotdev/warekit-next-netsuite',
+      username: 'octocat',
+    })
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'purchases',
+        data: expect.objectContaining({
+          githubRepo: 'amwaredotdev/warekit-next-netsuite',
+          githubInviteUrl: 'https://github.com/invite/1',
+          fulfillmentStatus: 'sent',
+        }),
+      })
+    )
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'client@example.com',
+        githubUsername: 'octocat',
+      })
+    )
+  })
+
+  it('records the sale and queues a manual invite when GitHub refuses', async () => {
+    verifyWhopWebhook.mockReturnValue(event(kitPayment()))
+    kitDb()
+    const update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    inviteToRepo.mockResolvedValue({ ok: false, reason: 'rate-limited' })
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200) // the sale is good; GitHub is not our buyer's problem
+    expect(create).toHaveBeenCalled()
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ fulfillmentStatus: 'pending_invite' }),
+      })
+    )
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ inviteUrl: null })
+    )
+  })
+
+  it('does not attempt an invite when the buyer gave no username', async () => {
+    verifyWhopWebhook.mockReturnValue(
+      event(kitPayment({ custom_field_responses: [] }))
+    )
+    kitDb()
+    const update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(inviteToRepo).not.toHaveBeenCalled()
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ fulfillmentStatus: 'pending_invite' }),
       })
     )
   })
