@@ -116,3 +116,43 @@ export function verifyWhopWebhook(
     return null
   }
 }
+
+/* One custom-field answer off a payment.
+ *
+ * Whop's own example names the field "Discord username", so a plain text
+ * field holding a handle is the documented use, not a trick. What is not
+ * documented is the exact path the answers arrive on, which is why
+ * docs/whop-custom-fields.md holds a captured payload.
+ *
+ * This reads every shape that capture could plausibly take rather than
+ * betting the kit's whole delivery path on one of them. The cost of
+ * looking in four places is nothing; the cost of guessing wrong is a
+ * buyer who paid and got no repository.
+ *
+ * Matching is case-insensitive and trimmed because the field name is
+ * typed into a dashboard by a human, and "Github username" on the plan
+ * must not silently mean no invitation.
+ */
+export function customFieldAnswer(
+  payment: Record<string, any> | null | undefined,
+  name: string
+): string | null {
+  if (!payment) return null
+  const wanted = name.trim().toLowerCase()
+  const pools = [
+    payment.custom_field_responses,
+    payment.custom_fields,
+    payment.metadata?.custom_fields,
+    payment.checkout_configuration?.custom_field_responses,
+  ]
+  for (const pool of pools) {
+    if (!Array.isArray(pool)) continue
+    const hit = pool.find(
+      (f) =>
+        typeof f?.name === 'string' && f.name.trim().toLowerCase() === wanted
+    )
+    const value = hit?.value ?? hit?.answer ?? hit?.response
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return null
+}

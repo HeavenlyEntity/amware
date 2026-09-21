@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@whop/sdk/helpers', () => ({ unwrapWebhook: vi.fn() }))
 
 import { unwrapWebhook } from '@whop/sdk/helpers'
-import { WhopError, verifyWhopWebhook, whopRequest } from '../whop'
+import {
+  WhopError,
+  verifyWhopWebhook,
+  whopRequest,
+  customFieldAnswer,
+} from '../whop'
 
 /* The thin edge between this code and Whop: the webhook helper's throw
    becomes a null, and a failed API call becomes a WhopError that carries
@@ -96,5 +101,42 @@ describe('whopRequest', () => {
   it('refuses to run without an API key', async () => {
     delete process.env.WHOP_API_KEY
     await expect(whopRequest('/plans')).rejects.toBeInstanceOf(WhopError)
+  })
+})
+
+describe('customFieldAnswer', () => {
+  it('finds an answer by field name, ignoring case and surrounding space', () => {
+    const payment = {
+      custom_field_responses: [
+        { name: 'Discord username', value: 'grace#1' },
+        { name: 'GitHub username', value: '  octocat  ' },
+      ],
+    }
+    expect(customFieldAnswer(payment, 'GitHub username')).toBe('octocat')
+    expect(customFieldAnswer(payment, 'github USERNAME')).toBe('octocat')
+  })
+
+  it('is null when the field is absent, blank, or the payment has no fields', () => {
+    expect(customFieldAnswer({}, 'GitHub username')).toBeNull()
+    expect(customFieldAnswer(null, 'GitHub username')).toBeNull()
+    expect(
+      customFieldAnswer(
+        { custom_field_responses: [{ name: 'GitHub username', value: '   ' }] },
+        'GitHub username'
+      )
+    ).toBeNull()
+  })
+
+  it('reads the alternative shapes Whop has been observed to send', () => {
+    const asAnswer = {
+      custom_fields: [{ name: 'GitHub username', answer: 'octocat' }],
+    }
+    const asMetadata = {
+      metadata: {
+        custom_fields: [{ name: 'GitHub username', response: 'octocat' }],
+      },
+    }
+    expect(customFieldAnswer(asAnswer, 'GitHub username')).toBe('octocat')
+    expect(customFieldAnswer(asMetadata, 'GitHub username')).toBe('octocat')
   })
 })
