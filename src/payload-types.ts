@@ -313,6 +313,8 @@ export interface Product {
    * Creem prod_… id. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.
    */
   creemProductId?: string | null
+  whopPlanId?: string | null
+  whopSandboxPlanId?: string | null
   price?: number | null
   /**
    * How many GitHub accounts this licence may invite. 1 for Lite and Pro, 5 for Team. The seat page refuses the seat past this number, so it is the licence, not a label.
@@ -384,6 +386,8 @@ export interface Course {
    * Creem prod_… id. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.
    */
   creemProductId?: string | null
+  whopPlanId?: string | null
+  whopSandboxPlanId?: string | null
   price?: number | null
   featured?: boolean | null
   order?: number | null
@@ -818,6 +822,8 @@ export interface ProductsSelect<T extends boolean = true> {
         id?: T
       }
   creemProductId?: T
+  whopPlanId?: T
+  whopSandboxPlanId?: T
   price?: T
   seats?: T
   currency?: T
@@ -853,6 +859,8 @@ export interface CoursesSelect<T extends boolean = true> {
   coverImage?: T
   level?: T
   creemProductId?: T
+  whopPlanId?: T
+  whopSandboxPlanId?: T
   price?: T
   featured?: T
   order?: T
