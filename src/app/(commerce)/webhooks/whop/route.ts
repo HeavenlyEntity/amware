@@ -23,6 +23,40 @@ export const dynamic = 'force-dynamic'
  * link and the owner gets a heads-up, because a deposit is a client, not a
  * download. */
 
+/* Which collection a plan belongs to.
+ *
+ * Services first, and deliberately. A deposit is the only Whop purchase
+ * carrying real traffic today, so it keeps the exact query it has always
+ * had -- one find on services, same arguments, same position. Products
+ * and courses are asked only when that misses, which is what lets the
+ * deposit tests stand unedited as the regression alarm for this migration.
+ *
+ * A plan id is unique across Whop, so the order is a matter of cost and
+ * blast radius rather than correctness. */
+const PLAN_COLLECTIONS = ['services', 'products', 'courses'] as const
+
+const ITEM_TYPE = {
+  services: 'service',
+  products: 'product',
+  courses: 'course',
+} as const
+
+async function findByPlan(payload: any, plan: string | null) {
+  if (!plan) return { collection: null, item: null }
+  const field =
+    whopEnvironment() === 'sandbox' ? 'whopSandboxPlanId' : 'whopPlanId'
+  for (const collection of PLAN_COLLECTIONS) {
+    const { docs } = await payload.find({
+      collection,
+      where: { [field]: { equals: plan } },
+      limit: 1,
+      overrideAccess: true,
+    })
+    if (docs[0]) return { collection, item: docs[0] }
+  }
+  return { collection: null, item: null }
+}
+
 export async function POST(req: Request) {
   const raw = await req.text()
   if (raw.length > 65536) {
@@ -63,16 +97,9 @@ export async function POST(req: Request) {
      service claims is still money that arrived, so it is recorded -- with
      nothing attached and marked failed, which is what makes it show up in
      the admin as something to look at. */
-  const service = planId
-    ? (
-        await payload.find({
-          collection: 'services',
-          where: { whopPlanId: { equals: planId } },
-          limit: 1,
-          overrideAccess: true,
-        })
-      ).docs[0] ?? null
-    : null
+  const { collection, item } = await findByPlan(payload, planId)
+  const itemType = collection ? ITEM_TYPE[collection] : undefined
+  const service = collection === 'services' ? item : null
 
   const major = payment.total ?? payment.usd_total ?? 0
   const amount = Math.round(Number(major) * 100)
@@ -89,10 +116,10 @@ export async function POST(req: Request) {
         /* Stamped from this server's own setting, not the payload: a sandbox
            webhook only ever reaches a server configured for the sandbox. */
         whopEnvironment: whopEnvironment(),
-        item: service
-          ? { relationTo: 'services', value: service.id }
+        item: collection
+          ? { relationTo: collection, value: item.id }
           : undefined,
-        itemType: 'service',
+        itemType,
         amount,
         currency,
         status: 'paid',

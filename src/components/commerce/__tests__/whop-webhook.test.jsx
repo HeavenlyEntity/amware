@@ -30,6 +30,16 @@ const service = {
   bookingUrl: 'https://cal.com/amware/on-demand-outcome',
 }
 
+const product = {
+  id: 7,
+  slug: 'warekit-next-netsuite-pro',
+  name: 'WareKit Next NetSuite (Pro)',
+  type: 'boilerplate',
+  whopPlanId: 'plan_pro',
+  githubRepo: 'amwaredotdev/warekit-next-netsuite',
+  seats: 1,
+}
+
 const payment = (over = {}) => ({
   id: 'pay_1',
   status: 'paid',
@@ -187,5 +197,29 @@ describe('Whop webhook', () => {
     const res = await POST(request())
     expect(res.status).toBe(200)
     expect(create).toHaveBeenCalledTimes(1)
+  })
+
+  it('records a kit purchase against the product its plan belongs to', async () => {
+    verifyWhopWebhook.mockReturnValue(
+      event(payment({ plan: { id: 'plan_pro' }, total: 499 }))
+    )
+    find.mockImplementation(async ({ collection }) => {
+      if (collection === 'purchases') return { docs: [] }
+      if (collection === 'services') return { docs: [] }
+      if (collection === 'products') return { docs: [product] }
+      return { docs: [] }
+    })
+    const res = await POST(request())
+    expect(res.status).toBe(200)
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'purchases',
+        data: expect.objectContaining({
+          item: { relationTo: 'products', value: 7 },
+          itemType: 'product',
+          amount: 49900,
+        }),
+      })
+    )
   })
 })
