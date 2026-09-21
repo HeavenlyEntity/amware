@@ -1,7 +1,18 @@
 # Polar Migration — Creem to Polar.sh, Whop retained for services — Design Spec
 
 **Date:** 2026-09-20
-**Status:** Draft for review
+**Status:** **SUPERSEDED — not the plan of record.** See `2026-09-20-whop-consolidation-design.md`.
+
+> **Why this was superseded.** This spec is kept because its research is the
+> reason the current plan exists, not because anyone should build it. It proved
+> that Polar's AUP prohibits selling human services, which forced a two-provider
+> split. Review then established that Whop takes services *and* kits, costs
+> 2.7% + $0.30 against Polar's 4% + 40¢, and ships the community primitives that
+> turn a free kit into a fractional-CTO lead. Polar's one advantage — automated
+> GitHub invites — replaces code that already works. So the migration target
+> changed from Polar to Whop. Sections 'Why services cannot move', the fee
+> analysis and the licensing threat model carry over and are cited from the new
+> spec.
 **Author:** Alec M (with Claude)
 **Supersedes:** the Creem.io checkout decisions in `2026-06-08-payload-commerce-b2-design.md`. The Whop deposit path added afterwards is **retained unchanged**.
 
