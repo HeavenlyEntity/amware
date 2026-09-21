@@ -39,7 +39,7 @@ as a superseded document because its research is the argument. In short:
 | Affiliates / referrals | **Native** | None |
 | Discovery | **Marketplace, 22M MAU, free to list** | None |
 | Custom checkout fields | **Yes** (`plan.custom_fields`) | Yes |
-| Merchant of Record / tax | **Unconfirmed — see Open items** | Yes, stated |
+| Tax | **Collected on our behalf** (confirmed) | Collected and remitted (MoR) |
 
 On real prices, WareKit Pro at $499 costs **$13.77** on Whop against **$20.36** on
 Polar; Team at $999 costs **$27.27** against **$40.36**.
@@ -86,14 +86,16 @@ no back-compat columns.
 | GitHub delivery | **Keep `githubInvite.ts`** | It works today; Whop has no repo benefit to replace it |
 | GitHub username capture | **At checkout**, via `plan.custom_fields` | Removes the whole post-payment "come back and tell us" failure mode |
 | Collaborator role | **Read** (`permission: 'pull'`) | Buyers clone and fork; they never push to the product |
-| Repo ownership | **`amwaredotdev` org on GitHub Free** | Free collaborators *and* a read-only role; personal repos force write access |
+| Repo ownership | **`amwaredotdev` org, already on GitHub Free** | Free collaborators *and* a read-only role; personal repos force write access |
 | Free WareKit Lite | A **$0 Whop plan**, not a bespoke claim route | One delivery path; a free claim becomes a real membership and joins the community |
 | Team tier | Our own `seats.ts` / `SeatManager`, unchanged | Whop has no seat primitive matching a 5-account perpetual licence |
 | Checkout | Whop **embedded** checkout (`data-whop-checkout-plan-id`) | Already proven on the deposit flow; keeps buyers on our domain |
 | Deposits | **Unchanged** | Already Whop; this migration must not disturb them |
 | Digital downloads | Deferred — no product uses one | `/access/*` is dead machinery; do not port it |
 | Licence keys | Whop membership key, validated via **Retrieve Membership by licence key** | The key already exists per membership |
-| Activation cap | **Ours to build** — Whop has no device-limit primitive | Honest gap vs Polar; see Licensing |
+| Kit architecture | **Turborepo monorepo, MakerKit-shaped**: `apps/web` is theirs, `packages/*` is ours and stays updatable | Separates the customisation surface from the update surface architecturally, not by convention |
+| Update channel | `upstream` git remote, `git pull upstream main` on an update branch | The same mechanism MakerKit uses; needs no registry or new infrastructure |
+| Licence enforcement | **Repo access is the licence.** No activation cap | Updates are the ongoing value; revoking access stops updates without breaking a running business |
 | Redistribution control | A **`LICENSE.md`** per kit repo | Legal terms govern redistribution; the key governs concurrent use |
 | `purchase` pixel event | **Stop firing it entirely** | Whop records its own sales and rejects duplicates — now that every sale is a Whop sale, we should fire none |
 | Community | Membership-gated **channels + forum**, Chat Element embedded on `amware.dev` | Access follows the purchase; no entitlement code of ours |
@@ -281,28 +283,81 @@ reskinned kit; perpetual for the version received, no warranty. Written in our o
 words rather than copied from MakerKit — a licence document is itself a
 copyrighted work — and lawyer-reviewed before the kits leave `draft`.
 
-### What changes by choosing Whop, stated honestly
+### Repo access is the licence
 
-Polar ships licence keys with **activation limits**: cap a key at N devices and a
-shared key stops working at machine N+1, enforced by the platform. **Whop has no
-equivalent.** Its key is the membership's identifier, validated by retrieving the
-membership by licence key and checking its status.
+Polar ships licence keys with platform-enforced **activation limits**; Whop has no
+equivalent, and its key is simply the membership's identifier. That gap looked
+like something to build around. The kit architecture removes the need.
 
-So on Whop the options are:
+**If updates are the ongoing value, and updates come from `upstream`, then the
+GitHub collaborator invite is the enforcement mechanism.** It is already built,
+in `githubInvite.ts`. Revoke a leaked buyer's access and they stop receiving
+`packages/*` improvements, while their `apps/web` — their actual business — keeps
+running untouched.
 
-1. **Validate status only.** The CLI checks the key resolves to an active
-   membership. This catches refunded and cancelled buyers, not sharing. Cheap,
-   and strictly better than today's display-only key.
-2. **Build the activation cap ourselves.** A small table keyed by licence key
-   recording activation ids, capped at the tier's seat count, behind an endpoint
-   on this site. Real enforcement, and genuinely our code to run and keep up.
+That has three properties no device cap has:
 
-**Recommendation: ship (1) with the migration and treat (2) as a separate
-decision once there is evidence of sharing.** Building a device-cap service before
-a single kit has sold is speculative work against an unmeasured problem, and the
-`LICENSE.md` plus per-buyer attributable keys cover the realistic early cases.
+- **Nothing ever bricks.** Warn-don't-brick is not a policy we have to remember;
+  it is what the mechanism does.
+- **No new service.** There is no activation table, no endpoint of ours in the
+  buyer's build path, no uptime obligation on a customer's `pnpm build`.
+- **It aligns with the buyer.** The thing being withheld is the thing they want,
+  rather than a punishment bolted onto something they already own.
 
-Whichever is chosen: **warn, do not brick.** A starter kit that refuses to build
+So the licence key's job shrinks to what it is actually good at: **identity and
+status.** It names which buyer a leaked copy belongs to, and resolving it to an
+inactive membership flags a refunded or cancelled licence. That is validated by
+retrieving the membership by licence key — no cap, no activation records, no
+table.
+
+**Decision: no activation cap.** Ship status-only validation, and let repo access
+carry the enforcement.
+
+### Kit architecture — MakerKit-shaped, and why it is not self-destruct
+
+The idea this replaced was a "self-destruct": the kit rewrites itself into the
+buyer's brand and removes its own scaffolding, keeping `upstream` attached for
+updates. The instinct — make it theirs, keep updates flowing — is right. The
+mechanism fights itself: the more thoroughly a kit rewrites itself, the less any
+upstream merge can land, and the update promise dies around release two.
+
+MakerKit's answer inverts it. Nothing is deleted. Instead the repository has two
+zones:
+
+```
+apps/
+  web/            ← the operator's business. 90% of their work. Brand, routes,
+                    content, config. They own this outright.
+packages/
+  netsuite/       ← ours. NetSuite client, auth, record types
+  sync/           ← ours. Record sync, queues, retries
+  ui/             ← ours. Shared components
+  config/         ← ours. Shared eslint / ts / tailwind config
+turbo.json
+```
+
+The customisation surface is separated from the update surface **architecturally
+rather than by convention**, so a buyer can go as deep as they like inside
+`apps/web` and `git pull upstream main` still merges. Branding is configuration
+in `apps/web/config`, not a find-and-replace across the tree.
+
+What legitimately goes away on setup is small and safe: the kit's own marketing
+and demo routes, its README and docs, and anything under `apps/` the operator has
+no use for. `packages/*` stays WareKit-shaped forever, and that is precisely what
+keeps it updatable — and, per the section above, what makes access worth having.
+
+**Scope: this is a restructure of the kit repositories, not of this site.** It is
+real work in its own right and does not block this migration, but the licensing
+model above depends on it, so it should be sequenced before the kits leave
+`draft`.
+
+One consequence to decide in that work rather than here: GitHub grants access per
+**repository**, not per directory, so tiers cannot be folders in one monorepo.
+Either Lite and Pro stay separate repos — in which case a Lite buyer upgrading to
+Pro changes repos, which is friction worth designing for — or every tier shares
+one repo and the differences are gated some other way.
+
+Whatever is chosen: **warn, do not brick.** A starter kit that refuses to build
 when the network is down costs more in support and reputation than the piracy it
 prevents.
 
@@ -361,25 +416,38 @@ The completion grep is **`creem` only**. Every `whop` hit is supposed to be ther
 
 ## Open items
 
-1. **Confirm Whop's tax position — this is the one material unknown.** Whop's
-   `Plan` object carries `collect_tax` ("based on the account's tax
-   configuration"), `tax_type` (`inclusive` / `exclusive` / `unspecified`) and a
-   `POST /plans/{id}/calculate_tax` endpoint, so Whop clearly *collects* tax. What
-   the docs do **not** state is whether Whop acts as merchant of record and
-   **remits** it, the way Polar states plainly. If it does not, EU digital-goods
-   VAT registration lands on us and can exceed the 1.3% fee saving. Ask Whop
-   directly before the kits leave `draft`.
-2. **Confirm `amwaredotdev` can move to GitHub Free** without losing something the
-   kit repos rely on — protected branches, code owners and required reviews are
-   Team-only on private repos.
-3. **Verify Whop's custom checkout fields reach the webhook payload.** The whole
-   "collect the username at checkout" design rests on it. Prove it in the sandbox
-   in Phase 0, before Phase 2 is written.
-4. **Decide the activation-cap question** (Licensing, above) on evidence rather
-   than in advance. Default: status-only validation.
+1. ~~Confirm Whop's tax position.~~ **Resolved:** Whop collects tax on our
+   behalf. The plan-level machinery backs this up — `collect_tax`, `tax_type`
+   (`inclusive` / `exclusive` / `unspecified`) and `POST /plans/{id}/calculate_tax`.
+   Set `tax_type` deliberately per plan rather than leaving it `unspecified`.
+   One residual worth getting in writing rather than assuming: *collecting* and
+   *remitting* are different obligations, and which one Whop performs decides
+   whether any VAT registrations sit with us. Ask once, keep the reply.
+2. ~~Confirm `amwaredotdev` can move to GitHub Free.~~ **Resolved:** the org is
+   on GitHub Free. Collaborator invites now cost nothing, which is what made the
+   whole delivery model viable. Note the trade that came with it: protected
+   branches, code owners and required reviews are gone on private repos, so the
+   kit repos' safety now rests on convention rather than enforcement.
+3. **Verify Whop's custom checkout fields reach the webhook payload.** Still
+   open, and still the highest-risk assumption in the spec: the whole
+   "collect the username at checkout" design rests on it, and Phase 2 is written
+   against it. **Prove it in the sandbox during Phase 0**, before any code is
+   written. If the field does not survive to the webhook, the fallback is the
+   post-purchase onboarding page — which is why Phase 3 keeps that page rather
+   than deleting it outright.
+4. ~~Decide the activation-cap question.~~ **Resolved: no activation cap.** The
+   MakerKit-shaped kit architecture makes repo access the licence — updates are
+   the ongoing value, and `githubInvite.ts` already grants and can revoke them.
+   The licence key keeps only identity and status. Nothing to build.
 5. **Draft and review `LICENSE.md` per kit repo**, lawyer-reviewed before launch.
-   This gates the kits leaving `draft` in a way the CLI does not.
-6. **Chargebacks cannot claw back a cloned repo.** Whatever the platform, a
+   This gates the kits leaving `draft`. Note it now has a second job: the terms
+   should say plainly that access to updates ends with the licence, because that
+   is the enforcement mechanism and it should not be a surprise.
+6. **Restructure the kit repos into the Turborepo layout** (Licensing → Kit
+   architecture). Separate work in the kit repos, not blocking this migration,
+   but the licensing model rests on it. Decide the Lite-vs-Pro repo question
+   there: GitHub grants access per repository, not per directory.
+7. **Chargebacks cannot claw back a cloned repo.** Whatever the platform, a
    refunded buyer keeps whatever they already forked. Revoking collaborator
    access on refund is worth wiring, while understanding it closes the door after
    the fact rather than preventing the exit.
