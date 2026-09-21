@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { depositPlanId, isWhopSandbox, whopEnvironment } from '../whopEnv'
+import {
+  depositPlanId,
+  isWhopSandbox,
+  planId,
+  whopEnvironment,
+} from '../whopEnv'
 
 /* One switch decides which Whop a page talks to. The failure that matters
    is a sandbox plan reaching a real customer, so the default is production
@@ -45,5 +50,25 @@ describe('depositPlanId', () => {
     ).toBeNull()
     expect(depositPlanId(null)).toBeNull()
     expect(depositPlanId({ whopPlanId: '' })).toBeNull()
+  })
+})
+
+describe('planId', () => {
+  const product = { whopPlanId: 'plan_live', whopSandboxPlanId: 'plan_sand' }
+
+  it('picks the live plan by default and the sandbox plan when asked', () => {
+    expect(planId(product)).toBe('plan_live')
+    expect(planId(product, 'sandbox')).toBe('plan_sand')
+  })
+
+  it('is null for nothing, and for an item whose id for this environment is empty', () => {
+    expect(planId(null)).toBeNull()
+    expect(planId(undefined)).toBeNull()
+    expect(planId({ whopPlanId: '' })).toBeNull()
+    expect(planId({ whopPlanId: 'plan_live' }, 'sandbox')).toBeNull()
+  })
+
+  it('reads the same shape depositPlanId does, so services keep working', () => {
+    expect(planId(product)).toBe(depositPlanId(product))
   })
 })
