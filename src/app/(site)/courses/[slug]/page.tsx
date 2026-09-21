@@ -5,7 +5,7 @@ import { TrackView } from '@/components/analytics/TrackView'
 import { CourseBody } from '@/components/site/CourseBody'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { BuyButton } from '@/components/commerce/BuyButton'
-import { usd } from '@/lib/commerce/money'
+import { planId } from '@/lib/commerce/whopEnv'
 
 export const revalidate = 60
 
@@ -72,6 +72,7 @@ export default async function CoursePage({
         cta={
           course.creemProductId ? (
             <BuyButton
+              planId={planId(course)}
               itemType="course"
               slug={course.slug}
               price={
@@ -80,11 +81,6 @@ export default async function CoursePage({
                   : undefined
               }
               name={course.title}
-              label={
-                typeof course.price === 'number'
-                  ? `Enroll — ${usd(course.price as number)}`
-                  : 'Enroll now'
-              }
             />
           ) : null
         }

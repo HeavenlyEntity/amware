@@ -9,7 +9,7 @@ import { BookCallButton } from '@/components/commerce/BookCallButton'
 import { DepositCheckout } from '@/components/commerce/DepositCheckout'
 import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
 import { calLinkFromUrl } from '@/lib/commerce/calLink'
-import { depositPlanId } from '@/lib/commerce/whopEnv'
+import { depositPlanId, planId } from '@/lib/commerce/whopEnv'
 import { usd } from '@/lib/commerce/money'
 import { typeMeta } from '@/components/commerce/catalog-meta'
 
@@ -310,6 +310,7 @@ export function ServiceCard({ service, index = 0, description = null }) {
       <div className="mt-auto pt-8">
         {service.creemProductId ? (
           <BuyButton
+            planId={planId(service)}
             itemType="service"
             slug={service.slug}
             price={hasPrice ? service.startingPrice : undefined}
