@@ -15,6 +15,7 @@ vi.mock('@/lib/commerce/fulfillment', () => ({
   notifyDepositReceived: vi.fn().mockResolvedValue(undefined),
   sendBoilerplateConfirmationEmail: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('@/lib/commerce/accessToken', () => ({ tryCreateAccessToken: vi.fn() }))
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { verifyWhopWebhook } from '@/lib/commerce/whop'
@@ -24,6 +25,7 @@ import {
   notifyDepositReceived,
   sendBoilerplateConfirmationEmail,
 } from '@/lib/commerce/fulfillment'
+import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
 import { POST } from '@/app/(commerce)/webhooks/whop/route'
 
 const service = {
@@ -42,6 +44,13 @@ const product = {
   whopPlanId: 'plan_pro',
   githubRepo: 'amwaredotdev/warekit-next-netsuite',
   seats: 1,
+}
+
+const teamProduct = {
+  ...product,
+  id: 8,
+  slug: 'warekit-next-netsuite-team',
+  seats: 5,
 }
 
 const payment = (over = {}) => ({
@@ -88,6 +97,13 @@ const kitDb = () =>
   find.mockImplementation(async ({ collection }) => {
     if (collection === 'purchases') return { docs: [] }
     if (collection === 'products') return { docs: [product] }
+    return { docs: [] }
+  })
+
+const teamDb = () =>
+  find.mockImplementation(async ({ collection }) => {
+    if (collection === 'purchases') return { docs: [] }
+    if (collection === 'products') return { docs: [teamProduct] }
     return { docs: [] }
   })
 
@@ -316,6 +332,96 @@ describe('Whop webhook', () => {
       expect.objectContaining({
         data: expect.objectContaining({ fulfillmentStatus: 'pending_invite' }),
       })
+    )
+  })
+
+  it('signs a seat link for a Team licence and puts it in the email', async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://www.amware.dev'
+    verifyWhopWebhook.mockReturnValue(event(kitPayment()))
+    teamDb()
+    const update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    inviteToRepo.mockResolvedValue({
+      ok: true,
+      state: 'invited',
+      url: 'https://github.com/i/1',
+      id: 1,
+    })
+    tryCreateAccessToken.mockReturnValue({
+      ok: true,
+      token: 'tok_team',
+      jti: 'jti_team',
+    })
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(tryCreateAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purchaseId: 99,
+        itemType: 'product',
+        itemId: 8,
+      })
+    )
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ accessTokenJti: 'jti_team' }),
+      })
+    )
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        seats: 5,
+        seatsUrl: 'https://www.amware.dev/access/seats/tok_team',
+      })
+    )
+  })
+
+  it('mints no seat link for a single-seat licence', async () => {
+    verifyWhopWebhook.mockReturnValue(event(kitPayment()))
+    kitDb()
+    const update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    inviteToRepo.mockResolvedValue({
+      ok: true,
+      state: 'invited',
+      url: 'https://github.com/i/1',
+      id: 1,
+    })
+
+    await POST(request())
+
+    expect(tryCreateAccessToken).not.toHaveBeenCalled()
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ seatsUrl: null })
+    )
+  })
+
+  it('still delivers seat one when the seat link cannot be signed', async () => {
+    verifyWhopWebhook.mockReturnValue(event(kitPayment()))
+    teamDb()
+    const update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    inviteToRepo.mockResolvedValue({
+      ok: true,
+      state: 'invited',
+      url: 'https://github.com/i/1',
+      id: 1,
+    })
+    tryCreateAccessToken.mockReturnValue({
+      ok: false,
+      reason: 'not-configured',
+    })
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ fulfillmentStatus: 'sent' }),
+      })
+    )
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ seatsUrl: null })
     )
   })
 })

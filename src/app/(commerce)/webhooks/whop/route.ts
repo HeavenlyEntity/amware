@@ -7,6 +7,7 @@ import {
 import { whopEnvironment } from '@/lib/commerce/whopEnv'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
 import { seatLimit } from '@/lib/commerce/seats'
+import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
 import {
   sendDepositReceivedEmail,
   notifyDepositReceived,
@@ -199,6 +200,35 @@ export async function POST(req: Request) {
         })
       }
 
+      /* A Team licence covers more than one GitHub account, and the other
+         seats are filled later from a signed page: /access/seats/<token>.
+         The buyer never has an account with us, so this link is the only
+         way back to that page. Without it a five-seat buyer gets one seat
+         and no way to use the other four.
+       *
+         Signing can fail when ACCESS_LINK_SECRET is unset. That must not
+         cost the buyer seat one, which they already have, so the failure
+         is logged and delivery carries on. */
+      const seats = seatLimit(item)
+      const signed =
+        seats > 1
+          ? tryCreateAccessToken({
+              purchaseId: purchase.id,
+              itemType: 'product',
+              itemId: item.id,
+            })
+          : null
+      if (signed && !signed.ok) {
+        console.error(
+          'Seat link not signed for payment',
+          paymentId,
+          signed.reason
+        )
+      }
+      const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
+      const seatsUrl =
+        signed?.ok && site ? `${site}/access/seats/${signed.token}` : null
+
       await payload
         .update({
           collection: 'purchases',
@@ -221,6 +251,7 @@ export async function POST(req: Request) {
                   ],
                 }
               : {}),
+            ...(signed?.ok ? { accessTokenJti: signed.jti } : {}),
             fulfillmentStatus: invite?.ok ? 'sent' : 'pending_invite',
           },
         })
@@ -236,8 +267,8 @@ export async function POST(req: Request) {
         inviteUrl: invite?.ok ? invite.url : null,
         alreadyHadAccess:
           invite?.ok && invite.state === 'already-a-collaborator',
-        seats: seatLimit(item),
-        seatsUrl: null,
+        seats,
+        seatsUrl,
         onboardingUrl: null,
       }).catch((err) =>
         console.error('Kit confirmation email failed', paymentId, err)
