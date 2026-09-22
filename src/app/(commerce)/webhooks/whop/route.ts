@@ -284,8 +284,12 @@ export async function POST(req: Request) {
             fulfillmentStatus: invite?.ok ? 'sent' : 'pending_invite',
           },
         })
-        .catch(() =>
-          console.error('Purchase invite update failed for payment', paymentId)
+        .catch((err) =>
+          console.error(
+            'Purchase invite update failed for payment',
+            paymentId,
+            err
+          )
         )
 
       await sendBoilerplateConfirmationEmail({

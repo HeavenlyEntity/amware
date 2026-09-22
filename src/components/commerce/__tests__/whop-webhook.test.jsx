@@ -844,3 +844,55 @@ describe('Whop webhook: the way back to the setup page', () => {
     expect(args.licenseKey).toBeUndefined()
   })
 })
+
+describe('Whop webhook: failures it must not hide', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  /* The one case a retry helps: the write failed and no row exists. */
+  it('answers 500 when the purchase cannot be written and no duplicate exists', async () => {
+    verifyWhopWebhook.mockReturnValue(event(payment()))
+    db()
+    create.mockRejectedValue(new Error('connection reset'))
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(500)
+    // Checked for the race first: the dedupe, then the recheck after the throw.
+    expect(
+      find.mock.calls.filter(([args]) => args.collection === 'purchases')
+    ).toHaveLength(2)
+    expect(log).toHaveBeenCalledWith(
+      'Whop purchase create failed',
+      'pay_1',
+      expect.any(Error)
+    )
+  })
+
+  it('keeps the error when recording the kit invitation fails', async () => {
+    verifyWhopWebhook.mockReturnValue(event(kitPayment()))
+    kitDb()
+    const failure = new Error('deadlock detected')
+    const update = vi.fn().mockRejectedValue(failure)
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    inviteToRepo.mockResolvedValue({
+      ok: true,
+      state: 'invited',
+      url: 'https://github.com/i/1',
+      id: 1,
+    })
+    sendBoilerplateConfirmationEmail.mockResolvedValue(undefined)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(log).toHaveBeenCalledWith(
+      'Purchase invite update failed for payment',
+      'pay_1',
+      failure
+    )
+  })
+})
