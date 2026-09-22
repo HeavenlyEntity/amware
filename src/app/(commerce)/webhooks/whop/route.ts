@@ -12,6 +12,7 @@ import {
   sendDepositReceivedEmail,
   notifyDepositReceived,
   sendBoilerplateConfirmationEmail,
+  notifyManualFulfilment,
 } from '@/lib/commerce/fulfillment'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,11 @@ export const dynamic = 'force-dynamic'
  * an engagement is scheduled with the client by hand, so fulfilment is
  * "not_required" from the start. The buyer gets a receipt with the booking
  * link and the owner gets a heads-up, because a deposit is a client, not a
- * download. */
+ * download.
+ *
+ * Four routes, decided by what the plan resolves to: a service's deposit, a
+ * kit (a repository invitation), any other product or course (owed by hand),
+ * or nothing at all (recorded as failed for a human to look at). */
 
 /* Which collection a plan belongs to.
  *
@@ -119,6 +124,12 @@ export async function POST(req: Request) {
   const itemType = collection ? ITEM_TYPE[collection] : undefined
   const service = collection === 'services' ? item : null
   const isBoilerplate = itemType === 'product' && item?.type === 'boilerplate'
+  /* A matched item that is neither a service nor a kit: a guide or any
+     other product, or a course. Nothing automated delivers one, so it is
+     owed by hand -- recorded as pending, and the owner is told. It must
+     never reach the deposit block below, which would mail the buyer a
+     receipt for an engagement deposit they never paid. */
+  const deliveredByHand = Boolean(item) && !service && !isBoilerplate
 
   const major = payment.total ?? payment.usd_total ?? 0
   const amount = Math.round(Number(major) * 100)
@@ -149,6 +160,8 @@ export async function POST(req: Request) {
         status: 'paid',
         fulfillmentStatus: isBoilerplate
           ? 'pending_invite'
+          : deliveredByHand
+          ? 'pending'
           : item
           ? 'not_required'
           : 'failed',
@@ -288,6 +301,27 @@ export async function POST(req: Request) {
     return new Response('ok', { status: 200 })
   }
 
+  /* Owed by hand: a product that is not a kit, or a course. The buyer gets
+     no email from here -- Whop sends its own receipt, and there is nothing
+     of ours to deliver yet -- and the owner is told what to send. Mail is
+     best effort: the sale is recorded, which is what must not be lost. */
+  if (deliveredByHand) {
+    await notifyManualFulfilment({
+      email,
+      itemName: item?.name || item?.title || 'an unnamed item',
+      amount,
+      currency,
+      paymentId,
+    }).catch((err) =>
+      console.error('Manual fulfilment notify failed', paymentId, err)
+    )
+
+    return new Response('ok', { status: 200 })
+  }
+
+  /* The deposit block. Reached only by a service's deposit, or by a plan
+     nothing claims -- which is recorded as failed and routed here exactly as
+     it always was. */
   if (!service) {
     console.error('Whop payment for a plan no service claims', {
       paymentId,

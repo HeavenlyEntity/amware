@@ -207,3 +207,31 @@ export async function notifyDepositReceived(args: {
     }\n\nReply to this email to reach them.`,
   })
 }
+
+/* The owner's heads-up for a Whop sale nothing here delivers: a product that
+   is not a kit, or a course. The purchase is recorded as pending, Whop sends
+   the buyer its own receipt, and this email is the only signal that someone
+   has paid and is waiting -- so it says what to deliver, not that a client
+   arrived. Silent when no address is configured, like notifyDepositReceived.
+   Amount is in cents. */
+export async function notifyManualFulfilment(args: {
+  email: string
+  itemName: string
+  amount: number
+  currency: string
+  paymentId: string
+}): Promise<void> {
+  const to = process.env.CONTACT_NOTIFY_TO
+  if (!to) return
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    replyTo: args.email,
+    subject: `To deliver by hand: ${args.itemName} for ${args.email}`,
+    text: `${money(args.amount, args.currency)} for ${args.itemName}\nFrom: ${
+      args.email
+    }\nWhop payment: ${
+      args.paymentId
+    }\n\nNothing delivers this automatically. The purchase is recorded as pending: send it to them, then mark it sent.\n\nReply to this email to reach them.`,
+  })
+}

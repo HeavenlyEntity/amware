@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 /* Relative imports and a mocked Resend: this module reaches no `@/` alias, so
    it runs in the engine project without one. */
@@ -11,13 +11,52 @@ vi.mock('resend', () => ({
   },
 }))
 
-import { sendBoilerplateConfirmationEmail } from '../fulfillment'
+import {
+  sendBoilerplateConfirmationEmail,
+  notifyManualFulfilment,
+} from '../fulfillment'
 
 const body = () => send.mock.calls.at(-1)[0].text
 
 beforeEach(() => {
   send.mockClear()
   process.env.NEXT_PUBLIC_SITE_URL = 'https://example.com'
+})
+
+describe('manual fulfilment alert', () => {
+  const sale = {
+    email: 'buyer@example.com',
+    itemName: 'Quick key rotation guide',
+    amount: 1200,
+    currency: 'usd',
+    paymentId: 'pay_guide',
+  }
+
+  afterEach(() => {
+    delete process.env.CONTACT_NOTIFY_TO
+  })
+
+  it('tells the owner what was bought, by whom, and that it is theirs to deliver', async () => {
+    process.env.CONTACT_NOTIFY_TO = 'owner@example.com'
+    await notifyManualFulfilment(sale)
+
+    expect(send).toHaveBeenCalledTimes(1)
+    const mail = send.mock.calls[0][0]
+    expect(mail.to).toBe('owner@example.com')
+    expect(mail.replyTo).toBe('buyer@example.com')
+    expect(mail.subject).toContain('Quick key rotation guide')
+    // It is a sale to deliver, not a client arriving.
+    expect(mail.subject).not.toMatch(/deposit/i)
+    expect(mail.text).toContain('$12')
+    expect(mail.text).toContain('buyer@example.com')
+    expect(mail.text).toContain('pay_guide')
+    expect(mail.text).not.toMatch(/deposit/i)
+  })
+
+  it('is silent when no owner address is configured', async () => {
+    await notifyManualFulfilment(sale)
+    expect(send).not.toHaveBeenCalled()
+  })
 })
 
 describe('boilerplate confirmation email', () => {
