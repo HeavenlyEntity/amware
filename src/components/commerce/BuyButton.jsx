@@ -1,29 +1,44 @@
 'use client'
 
-import Script from 'next/script'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { WhopCheckoutEmbed } from '@whop/checkout/react'
 import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
 
-/* Checkout is Whop's embed now, mounted from a plan id alone.
+/* Kit checkout, on the same Whop embed the deposit flow already uses.
  *
- * There is no server action any more: Creem needed one to mint a session
- * before the buyer could be sent anywhere, and Whop does not -- the plan
- * IS the product. That deletes a round trip, a signed return URL and the
- * whole "this item is not on sale yet, nothing has been charged" recovery
- * path, because a missing plan id is now visible before the press rather
- * than after it.
+ * The plan is the product, so there is no session to mint. The GitHub
+ * username is a custom field on the plan, asked inside the embed before
+ * the card.
  *
- * This is the vanilla loader + data-attribute embed, not the
- * @whop/checkout/react component DepositCheckout uses: that component
- * renders straight to an iframe with no mount point of its own, and the
- * deposit flow's Sheet-driven UX (received state, theming, onComplete)
- * has no equivalent need here. Nothing else on the site loads
- * js.whop.com/static/checkout/loader.js, so this is the only copy, not a
- * second one.
+ * The earlier version mounted Whop's bare loader script, which has no
+ * completion callback: a buyer finished paying and the page never moved.
+ * onComplete is what carries them to onboarding, where the licence key,
+ * the repo and the next step live. returnUrl covers the payment methods
+ * that leave the page (bank redirects, some wallets) and come back.
  *
- * The GitHub username is a custom field on the plan, so it is asked
- * inside this embed, before the card. Nothing on our side collects it. */
+ * The receipt id is passed along so onboarding can find the order. If
+ * Whop gives none, the buyer still lands there: the page shows a
+ * thank-you and the email carries the rest. */
+
+const ONBOARDING = '/checkout/onboarding'
 
 export function BuyButton({ planId, itemType, slug, name, price }) {
+  const router = useRouter()
+
+  /* Fired once when the embed is on screen. No event id: each open is an
+     attempt, and Whop should see how many attempts a sale takes. */
+  useEffect(() => {
+    if (!planId) return
+    whopTrack(WHOP_EVENT.beginCheckout, {
+      value: typeof price === 'number' ? price : undefined,
+      currency: 'USD',
+      content_type: itemType,
+      content_id: slug,
+      content_name: name,
+    })
+  }, [planId, itemType, slug, name, price])
+
   if (!planId) {
     return (
       <p
@@ -36,26 +51,21 @@ export function BuyButton({ planId, itemType, slug, name, price }) {
     )
   }
 
-  /* Fired as the embed opens rather than on a redirect: there is no longer
-     a navigation for the event to outlive. No event id -- each open is an
-     attempt, and Whop should see how many attempts a sale takes. */
-  const reportCheckout = () =>
-    whopTrack(WHOP_EVENT.beginCheckout, {
-      value: typeof price === 'number' ? price : undefined,
-      currency: 'USD',
-      content_type: itemType,
-      content_id: slug,
-      content_name: name,
-    })
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || ''
 
   return (
     <div className="mt-8">
-      <Script
-        src="https://js.whop.com/static/checkout/loader.js"
-        strategy="lazyOnload"
-        onReady={reportCheckout}
+      <WhopCheckoutEmbed
+        planId={planId}
+        returnUrl={`${site}${ONBOARDING}`}
+        onComplete={(_plan, receiptId) =>
+          router.push(
+            receiptId
+              ? `${ONBOARDING}?payment_id=${encodeURIComponent(receiptId)}`
+              : ONBOARDING
+          )
+        }
       />
-      <div data-whop-checkout-plan-id={planId} />
     </div>
   )
 }
