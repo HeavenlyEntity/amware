@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { WhopCheckoutEmbed } from '@whop/checkout/react'
 import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
+import { whopEnvironment } from '@/lib/commerce/whopEnv'
+import { useMounted } from '@/hooks/use-client-value'
 
 /* Kit checkout, on the same Whop embed the deposit flow already uses.
  *
@@ -19,12 +21,27 @@ import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
  *
  * The receipt id is passed along so onboarding can find the order. If
  * Whop gives none, the buyer still lands there: the page shows a
- * thank-you and the email carries the rest. */
+ * thank-you and the email carries the rest.
+ *
+ * environment is the same source DepositCheckout reads: whichever Whop
+ * world planId already resolved this plan id from. Defaulting to
+ * production would send a sandbox plan id to Whop's live API and fail.
+ *
+ * origin has to be window.location, not an env var, so it is always
+ * absolute -- and window does not exist during server rendering. useMounted
+ * is the codebase's own answer to that: a useState-plus-effect here would
+ * trip react-hooks/set-state-in-effect, the same reason use-client-value.js
+ * exists. The embed waits for the mounted flag rather than ever mounting
+ * with a relative returnUrl -- the same guard DepositCheckout gets from
+ * reading window.location.origin only after its sheet is clicked open. */
 
 const ONBOARDING = '/checkout/onboarding'
 
 export function BuyButton({ planId, itemType, slug, name, price }) {
   const router = useRouter()
+  const environment = whopEnvironment()
+  const mounted = useMounted()
+  const origin = mounted ? window.location.origin : ''
 
   /* Fired once when the embed is on screen. No event id: each open is an
      attempt, and Whop should see how many attempts a sale takes. */
@@ -51,21 +68,22 @@ export function BuyButton({ planId, itemType, slug, name, price }) {
     )
   }
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || ''
-
   return (
     <div className="mt-8">
-      <WhopCheckoutEmbed
-        planId={planId}
-        returnUrl={`${site}${ONBOARDING}`}
-        onComplete={(_plan, receiptId) =>
-          router.push(
-            receiptId
-              ? `${ONBOARDING}?payment_id=${encodeURIComponent(receiptId)}`
-              : ONBOARDING
-          )
-        }
-      />
+      {origin && (
+        <WhopCheckoutEmbed
+          planId={planId}
+          environment={environment}
+          returnUrl={`${origin}${ONBOARDING}`}
+          onComplete={(_plan, receiptId) =>
+            router.push(
+              receiptId
+                ? `${ONBOARDING}?payment_id=${encodeURIComponent(receiptId)}`
+                : ONBOARDING
+            )
+          }
+        />
+      )}
     </div>
   )
 }

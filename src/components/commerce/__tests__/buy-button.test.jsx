@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 const push = vi.fn()
@@ -23,7 +23,10 @@ import { BuyButton } from '../BuyButton'
 beforeEach(() => {
   vi.clearAllMocks()
   embedProps = undefined
-  process.env.NEXT_PUBLIC_SITE_URL = 'https://www.amware.dev'
+})
+
+afterEach(() => {
+  delete process.env.NEXT_PUBLIC_WHOP_ENV
 })
 
 describe('BuyButton', () => {
@@ -67,8 +70,23 @@ describe('BuyButton', () => {
       <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
     )
     expect(embedProps.returnUrl).toBe(
-      'https://www.amware.dev/checkout/onboarding'
+      `${window.location.origin}/checkout/onboarding`
     )
+  })
+
+  it('mounts against the sandbox when the site runs against the sandbox, and production otherwise', () => {
+    process.env.NEXT_PUBLIC_WHOP_ENV = 'sandbox'
+    const { unmount } = render(
+      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
+    )
+    expect(embedProps.environment).toBe('sandbox')
+    unmount()
+
+    delete process.env.NEXT_PUBLIC_WHOP_ENV
+    render(
+      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
+    )
+    expect(embedProps.environment).toBe('production')
   })
 
   it('reports begin_checkout with the price, and omits value when price is unknown', () => {
