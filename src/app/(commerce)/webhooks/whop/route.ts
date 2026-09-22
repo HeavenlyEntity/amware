@@ -84,7 +84,7 @@ export async function POST(req: Request) {
   if (!event) return new Response('Invalid signature', { status: 401 })
 
   if (event.type === 'membership.deactivated') {
-    return handleDeactivated(event.data as { id?: string; status?: string })
+    return handleDeactivated(event.data as DeactivatedMembership)
   }
 
   if (event.type !== 'payment.succeeded') {
@@ -153,7 +153,10 @@ export async function POST(req: Request) {
         itemType,
         githubUsername: githubUsername || undefined,
         licenseKey: payment.membership?.license_key || undefined,
-        whopMembershipId: payment.membership?.id || undefined,
+        /* The installed SDK's Payment has a flat membership_id; older
+           payloads nest it. Revocation finds the purchase by this id. */
+        whopMembershipId:
+          payment.membership?.id ?? payment.membership_id ?? undefined,
         whopPlanId: planId || undefined,
         amount,
         currency,
@@ -392,9 +395,26 @@ function loginsOf(purchase: {
     .map((u) => u.trim().toLowerCase())
 }
 
-async function handleDeactivated(membership: { id?: string; status?: string }) {
+/* The fields of a deactivated Membership this code reads. `plan_id` is flat
+   in the dated API version the webhook is pinned to. */
+type DeactivatedMembership = {
+  id?: string
+  status?: string
+  plan_id?: string
+}
+
+async function handleDeactivated(membership: DeactivatedMembership) {
   const membershipId = membership?.id
   const status = membership?.status
+  /* Every deactivation is logged, before any guard. Without this a payload
+     whose shape does not match -- no id, no status where they are read --
+     is indistinguishable in the logs from "no refunds happened", which is
+     exactly the capture the flag is waiting on. */
+  console.info('Whop membership deactivated', {
+    membershipId,
+    status,
+    plan_id: membership?.plan_id,
+  })
   if (!membershipId || !status || !ENDS_ACCESS.has(status)) {
     return new Response('ignored (access retained)', { status: 200 })
   }

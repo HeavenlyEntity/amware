@@ -85,6 +85,10 @@ export type WhopPayment = {
     username?: string | null
   } | null
   membership?: { id?: string | null; license_key?: string | null } | null
+  /* The shape @whop/sdk@1.1.4's Payment actually has: the membership as a
+     flat id. Read alongside the nested one above, which older payloads
+     carry, because revocation finds a purchase by this id. */
+  membership_id?: string | null
   metadata?: Record<string, unknown> | null
   checkout_configuration_id?: string | null
 }

@@ -701,3 +701,89 @@ describe('Whop webhook: access another paid purchase still covers', () => {
     )
   })
 })
+
+describe('Whop webhook: seeing every deactivation', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('logs a deactivation before deciding it keeps access', async () => {
+    verifyWhopWebhook.mockReturnValue(deactivated('completed'))
+    find.mockResolvedValue({ docs: [soldKit] })
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    await POST(request())
+
+    expect(info).toHaveBeenCalledWith(
+      expect.stringMatching(/membership deactivated/i),
+      { membershipId: 'mem_1', status: 'completed', plan_id: 'plan_pro' }
+    )
+    expect(removeFromRepo).not.toHaveBeenCalled()
+  })
+
+  it('logs one it cannot read, so a payload shape mismatch is visible', async () => {
+    verifyWhopWebhook.mockReturnValue({
+      id: 'msg_3',
+      type: 'membership.deactivated',
+      data: { membership: { id: 'mem_nested' } },
+    })
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(info).toHaveBeenCalledWith(
+      expect.stringMatching(/membership deactivated/i),
+      { membershipId: undefined, status: undefined, plan_id: undefined }
+    )
+    expect(getPayloadClient).not.toHaveBeenCalled()
+  })
+})
+
+describe('Whop webhook: the membership a sale created', () => {
+  let update
+
+  beforeEach(() => {
+    update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    inviteToRepo.mockResolvedValue({
+      ok: true,
+      state: 'invited',
+      url: 'https://github.com/i/1',
+      id: 1,
+    })
+    sendBoilerplateConfirmationEmail.mockResolvedValue(undefined)
+  })
+
+  /* @whop/sdk@1.1.4's Payment carries a flat membership_id; revocation
+     finds a purchase by this id, so missing it means never revoking. */
+  it('records the flat membership_id the Payment type carries', async () => {
+    verifyWhopWebhook.mockReturnValue(
+      event(kitPayment({ membership_id: 'mem_flat' }))
+    )
+    kitDb()
+
+    await POST(request())
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ whopMembershipId: 'mem_flat' }),
+      })
+    )
+  })
+
+  it('still records a nested membership id', async () => {
+    verifyWhopWebhook.mockReturnValue(
+      event(kitPayment({ membership: { id: 'mem_nested' } }))
+    )
+    kitDb()
+
+    await POST(request())
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ whopMembershipId: 'mem_nested' }),
+      })
+    )
+  })
+})
