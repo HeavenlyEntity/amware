@@ -377,6 +377,21 @@ export async function POST(req: Request) {
  * just removed with a seat link that is still inside its 30 days. */
 const ENDS_ACCESS = new Set(['canceled', 'expired'])
 
+/* Every GitHub account a purchase grants -- the buyer's own and each
+   seat's -- trimmed and lower-cased, because GitHub logins are
+   case-insensitive and two spellings are one person. */
+function loginsOf(purchase: {
+  githubUsername?: string | null
+  seatMembers?: { githubUsername?: string | null }[] | null
+}): string[] {
+  return [
+    purchase.githubUsername,
+    ...(purchase.seatMembers || []).map((m) => m?.githubUsername),
+  ]
+    .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+    .map((u) => u.trim().toLowerCase())
+}
+
 async function handleDeactivated(membership: { id?: string; status?: string }) {
   const membershipId = membership?.id
   const status = membership?.status
@@ -403,17 +418,60 @@ async function handleDeactivated(membership: { id?: string; status?: string }) {
         (u: unknown): u is string => typeof u === 'string' && u.length > 0
       )
 
+    /* Pro and Team share one repository, so an account can hold access
+       through more than one purchase -- a duplicate order, or a Pro buyer
+       who is also a seat on a live Team licence. Ending one purchase must
+       not take away what another still pays for.
+     *
+       Candidates are fetched by repo and status, and the logins compared
+       here rather than in the query: Postgres `equals` is case-sensitive and
+       GitHub logins are not. The row being revoked is excluded by id. This
+       runs in log-only mode too, so "would revoke" names only the accounts
+       that really would go. */
+    const { docs: paidOnRepo } = await payload.find({
+      collection: 'purchases',
+      where: {
+        githubRepo: { equals: sold.githubRepo },
+        status: { equals: 'paid' },
+      },
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const coveredBy = new Map<string, number>()
+    for (const other of paidOnRepo) {
+      if (other.id === sold.id) continue
+      for (const login of loginsOf(other)) {
+        if (!coveredBy.has(login)) coveredBy.set(login, other.id)
+      }
+    }
+
+    const revoke: string[] = []
+    for (const username of usernames) {
+      const other = coveredBy.get(username.trim().toLowerCase())
+      if (other !== undefined) {
+        console.info('Revocation skipped: still covered by another purchase', {
+          membershipId,
+          username,
+          purchaseId: sold.id,
+          coveredBy: other,
+        })
+        continue
+      }
+      revoke.push(username)
+    }
+
     if (process.env.WAREKIT_REVOKE_ON_DEACTIVATE !== '1') {
       console.warn('Would revoke repo access (flag off)', {
         membershipId,
         status,
         repo: sold.githubRepo,
-        usernames,
+        usernames: revoke,
       })
       return new Response('ok (logged only)', { status: 200 })
     }
 
-    for (const username of usernames) {
+    for (const username of revoke) {
       const result = await removeFromRepo({ repo: sold.githubRepo, username })
       if (!result.ok) {
         console.error('Revoke failed', {

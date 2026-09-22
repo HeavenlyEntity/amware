@@ -562,3 +562,142 @@ describe('Whop webhook: a revocation that acts', () => {
     expect(create).not.toHaveBeenCalled()
   })
 })
+
+describe('Whop webhook: access another paid purchase still covers', () => {
+  const REPO = 'amwaredotdev/warekit-next-netsuite'
+  let update
+
+  /* Answers each purchases query the way the database would: the
+     membership lookup finds the row being revoked, and the coverage lookup
+     finds every paid row on the repo -- the revoked row included, since it
+     is still paid when the check runs. */
+  const purchasesDb = (revoked, others) =>
+    find.mockImplementation(async ({ where }) =>
+      where?.whopMembershipId
+        ? { docs: [revoked] }
+        : { docs: [revoked, ...others] }
+    )
+
+  beforeEach(() => {
+    update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    removeFromRepo.mockResolvedValue({ ok: true, state: 'removed' })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    delete process.env.WAREKIT_REVOKE_ON_DEACTIVATE
+    vi.restoreAllMocks()
+  })
+
+  it('removes nobody when another paid purchase on the repo covers the same account', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    verifyWhopWebhook.mockReturnValue(deactivated('canceled'))
+    purchasesDb(
+      {
+        id: 99,
+        status: 'paid',
+        githubRepo: REPO,
+        githubUsername: 'octocat',
+        seatMembers: [{ githubUsername: 'octocat' }],
+      },
+      // A duplicate purchase, the login typed with different capitals.
+      [{ id: 100, status: 'paid', githubRepo: REPO, githubUsername: 'OctoCat' }]
+    )
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(info).toHaveBeenCalledWith(
+      'Revocation skipped: still covered by another purchase',
+      expect.objectContaining({
+        username: 'octocat',
+        purchaseId: 99,
+        coveredBy: 100,
+      })
+    )
+    /* Candidates by repo and status; the usernames are compared in code,
+       because Postgres `equals` is case-sensitive and GitHub is not. */
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'purchases',
+        where: {
+          githubRepo: { equals: REPO },
+          status: { equals: 'paid' },
+        },
+        pagination: false,
+      })
+    )
+  })
+
+  it('still removes a seat that only the ending licence covered', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    verifyWhopWebhook.mockReturnValue(deactivated('canceled'))
+    purchasesDb(
+      {
+        id: 99,
+        status: 'paid',
+        githubRepo: REPO,
+        seatMembers: [
+          { githubUsername: 'octocat' },
+          { githubUsername: 'hubot' },
+        ],
+      },
+      // hubot is also a seat on a live Team licence; octocat is not.
+      [
+        {
+          id: 101,
+          status: 'paid',
+          githubRepo: REPO,
+          githubUsername: 'mona',
+          seatMembers: [
+            { githubUsername: 'mona' },
+            { githubUsername: 'HUBOT' },
+          ],
+        },
+      ]
+    )
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    await POST(request())
+
+    expect(removeFromRepo).toHaveBeenCalledTimes(1)
+    expect(removeFromRepo).toHaveBeenCalledWith({
+      repo: REPO,
+      username: 'octocat',
+    })
+  })
+
+  it('names only the accounts that would really go when it is only logging', async () => {
+    verifyWhopWebhook.mockReturnValue(deactivated('expired'))
+    purchasesDb(
+      {
+        id: 99,
+        status: 'paid',
+        githubRepo: REPO,
+        seatMembers: [
+          { githubUsername: 'octocat' },
+          { githubUsername: 'hubot' },
+        ],
+      },
+      [{ id: 101, status: 'paid', githubRepo: REPO, githubUsername: 'hubot' }]
+    )
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await POST(request())
+
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/would revoke/i),
+      expect.objectContaining({ usernames: ['octocat'] })
+    )
+    expect(info).toHaveBeenCalledWith(
+      'Revocation skipped: still covered by another purchase',
+      expect.objectContaining({ username: 'hubot', coveredBy: 101 })
+    )
+  })
+})
