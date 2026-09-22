@@ -54,6 +54,30 @@ function Shell({
 const linkClass =
   'text-teal-700 underline underline-offset-4 dark:text-teal-300'
 
+/* The manual route, for a link that can never show a purchase by waiting:
+ * a purchase that is no longer paid (a revoked licence is marked refunded).
+ * It says nothing about any purchase -- no item, repo, key or account -- so
+ * it is safe in front of whoever holds the link, and it points at the one
+ * thing that always works: the purchase email and a human. */
+function ManualState() {
+  return (
+    <Shell title="Check your email">
+      <p className="mt-6 text-zinc-600 dark:text-zinc-400">
+        This page has no purchase to show for this link. If you have just paid,
+        your payment is safe and you do not need to pay again — the email
+        confirming your purchase has the details.
+      </p>
+      <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+        Something missing? Reply to that email and I will sort it by hand, or{' '}
+        <Link href="/contact" className={linkClass}>
+          get in touch
+        </Link>
+        .
+      </p>
+    </Shell>
+  )
+}
+
 export default async function OnboardingPage({
   searchParams,
 }: {
@@ -99,6 +123,14 @@ export default async function OnboardingPage({
         </p>
       </Shell>
     )
+  }
+
+  /* Only a paid purchase is described. A revoked licence is marked refunded,
+     and its payment id still finds the row -- so the page has to refuse it
+     here, or it would go on showing the repo and account it no longer
+     grants. */
+  if (purchase && purchase.status !== 'paid') {
+    return <ManualState />
   }
 
   if (!purchase) {

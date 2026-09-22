@@ -492,3 +492,73 @@ describe('Whop webhook', () => {
     expect(removeFromRepo).not.toHaveBeenCalled()
   })
 })
+
+/* Added in the final fix wave. Everything above this line is the deposit
+   path's regression alarm and stands unedited; these cases are additions
+   only, with their own setup, and set every mock they rely on (the file's
+   beforeEach clears calls, not implementations). */
+
+describe('Whop webhook: a revocation that acts', () => {
+  let update
+
+  beforeEach(() => {
+    update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    removeFromRepo.mockResolvedValue({ ok: true, state: 'removed' })
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    delete process.env.WAREKIT_REVOKE_ON_DEACTIVATE
+    vi.restoreAllMocks()
+  })
+
+  it('marks the purchase refunded after removing access, so its seat link and resend stop working', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    verifyWhopWebhook.mockReturnValue(deactivated('canceled'))
+    find.mockResolvedValue({ docs: [soldKit] })
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'purchases',
+        id: 99,
+        data: { status: 'refunded' },
+      })
+    )
+    // After the removals, never before: the row is the record of what ended.
+    expect(update.mock.invocationCallOrder[0]).toBeGreaterThan(
+      Math.max(...removeFromRepo.mock.invocationCallOrder)
+    )
+  })
+
+  it('still marks it refunded when GitHub refuses a removal, because the licence has ended either way', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    verifyWhopWebhook.mockReturnValue(deactivated('expired'))
+    find.mockResolvedValue({ docs: [soldKit] })
+    removeFromRepo.mockResolvedValue({ ok: false, reason: 'unreachable' })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await POST(request())
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 99, data: { status: 'refunded' } })
+    )
+  })
+
+  it('mutates nothing in log-only mode', async () => {
+    verifyWhopWebhook.mockReturnValue(deactivated('canceled'))
+    find.mockResolvedValue({ docs: [soldKit] })
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+    expect(create).not.toHaveBeenCalled()
+  })
+})

@@ -369,7 +369,12 @@ export async function POST(req: Request) {
  *
  * Every seat member is removed, not just the buyer: a Team licence that
  * ends ends for all five. Nothing here throws, and the answer is always
- * 200 -- a retry cannot un-refund anyone. */
+ * 200 -- a retry cannot un-refund anyone.
+ *
+ * Once it acts, the purchase is marked refunded. That is what closes the
+ * row's other doors: the seat page, addSeat and /access/resend all refuse
+ * a purchase that is not paid, so a Team buyer cannot re-invite the people
+ * just removed with a seat link that is still inside its 30 days. */
 const ENDS_ACCESS = new Set(['canceled', 'expired'])
 
 async function handleDeactivated(membership: { id?: string; status?: string }) {
@@ -418,6 +423,16 @@ async function handleDeactivated(membership: { id?: string; status?: string }) {
         })
       }
     }
+
+    /* After the removals, and whether or not each one landed: the licence
+       has ended either way, and a removal GitHub refused is already logged
+       above for a human. The status is what stops the row granting again. */
+    await payload.update({
+      collection: 'purchases',
+      id: sold.id,
+      overrideAccess: true,
+      data: { status: 'refunded' },
+    })
   } catch (err) {
     console.error('Deactivation handling failed', membershipId, err)
   }

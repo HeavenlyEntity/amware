@@ -93,4 +93,24 @@ describe('Onboarding page', () => {
       screen.getByRole('link', { name: /book an intro call/i })
     ).toHaveAttribute('href', '/services')
   })
+
+  /* A revoked licence is marked refunded. Its payment id still resolves to
+     the row, so the page itself has to refuse to describe it. */
+  it('shows nothing about a purchase that is no longer paid', async () => {
+    find.mockResolvedValue({ docs: [row({ status: 'refunded' })] })
+    const { container } = await renderPage({ payment_id: 'pay_1' })
+    const text = container.textContent
+
+    expect(text).not.toContain('amwaredotdev/warekit-next-netsuite')
+    expect(text).not.toContain('WXYZ')
+    expect(text).not.toContain('octocat')
+    expect(text).not.toContain('WareKit Next NetSuite (Pro)')
+    expect(text).not.toMatch(/git clone/i)
+    // It can never turn into a paid purchase by waiting, so it does not.
+    expect(text).not.toMatch(/checks again automatically/i)
+    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
+      'href',
+      '/contact'
+    )
+  })
 })
