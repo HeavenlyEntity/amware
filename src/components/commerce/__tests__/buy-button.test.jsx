@@ -120,4 +120,36 @@ describe('BuyButton', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/not on sale yet/i)
     expect(screen.queryByTestId('embed')).toBeNull()
   })
+
+  /* Without it Whop may navigate the top frame after payment and pre-empt
+     the router.push onComplete makes -- the same prop DepositCheckout sets. */
+  it('keeps the page loaded after payment, so onComplete is what moves the buyer', () => {
+    render(
+      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
+    )
+    expect(embedProps.skipRedirect).toBe(true)
+  })
+
+  it('themes the embed the way the deposit sheet does', () => {
+    render(
+      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
+    )
+    expect(embedProps.theme).toBe('light')
+    expect(embedProps.themeOptions).toEqual({
+      accentColor: '#14bbac',
+      borderRadius: 8,
+    })
+  })
+
+  it('mounts the embed dark on a dark page', () => {
+    document.documentElement.classList.add('dark')
+    try {
+      render(
+        <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
+      )
+      expect(embedProps.theme).toBe('dark')
+    } finally {
+      document.documentElement.classList.remove('dark')
+    }
+  })
 })

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { WhopCheckoutEmbed } from '@whop/checkout/react'
 import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
 import { whopEnvironment } from '@/lib/commerce/whopEnv'
-import { useMounted } from '@/hooks/use-client-value'
+import { useMounted, useRootTheme } from '@/hooks/use-client-value'
 
 /* Kit checkout, on the same Whop embed the deposit flow already uses.
  *
@@ -33,14 +33,29 @@ import { useMounted } from '@/hooks/use-client-value'
  * trip react-hooks/set-state-in-effect, the same reason use-client-value.js
  * exists. The embed waits for the mounted flag rather than ever mounting
  * with a relative returnUrl -- the same guard DepositCheckout gets from
- * reading window.location.origin only after its sheet is clicked open. */
+ * reading window.location.origin only after its sheet is clicked open.
+ *
+ * skipRedirect and the theme are what DepositCheckout gives its embed.
+ * skipRedirect keeps Whop from navigating the top frame after payment, which
+ * would pre-empt the router.push in onComplete. The embed is an iframe and
+ * cannot read the site's tokens, so it is told the mode and the accent;
+ * useRootTheme reads the mode at the same render useMounted first turns true,
+ * so the embed mounts in the right one. (It does not follow a later toggle:
+ * Whop's embed does not support prop updates after mount -- the same as the
+ * deposit sheet, which reads the mode once, when it opens.) No buttonText:
+ * the deposit's is deposit copy, and Whop's default for a one-time plan,
+ * "Pay", is already true for a kit. */
 
 const ONBOARDING = '/checkout/onboarding'
+
+/* The deposit sheet's accent and corner radius, so both embeds match. */
+const THEME_OPTIONS = { accentColor: '#14bbac', borderRadius: 8 }
 
 export function BuyButton({ planId, itemType, slug, name, price }) {
   const router = useRouter()
   const environment = whopEnvironment()
   const mounted = useMounted()
+  const theme = useRootTheme()
   const origin = mounted ? window.location.origin : ''
 
   /* Fired once when the embed is on screen. No event id: each open is an
@@ -73,8 +88,11 @@ export function BuyButton({ planId, itemType, slug, name, price }) {
       {origin && (
         <WhopCheckoutEmbed
           planId={planId}
+          theme={theme}
+          themeOptions={THEME_OPTIONS}
           environment={environment}
           returnUrl={`${origin}${ONBOARDING}`}
+          skipRedirect
           onComplete={(_plan, receiptId) =>
             router.push(
               receiptId
