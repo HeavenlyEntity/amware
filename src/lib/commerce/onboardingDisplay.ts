@@ -37,3 +37,11 @@ export function maskLicenseKey(key: unknown): string | null {
   if (typeof key !== 'string' || key.length < MIN_MASKABLE) return null
   return `••••${key.slice(-SHOWN)}`
 }
+
+/* One value from a search param. A repeated param (?payment_id=a&payment_id=b)
+ * arrives as an array, and the first is taken; anything else that is not a
+ * string is treated as absent -- never passed on to a query or a URL as-is. */
+export function firstParam(value: unknown): string {
+  const first = Array.isArray(value) ? value[0] : value
+  return typeof first === 'string' ? first : ''
+}

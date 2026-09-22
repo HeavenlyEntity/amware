@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 /* Relative import: the engine project defines no `@/` alias, and these are
    pure functions over plain values. */
-import { maskLicenseKey, tierFromSlug } from '../onboardingDisplay'
+import { firstParam, maskLicenseKey, tierFromSlug } from '../onboardingDisplay'
 
 /* The onboarding page has no signature: anyone holding a payment id can
    load it. These two decide what that page is allowed to show, so they are
@@ -59,6 +59,23 @@ describe('tierFromSlug', () => {
   it('gives no tier when there is no slug at all', () => {
     for (const value of ['', null, undefined, 42]) {
       expect(tierFromSlug(value)).toBeNull()
+    }
+  })
+})
+
+describe('firstParam', () => {
+  it('passes a single value through', () => {
+    expect(firstParam('pay_1')).toBe('pay_1')
+  })
+
+  it('takes the first of a repeated param', () => {
+    // ?payment_id=pay_1&payment_id=pay_2 arrives as an array.
+    expect(firstParam(['pay_1', 'pay_2'])).toBe('pay_1')
+  })
+
+  it('treats anything that is not a string as absent', () => {
+    for (const value of [undefined, null, [], [42], 42, {}]) {
+      expect(firstParam(value)).toBe('')
     }
   })
 })

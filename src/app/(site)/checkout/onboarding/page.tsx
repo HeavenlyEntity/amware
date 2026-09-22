@@ -6,7 +6,11 @@ import {
   PendingRefresh,
   MAX_ATTEMPTS,
 } from '@/components/commerce/PendingRefresh'
-import { maskLicenseKey, tierFromSlug } from '@/lib/commerce/onboardingDisplay'
+import {
+  firstParam,
+  maskLicenseKey,
+  tierFromSlug,
+} from '@/lib/commerce/onboardingDisplay'
 import type { Purchase } from '@/payload-types'
 
 export const dynamic = 'force-dynamic'
@@ -113,17 +117,17 @@ export default async function OnboardingPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    payment_id?: string
-    attempt?: string
-    status?: string
+    payment_id?: string | string[]
+    attempt?: string | string[]
+    status?: string | string[]
   }>
 }) {
-  const {
-    payment_id: paymentId = '',
-    attempt: attemptParam = '',
-    status = '',
-  } = await searchParams
-  const attempt = Math.max(0, parseInt(attemptParam, 10) || 0)
+  /* A repeated param arrives as an array; firstParam takes the first, so an
+     array never reaches the query, the refresh URL or the status check. */
+  const params = await searchParams
+  const paymentId = firstParam(params.payment_id)
+  const status = firstParam(params.status)
+  const attempt = Math.max(0, parseInt(firstParam(params.attempt), 10) || 0)
 
   /* Before any lookup: whatever a payment id would find, Whop has just said
      this payment failed, and "you do not need to pay again" would be a lie. */

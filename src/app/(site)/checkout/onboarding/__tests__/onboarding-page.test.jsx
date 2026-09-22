@@ -172,3 +172,24 @@ describe('Onboarding page', () => {
     ).toHaveAttribute('href', '/checkout/onboarding?payment_id=pay_1')
   })
 })
+
+describe('Onboarding page search params', () => {
+  it('looks up the first payment id when the param is repeated', async () => {
+    find.mockResolvedValue({ docs: [row()] })
+    await renderPage({ payment_id: ['pay_1', 'pay_2'] })
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { whopPaymentId: { equals: 'pay_1' } },
+      })
+    )
+    expect(
+      screen.getByRole('heading', { name: /WareKit Next NetSuite \(Pro\)/ })
+    ).toBeInTheDocument()
+  })
+
+  it('reads a repeated status the same way', async () => {
+    const { container } = await renderPage({ status: ['error', 'success'] })
+    expect(container.textContent).toMatch(/did not go through/i)
+  })
+})
