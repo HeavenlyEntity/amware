@@ -113,4 +113,62 @@ describe('Onboarding page', () => {
       '/contact'
     )
   })
+
+  /* Whop appends ?status=success|error when a bank redirect or wallet comes
+     back. After a failure, "you do not need to pay again" would be a lie. */
+  it('says a failed payment did not go through, and offers another try', async () => {
+    const { container } = await renderPage({ status: 'error' })
+
+    expect(
+      screen.getByRole('heading', { name: /did not go through/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).toMatch(/nothing was charged/i)
+    expect(container.textContent).not.toMatch(/do not need to pay again/i)
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      '/pricing'
+    )
+    expect(find).not.toHaveBeenCalled()
+  })
+
+  it('says a failed payment did not go through even when a payment id came back', async () => {
+    const { container } = await renderPage({
+      status: 'error',
+      payment_id: 'pay_1',
+    })
+    expect(container.textContent).toMatch(/did not go through/i)
+    expect(container.textContent).not.toMatch(/do not need to pay again/i)
+  })
+
+  it('points at the email straight away when there is no payment id to look up', async () => {
+    const { container } = await renderPage({})
+
+    expect(
+      screen.getByRole('heading', { name: /check your email/i })
+    ).toBeInTheDocument()
+    // Without an id the lookup can never succeed, so it never retries.
+    expect(container.textContent).not.toMatch(/checks again automatically/i)
+    expect(find).not.toHaveBeenCalled()
+  })
+
+  it('keeps checking, a bounded number of times, while the webhook is on its way', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({ payment_id: 'pay_1' })
+
+    expect(container.textContent).toMatch(/checks again automatically/i)
+    expect(container.textContent).toMatch(/do not need to pay again/i)
+  })
+
+  it('stops checking and offers a manual refresh once the attempts run out', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      payment_id: 'pay_1',
+      attempt: '6',
+    })
+
+    expect(container.textContent).not.toMatch(/checks again automatically/i)
+    expect(
+      screen.getByRole('link', { name: /refresh the page/i })
+    ).toHaveAttribute('href', '/checkout/onboarding?payment_id=pay_1')
+  })
 })

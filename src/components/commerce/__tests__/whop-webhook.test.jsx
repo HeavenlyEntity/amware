@@ -787,3 +787,60 @@ describe('Whop webhook: the membership a sale created', () => {
     )
   })
 })
+
+describe('Whop webhook: the way back to the setup page', () => {
+  let update, site
+
+  beforeEach(() => {
+    site = process.env.NEXT_PUBLIC_SITE_URL
+    update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    inviteToRepo.mockResolvedValue({
+      ok: true,
+      state: 'invited',
+      url: 'https://github.com/i/1',
+      id: 1,
+    })
+    sendBoilerplateConfirmationEmail.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    if (site === undefined) delete process.env.NEXT_PUBLIC_SITE_URL
+    else process.env.NEXT_PUBLIC_SITE_URL = site
+  })
+
+  it('sends the kit email the setup link and the full licence key', async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://www.amware.dev/'
+    verifyWhopWebhook.mockReturnValue(
+      event(
+        kitPayment({
+          membership: { id: 'mem_1', license_key: 'WHOPKEY-4F2A-99C1-WXYZ' },
+        })
+      )
+    )
+    kitDb()
+
+    await POST(request())
+
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        setupUrl: 'https://www.amware.dev/checkout/onboarding?payment_id=pay_1',
+        licenseKey: 'WHOPKEY-4F2A-99C1-WXYZ',
+        // The setup link is its own line, never the onboardingUrl rewrite.
+        onboardingUrl: null,
+      })
+    )
+  })
+
+  it('leaves the setup link out rather than send a relative one', async () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL
+    verifyWhopWebhook.mockReturnValue(event(kitPayment()))
+    kitDb()
+
+    await POST(request())
+
+    const args = sendBoilerplateConfirmationEmail.mock.calls[0][0]
+    expect(args.setupUrl).toBeUndefined()
+    expect(args.licenseKey).toBeUndefined()
+  })
+})

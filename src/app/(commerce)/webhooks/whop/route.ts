@@ -96,6 +96,7 @@ export async function POST(req: Request) {
   const planId = payment.plan?.id || null
   const email = payment.user?.email || null
   const githubUsername = customFieldAnswer(payment, GITHUB_FIELD)
+  const licenseKey = payment.membership?.license_key || undefined
   if (!paymentId || !email) {
     console.error('Whop payment without id or email', { paymentId, planId })
     return new Response('ignored (missing fields)', { status: 200 })
@@ -152,7 +153,7 @@ export async function POST(req: Request) {
           : undefined,
         itemType,
         githubUsername: githubUsername || undefined,
-        licenseKey: payment.membership?.license_key || undefined,
+        licenseKey,
         /* The installed SDK's Payment has a flat membership_id; older
            payloads nest it. Revocation finds the purchase by this id. */
         whopMembershipId:
@@ -248,6 +249,14 @@ export async function POST(req: Request) {
       const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
       const seatsUrl =
         signed?.ok && site ? `${site}/access/seats/${signed.token}` : null
+      /* The way back to the setup page for a buyer who closed the tab --
+         the page tells them it is in this email. Left out rather than sent
+         relative when the site URL is not configured. */
+      const setupUrl = site
+        ? `${site}/checkout/onboarding?payment_id=${encodeURIComponent(
+            paymentId
+          )}`
+        : undefined
 
       await payload
         .update({
@@ -290,6 +299,8 @@ export async function POST(req: Request) {
         seats,
         seatsUrl,
         onboardingUrl: null,
+        setupUrl,
+        licenseKey,
       }).catch((err) =>
         console.error('Kit confirmation email failed', paymentId, err)
       )

@@ -29,6 +29,11 @@ export const metadata = {
  * it, so "no purchase yet" is a normal state for the first few seconds
  * after paying, not an error: it refreshes itself a bounded number of times
  * rather than showing a 404 to someone who has just been charged.
+ *
+ * Only that case waits. A payment Whop reports as failed (?status=error on
+ * the way back from a bank redirect) says so and offers another try; a link
+ * with no payment id, or one whose purchase is no longer paid, can never
+ * turn into a purchase by waiting, so it points at the email straight away.
  */
 
 function Shell({
@@ -55,6 +60,7 @@ const linkClass =
   'text-teal-700 underline underline-offset-4 dark:text-teal-300'
 
 /* The manual route, for a link that can never show a purchase by waiting:
+ * no payment id at all (Whop gave none, so there is nothing to look up), or
  * a purchase that is no longer paid (a revoked licence is marked refunded).
  * It says nothing about any purchase -- no item, repo, key or account -- so
  * it is safe in front of whoever holds the link, and it points at the one
@@ -78,34 +84,71 @@ function ManualState() {
   )
 }
 
+/* Whop's word that the payment failed, on the way back from a method that
+ * left the page. Mirrors the deposit's return page: nothing was charged, so
+ * the one useful thing is another try. */
+function PaymentFailed() {
+  return (
+    <Shell title="That payment did not go through">
+      <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
+        Nothing was charged. You can try again from the pricing page, or get in
+        touch and we will sort it out by hand.
+      </p>
+      <p className="mt-8 flex flex-wrap items-center gap-4">
+        <Link href="/pricing" className="amw-cta inline-flex max-w-xs">
+          Try again
+        </Link>
+        <Link
+          href="/contact"
+          className="hover:text-[var(--amw-accent-ink)] min-h-11 inline-flex items-center text-sm font-medium text-zinc-700 no-underline transition-colors dark:text-zinc-300"
+        >
+          Get in touch →
+        </Link>
+      </p>
+    </Shell>
+  )
+}
+
 export default async function OnboardingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ payment_id?: string; attempt?: string }>
+  searchParams: Promise<{
+    payment_id?: string
+    attempt?: string
+    status?: string
+  }>
 }) {
-  const { payment_id: paymentId = '', attempt: attemptParam = '' } =
-    await searchParams
+  const {
+    payment_id: paymentId = '',
+    attempt: attemptParam = '',
+    status = '',
+  } = await searchParams
   const attempt = Math.max(0, parseInt(attemptParam, 10) || 0)
+
+  /* Before any lookup: whatever a payment id would find, Whop has just said
+     this payment failed, and "you do not need to pay again" would be a lie. */
+  if (status === 'error') return <PaymentFailed />
+
+  // Without an id the lookup can never succeed, so nothing waits for it.
+  if (!paymentId) return <ManualState />
 
   let purchase: Purchase | null = null
   let loadError = false
 
-  if (paymentId) {
-    try {
-      const payload = await getPayloadClient()
-      const { docs } = await payload.find({
-        collection: 'purchases',
-        where: { whopPaymentId: { equals: paymentId } },
-        depth: 1,
-        limit: 1,
-        overrideAccess: true,
-      })
-      purchase = docs[0] || null
-    } catch (err) {
-      // A public page must degrade, never throw -- the buyer already paid.
-      console.error('Onboarding purchase lookup failed', err)
-      loadError = true
-    }
+  try {
+    const payload = await getPayloadClient()
+    const { docs } = await payload.find({
+      collection: 'purchases',
+      where: { whopPaymentId: { equals: paymentId } },
+      depth: 1,
+      limit: 1,
+      overrideAccess: true,
+    })
+    purchase = docs[0] || null
+  } catch (err) {
+    // A public page must degrade, never throw -- the buyer already paid.
+    console.error('Onboarding purchase lookup failed', err)
+    loadError = true
   }
 
   if (loadError) {
@@ -134,9 +177,9 @@ export default async function OnboardingPage({
   }
 
   if (!purchase) {
-    const manualHref = paymentId
-      ? `/checkout/onboarding?payment_id=${encodeURIComponent(paymentId)}`
-      : '/checkout/onboarding'
+    const manualHref = `/checkout/onboarding?payment_id=${encodeURIComponent(
+      paymentId
+    )}`
 
     return (
       <Shell title="Confirming your payment">
@@ -149,7 +192,7 @@ export default async function OnboardingPage({
             <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
               This checks again automatically every few seconds.
             </p>
-            <PendingRefresh paymentId={paymentId || null} attempt={attempt} />
+            <PendingRefresh paymentId={paymentId} attempt={attempt} />
           </>
         ) : (
           <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">

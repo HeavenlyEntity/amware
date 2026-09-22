@@ -61,6 +61,13 @@ export async function sendBoilerplateConfirmationEmail(args: {
   seats?: number
   /** Signed link back to the setup page, for a buyer who closed the tab. */
   onboardingUrl?: string | null
+  /**
+   * The Whop setup page for this purchase. Appended as its own line to
+   * whichever branch applies -- unlike `onboardingUrl`, it asks nothing.
+   */
+  setupUrl?: string | null
+  /** The full licence key. This email goes only to the buyer's own address. */
+  licenseKey?: string | null
 }): Promise<void> {
   const target = args.githubUsername
     ? `@${args.githubUsername}`
@@ -123,6 +130,29 @@ Your licence covers ${args.seats} GitHub accounts. Add the rest of your team her
 ${args.seatsUrl}
 
 Keep that link — it is how you add someone later, and it does not need an account.`
+  }
+
+  /* The setup page shows the key masked and says the full one is here; this
+     is what makes that true. Safe in full because this email only ever goes
+     to the buyer's own address. */
+  if (args.licenseKey) {
+    body += `
+
+Your licence key:
+${args.licenseKey}`
+  }
+
+  /* Appended to every branch, like the seats, and never by way of the
+     onboardingUrl branch above: that one rewrites the email to ask for a
+     GitHub account, which Whop already collected at checkout. This is only
+     the way back to the page, which tells buyers it is in this email. */
+  if (args.setupUrl) {
+    body += `
+
+Your setup page, with the repository and what to do next:
+${args.setupUrl}
+
+Keep that link — it is how you get back to the page.`
   }
 
   await getResend().emails.send({
