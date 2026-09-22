@@ -30,4 +30,14 @@ describe('NextStep', () => {
     )
     expect(screen.queryByText(/upgrade to team/i)).toBeNull()
   })
+
+  it('offers only implementation help when the purchase was not a kit', () => {
+    render(<NextStep tier={null} />)
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+    expect(screen.getByRole('link', { name: /book/i })).toHaveAttribute(
+      'href',
+      '/services'
+    )
+    expect(screen.queryByText(/working with a team|built-out kit/i)).toBeNull()
+  })
 })

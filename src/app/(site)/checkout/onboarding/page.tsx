@@ -6,6 +6,7 @@ import {
   PendingRefresh,
   MAX_ATTEMPTS,
 } from '@/components/commerce/PendingRefresh'
+import { maskLicenseKey, tierFromSlug } from '@/lib/commerce/onboardingDisplay'
 import type { Purchase } from '@/payload-types'
 
 export const dynamic = 'force-dynamic'
@@ -48,26 +49,6 @@ function Shell({
       </div>
     </Container>
   )
-}
-
-type Tier = 'lite' | 'pro' | 'team'
-
-/* Deliberately the slug, not the product's own `tier` select field: the
- * slug is what the checkout, the catalogue and this page all agree on, and
- * it can't drift out of sync with an admin-edited field the way a second
- * source of truth could. */
-function tierFromSlug(slug: string | null | undefined): Tier {
-  if (slug?.endsWith('-lite')) return 'lite'
-  if (slug?.endsWith('-team')) return 'team'
-  return 'pro'
-}
-
-/* Enough of the key to recognise, never enough to use. `null` rather than a
- * shorter mask when the key is too short to mask safely -- 11 is 7 kept +
- * 4 kept, so anything at or under that would show the whole thing. */
-function maskLicenseKey(key: string | null | undefined): string | null {
-  if (!key || key.length <= 11) return null
-  return `${key.slice(0, 7)}…${key.slice(-4)}`
 }
 
 const linkClass =

@@ -7,7 +7,11 @@ import Link from 'next/link'
  * the implementation. Pro buyers are shown Team, for the colleagues who
  * need source access. Everyone is shown implementation help, because the
  * kit is where a NetSuite build starts, not where it ends. No urgency, no
- * invented discount: the 2026-09-11 plan rules both out. */
+ * invented discount: the 2026-09-11 plan rules both out.
+ *
+ * A purchase that is not a kit has no tier (`null`), and gets implementation
+ * help alone: offering Team to someone who bought a guide is an upsell for a
+ * thing they never had. */
 
 const UPGRADE = {
   lite: {
@@ -23,7 +27,7 @@ const UPGRADE = {
 }
 
 export function NextStep({ tier }) {
-  const upgrade = UPGRADE[tier]
+  const upgrade = tier ? UPGRADE[tier] : null
   return (
     <aside className="mt-12 space-y-6 border-t border-zinc-200 pt-8 dark:border-zinc-800">
       {upgrade && (
