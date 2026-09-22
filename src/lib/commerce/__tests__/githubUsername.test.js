@@ -6,6 +6,7 @@ import {
   checkGithubUsername,
   usernameMessage,
   GITHUB_USERNAME_MAX,
+  githubLoginFromAnswer,
 } from '../githubUsername'
 
 const ok = (name) => expect(checkGithubUsername(name)).toBeNull()
@@ -62,5 +63,44 @@ describe('usernameMessage', () => {
   it('never returns a bare "invalid" with no remedy', () => {
     expect(usernameMessage('malformed')).toMatch(/letters, numbers/i)
     expect(usernameMessage('too-long')).toMatch(/39/)
+  })
+})
+
+/* Whop's custom field is free text with no validation of ours in front of
+   it, so the two habits checkGithubUsername rejects on our own form are
+   undone here instead. */
+describe('githubLoginFromAnswer', () => {
+  it('strips the leading @ of a pasted handle', () => {
+    expect(githubLoginFromAnswer('@octocat')).toBe('octocat')
+  })
+
+  it('reduces a pasted profile URL to the login', () => {
+    expect(githubLoginFromAnswer('https://github.com/octocat')).toBe('octocat')
+    expect(githubLoginFromAnswer('http://github.com/octocat/')).toBe('octocat')
+    expect(githubLoginFromAnswer('https://www.github.com/OctoCat')).toBe(
+      'OctoCat'
+    )
+    expect(githubLoginFromAnswer('github.com/octocat')).toBe('octocat')
+    expect(
+      githubLoginFromAnswer('https://github.com/octocat?tab=repositories')
+    ).toBe('octocat')
+  })
+
+  it('leaves a plain login as it is, trimmed', () => {
+    expect(githubLoginFromAnswer('octocat')).toBe('octocat')
+    expect(githubLoginFromAnswer('  octocat  ')).toBe('octocat')
+  })
+
+  it('does not guess at anything else', () => {
+    // A repository URL names a repository, not an account.
+    expect(
+      githubLoginFromAnswer('https://github.com/octocat/hello-world')
+    ).toBe('https://github.com/octocat/hello-world')
+  })
+
+  it('has no login for an empty answer', () => {
+    for (const answer of [null, undefined, '', '   ', '@']) {
+      expect(githubLoginFromAnswer(answer)).toBeNull()
+    }
   })
 })

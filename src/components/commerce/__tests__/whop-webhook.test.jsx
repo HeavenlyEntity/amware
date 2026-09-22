@@ -896,3 +896,48 @@ describe('Whop webhook: failures it must not hide', () => {
     )
   })
 })
+
+describe('Whop webhook: what the buyer typed as their GitHub username', () => {
+  let update
+
+  beforeEach(() => {
+    update = vi.fn().mockResolvedValue({})
+    getPayloadClient.mockResolvedValue({ find, create, update })
+    inviteToRepo.mockResolvedValue({
+      ok: true,
+      state: 'invited',
+      url: 'https://github.com/i/1',
+      id: 1,
+    })
+    sendBoilerplateConfirmationEmail.mockResolvedValue(undefined)
+  })
+
+  const answered = (value) =>
+    event(
+      kitPayment({
+        custom_field_responses: [{ name: 'GitHub username', value }],
+      })
+    )
+
+  for (const typed of ['@octocat', 'https://github.com/octocat']) {
+    it(`invites and records "octocat" when the buyer typed ${typed}`, async () => {
+      verifyWhopWebhook.mockReturnValue(answered(typed))
+      kitDb()
+
+      await POST(request())
+
+      expect(inviteToRepo).toHaveBeenCalledWith({
+        repo: 'amwaredotdev/warekit-next-netsuite',
+        username: 'octocat',
+      })
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ githubUsername: 'octocat' }),
+        })
+      )
+      expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ githubUsername: 'octocat' })
+      )
+    })
+  }
+})

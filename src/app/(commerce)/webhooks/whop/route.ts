@@ -6,6 +6,7 @@ import {
 } from '@/lib/commerce/whop'
 import { whopEnvironment } from '@/lib/commerce/whopEnv'
 import { inviteToRepo, removeFromRepo } from '@/lib/commerce/githubInvite'
+import { githubLoginFromAnswer } from '@/lib/commerce/githubUsername'
 import { seatLimit } from '@/lib/commerce/seats'
 import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
 import {
@@ -95,7 +96,12 @@ export async function POST(req: Request) {
   const paymentId = payment.id
   const planId = payment.plan?.id || null
   const email = payment.user?.email || null
-  const githubUsername = customFieldAnswer(payment, GITHUB_FIELD)
+  /* Normalised here, where it is read: the field is free text, and "@octocat"
+     or a pasted https://github.com/octocat would otherwise be invited, and
+     recorded as a seat, verbatim. */
+  const githubUsername = githubLoginFromAnswer(
+    customFieldAnswer(payment, GITHUB_FIELD)
+  )
   const licenseKey = payment.membership?.license_key || undefined
   if (!paymentId || !email) {
     console.error('Whop payment without id or email', { paymentId, planId })
