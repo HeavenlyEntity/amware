@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Container } from '@/components/Container'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { OnboardingSteps } from '@/components/commerce/OnboardingSteps'
+import { NextStep } from '@/components/commerce/NextStep'
 import {
   PendingRefresh,
   MAX_ATTEMPTS,
@@ -225,13 +226,33 @@ export default async function OnboardingPage({
       : null
   ) as {
     name?: string | null
+    title?: string | null
     slug?: string | null
     githubRepo?: string | null
   } | null
 
+  const tier = tierFromSlug(itemDoc?.slug)
+
+  /* Not a kit: a guide, another product, a course. Nothing here delivers
+     one -- the owner does, by hand -- and nothing of ours was emailed for
+     it, so there is no repository, clone command, licence or "it is in
+     your email" to show. Only the confirmation, and the one next step. */
+  if (!tier) {
+    const name = itemDoc?.name || itemDoc?.title
+    return (
+      <Shell title="Thanks — your purchase is confirmed">
+        <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
+          {name
+            ? `Delivery details for ${name} are on their way.`
+            : 'Delivery details are on their way.'}
+        </p>
+        <NextStep tier={null} />
+      </Shell>
+    )
+  }
+
   const itemName = itemDoc?.name || 'Your kit'
   const repo = purchase.githubRepo || itemDoc?.githubRepo || null
-  const tier = tierFromSlug(itemDoc?.slug)
   const maskedLicenseKey = maskLicenseKey(purchase.licenseKey)
   const delivered = purchase.fulfillmentStatus === 'sent'
 

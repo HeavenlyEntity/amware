@@ -193,3 +193,55 @@ describe('Onboarding page search params', () => {
     expect(container.textContent).toMatch(/did not go through/i)
   })
 })
+
+describe('Onboarding page for a purchase that is not a kit', () => {
+  /* A paid row owed by hand: the webhook records it pending, with no repo,
+     account or key. */
+  const owedByHand = (item) =>
+    row({
+      item,
+      githubRepo: null,
+      githubUsername: null,
+      licenseKey: null,
+      fulfillmentStatus: 'pending',
+    })
+
+  it('confirms the purchase plainly, with no kit copy', async () => {
+    find.mockResolvedValue({
+      docs: [owedByHand({ relationTo: 'products', value: guide })],
+    })
+    const { container } = await renderPage({ payment_id: 'pay_1' })
+    const text = container.textContent
+
+    expect(
+      screen.getByRole('heading', { name: /your purchase is confirmed/i })
+    ).toBeInTheDocument()
+    expect(text).toMatch(/delivery details/i)
+    expect(text).toContain('Quick key rotation guide')
+    expect(text).not.toMatch(/is yours/i)
+    expect(text).not.toMatch(/git clone/i)
+    expect(text).not.toMatch(/repository/i)
+    expect(text).not.toMatch(/licence key/i)
+    // Nothing of ours was emailed for it, so the page must not say so.
+    expect(text).not.toMatch(/in your purchase email/i)
+  })
+
+  it('names a course by its title', async () => {
+    find.mockResolvedValue({
+      docs: [
+        owedByHand({
+          relationTo: 'courses',
+          value: {
+            id: 31,
+            title: 'NetSuite for developers',
+            slug: 'netsuite-for-developers',
+          },
+        }),
+      ],
+    })
+    const { container } = await renderPage({ payment_id: 'pay_1' })
+
+    expect(container.textContent).toContain('NetSuite for developers')
+    expect(container.textContent).not.toMatch(/git clone/i)
+  })
+})
