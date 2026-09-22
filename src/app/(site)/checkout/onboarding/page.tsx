@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { Container } from '@/components/Container'
 import { getPayloadClient } from '@/lib/getPayloadClient'
-import { verifyOnboardingLink } from '@/lib/commerce/onboardingLink'
 import { OnboardingSteps } from '@/components/commerce/OnboardingSteps'
-import { TrackPurchase } from '@/components/analytics/TrackPurchase'
-import { centsToValue } from '@/lib/analytics/whop'
+import {
+  PendingRefresh,
+  MAX_ATTEMPTS,
+} from '@/components/commerce/PendingRefresh'
+import type { Purchase } from '@/payload-types'
 
 export const dynamic = 'force-dynamic'
 export const metadata = {
@@ -13,13 +15,19 @@ export const metadata = {
 }
 
 /*
- * Where Creem sends a buyer after payment.
+ * Where Whop sends a buyer after payment.
  *
- * The page renders from the signed link alone and then looks for the purchase
- * the webhook created. Those two can arrive out of order: the browser redirect
- * regularly beats a server-to-server webhook, so "no purchase yet" is a normal
- * state a few seconds after paying, not an error. It says so and offers a
- * refresh, rather than showing a 404 to someone who has just been charged.
+ * The page has no signature -- there is nothing on it worth forging. It
+ * grants nothing (Whop's webhook already delivered the repo invitation by
+ * the time this renders), so all a payment_id unlocks is a look at your own
+ * purchase: the item name, the repo, a masked licence key, the GitHub
+ * username on file, and one relevant next step. Never the full key, the
+ * email or the amount -- those stay in the receipt only you received.
+ *
+ * The webhook is server-to-server and the browser redirect regularly beats
+ * it, so "no purchase yet" is a normal state for the first few seconds
+ * after paying, not an error: it refreshes itself a bounded number of times
+ * rather than showing a 404 to someone who has just been charged.
  */
 
 function Shell({
@@ -42,93 +50,150 @@ function Shell({
   )
 }
 
+type Tier = 'lite' | 'pro' | 'team'
+
+/* Deliberately the slug, not the product's own `tier` select field: the
+ * slug is what the checkout, the catalogue and this page all agree on, and
+ * it can't drift out of sync with an admin-edited field the way a second
+ * source of truth could. */
+function tierFromSlug(slug: string | null | undefined): Tier {
+  if (slug?.endsWith('-lite')) return 'lite'
+  if (slug?.endsWith('-team')) return 'team'
+  return 'pro'
+}
+
+/* Enough of the key to recognise, never enough to use. `null` rather than a
+ * shorter mask when the key is too short to mask safely -- 11 is 7 kept +
+ * 4 kept, so anything at or under that would show the whole thing. */
+function maskLicenseKey(key: string | null | undefined): string | null {
+  if (!key || key.length <= 11) return null
+  return `${key.slice(0, 7)}…${key.slice(-4)}`
+}
+
+const linkClass =
+  'text-teal-700 underline underline-offset-4 dark:text-teal-300'
+
 export default async function OnboardingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ r?: string; s?: string }>
+  searchParams: Promise<{ payment_id?: string; attempt?: string }>
 }) {
-  const { r: requestId = '', s: signature = '' } = await searchParams
+  const { payment_id: paymentId = '', attempt: attemptParam = '' } =
+    await searchParams
+  const attempt = Math.max(0, parseInt(attemptParam, 10) || 0)
 
-  if (!verifyOnboardingLink(requestId, signature)) {
-    return (
-      <Shell title="This setup link is not valid">
-        <p className="mt-6 text-zinc-600 dark:text-zinc-400">
-          Use the link in your purchase email. If you no longer have it, reply
-          to your receipt and I will send a new one, or{' '}
-          <Link
-            href="/contact"
-            className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
-          >
-            get in touch
-          </Link>
-          .
-        </p>
-      </Shell>
-    )
+  let purchase: Purchase | null = null
+  let loadError = false
+
+  if (paymentId) {
+    try {
+      const payload = await getPayloadClient()
+      const { docs } = await payload.find({
+        collection: 'purchases',
+        where: { whopPaymentId: { equals: paymentId } },
+        depth: 1,
+        limit: 1,
+        overrideAccess: true,
+      })
+      purchase = docs[0] || null
+    } catch (err) {
+      // A public page must degrade, never throw -- the buyer already paid.
+      console.error('Onboarding purchase lookup failed', err)
+      loadError = true
+    }
   }
 
-  const payload = await getPayloadClient()
-  const { docs } = await payload.find({
-    collection: 'purchases',
-    where: { creemRequestId: { equals: requestId } },
-    depth: 1,
-    limit: 1,
-    overrideAccess: true,
-  })
-  const purchase = docs[0]
-
-  if (!purchase || purchase.status !== 'paid') {
+  if (loadError) {
     return (
-      <Shell title="Just confirming your payment">
+      <Shell title="Something went wrong">
         <p className="mt-6 text-zinc-600 dark:text-zinc-400">
-          This usually takes a few seconds. Refresh the page and it should be
-          here. Your payment is safe either way, and the receipt in your inbox
-          has a link back to this page.
+          This page could not load just now. Your payment is safe either way —
+          refresh to try again, or reply to your receipt and I will sort it by
+          hand.
         </p>
         <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-          Still nothing after a minute or two? Reply to that receipt and I will
-          sort it by hand.
+          <Link href="/contact" className={linkClass}>
+            Get in touch
+          </Link>
         </p>
       </Shell>
     )
   }
 
-  const product =
-    purchase.item && typeof purchase.item === 'object'
-      ? (purchase.item as { value?: unknown }).value
-      : null
-  const productDoc = (
-    product && typeof product === 'object' ? product : null
-  ) as { name?: string | null; githubRepo?: string | null } | null
+  if (!purchase) {
+    const manualHref = paymentId
+      ? `/checkout/onboarding?payment_id=${encodeURIComponent(paymentId)}`
+      : '/checkout/onboarding'
 
-  const itemName = productDoc?.name || 'Your kit'
-  const repo = productDoc?.githubRepo || purchase.githubRepo || null
+    return (
+      <Shell title="Confirming your payment">
+        <p className="mt-6 text-zinc-600 dark:text-zinc-400">
+          You do not need to pay again. Your payment is safe either way, and the
+          receipt in your inbox has a link back to this page.
+        </p>
+        {attempt < MAX_ATTEMPTS ? (
+          <>
+            <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+              This checks again automatically every few seconds.
+            </p>
+            <PendingRefresh paymentId={paymentId || null} attempt={attempt} />
+          </>
+        ) : (
+          <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+            Still nothing after a minute or two?{' '}
+            <Link href={manualHref} className={linkClass}>
+              Refresh the page
+            </Link>
+            , reply to that receipt and I will sort it by hand, or{' '}
+            <Link href="/contact" className={linkClass}>
+              get in touch
+            </Link>
+            .
+          </p>
+        )}
+      </Shell>
+    )
+  }
+
+  const itemRelation =
+    purchase.item && typeof purchase.item === 'object'
+      ? (purchase.item as { value?: unknown })
+      : null
+  const itemDoc = (
+    itemRelation && typeof itemRelation.value === 'object'
+      ? itemRelation.value
+      : null
+  ) as {
+    name?: string | null
+    slug?: string | null
+    githubRepo?: string | null
+  } | null
+
+  const itemName = itemDoc?.name || 'Your kit'
+  const repo = purchase.githubRepo || itemDoc?.githubRepo || null
+  const tier = tierFromSlug(itemDoc?.slug)
+  const maskedLicenseKey = maskLicenseKey(purchase.licenseKey)
+  const delivered = purchase.fulfillmentStatus === 'sent'
 
   return (
     <Shell title={`${itemName} is yours`}>
-      {/* Only reachable past the signature and the paid check above, so the
-          sale is real and the viewer is the buyer: the email can go with it. */}
-      <TrackPurchase
-        eventId={requestId}
-        value={centsToValue(purchase.amount ?? 0)}
-        currency={(purchase.currency || 'USD').toUpperCase()}
-        email={purchase.email}
-        contentName={itemName}
-      />
       <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-        Payment received. One step to go and the repository is in your hands.
+        {delivered
+          ? 'Payment received. Here is everything you need.'
+          : 'One more step and the repository is in your hands.'}
       </p>
 
       <OnboardingSteps
-        requestId={requestId}
-        signature={signature}
         itemName={itemName}
         repo={repo}
-        licenseKey={purchase.licenseKey ?? null}
+        maskedLicenseKey={maskedLicenseKey}
+        githubUsername={purchase.githubUsername || null}
         /* Only when a server actually exists. Everything on this page is
            either real or absent. */
         discordUrl={process.env.DISCORD_INVITE_URL || null}
         cliCommand={process.env.WAREKIT_CLI_COMMAND || null}
+        tier={tier}
+        delivered={delivered}
       />
 
       <p className="mt-12 text-sm text-zinc-600 dark:text-zinc-400">

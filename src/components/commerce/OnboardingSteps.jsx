@@ -1,19 +1,17 @@
-'use client'
+import { NextStep } from '@/components/commerce/NextStep'
 
-import { useActionState, useCallback, useEffect, useRef, useState } from 'react'
-import { completeOnboarding } from '@/lib/commerce/onboarding'
-import { GithubAccountField } from '@/components/commerce/GithubAccountField'
-
-/* What a buyer sees the moment Creem sends them back.
+/* What a buyer sees once Whop sends them back.
  *
- * One question first, because it is the only one that blocks delivery: which
- * GitHub account. Everything else on this page -- the community, the licence
- * key, what to run -- is reading material, and putting any of it above the
- * field would bury the one thing that needs doing.
+ * There is no question to ask any more: Whop collects the GitHub username on
+ * the checkout form itself, before the card, so this page only ever reports
+ * what already happened. Two states cover it -- delivered, or not yet -- and
+ * a purely presentational component needs no client-side interactivity to
+ * show either one, so this stays a server-renderable component.
  *
- * The signed link travels in hidden fields. The page verified it to render,
- * but this form posts on its own and the action re-verifies: a render is not
- * a permission.
+ * "Not yet" means the webhook recorded the sale but the repository
+ * invitation has not gone out (or GitHub could not be reached). It is never
+ * a place to collect anything: the account on file is shown, not edited, and
+ * a wrong one is fixed by replying to the receipt email.
  */
 
 function Step({ n, title, done, children }) {
@@ -38,176 +36,101 @@ function Step({ n, title, done, children }) {
 }
 
 export function OnboardingSteps({
-  requestId,
-  signature,
   itemName,
   repo,
-  licenseKey,
+  maskedLicenseKey,
+  githubUsername,
   discordUrl,
   cliCommand,
+  tier,
+  delivered,
 }) {
-  const [state, formAction, isPending] = useActionState(completeOnboarding, {
-    error: null,
-    ok: null,
-  })
-  const usernameRef = useRef(null)
-  const [gated, setGatedState] = useState(false)
-  const setGated = useCallback((next) => setGatedState(next), [])
-
-  const fieldError =
-    state.error?.field === 'githubUsername' ? state.error.message : null
-  const formError =
-    state.error && !state.error.field ? state.error.message : null
-
-  useEffect(() => {
-    if (fieldError) usernameRef.current?.focus()
-  }, [fieldError])
-
-  const granted = state.ok
-  const shownRepo = granted?.repo || repo
-
   return (
-    <ol className="mt-12">
-      <Step n="1" title="Where should the kit go?" done={Boolean(granted)}>
-        {granted ? (
-          <div role="status" className="text-sm">
-            {granted.alreadyHadAccess ? (
-              <p className="text-zinc-700 dark:text-zinc-300">
-                <span className="font-medium">@{granted.username}</span> already
-                had access to{' '}
-                <a
-                  href={`https://github.com/${shownRepo}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline"
-                >
-                  {shownRepo}
-                </a>
-                . Nothing to accept, just clone it.
-              </p>
-            ) : granted.manual ? (
-              /* Said plainly. Promising an instant invitation here would be
-                 the same lie the confirmation email used to tell. */
-              <p className="text-zinc-700 dark:text-zinc-300">
-                Saved. I could not send the invitation automatically, so I am
-                granting{' '}
-                <span className="font-medium">@{granted.username}</span> access
-                by hand within one business day. GitHub emails you when it goes
-                out.
-              </p>
-            ) : (
-              <>
-                <p className="text-zinc-700 dark:text-zinc-300">
-                  An invitation to{' '}
-                  <span className="font-medium">{shownRepo}</span> is waiting
-                  for <span className="font-medium">@{granted.username}</span>.
-                </p>
-                {granted.inviteUrl && (
+    <>
+      <ol className="mt-12">
+        {delivered ? (
+          <>
+            <Step n="1" title="Your repository" done>
+              {repo ? (
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   <a
-                    href={granted.inviteUrl}
+                    href={`https://github.com/${repo}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="amw-cta mt-4"
+                    className="font-medium underline"
                   >
-                    Accept the invitation
-                  </a>
+                    {repo}
+                  </a>{' '}
+                  is yours. Clone it and follow the README to get started.
+                </p>
+              ) : (
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  {itemName} is yours. Clone the repository and follow the
+                  README to get started.
+                </p>
+              )}
+            </Step>
+
+            {/* Rendered only when a server exists to join. A community link
+                that 404s is worse than no community section. */}
+            {discordUrl && (
+              <Step n="2" title="Join the Discord">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Where questions get answered and bugs get reported. Other
+                  people building on the same kit are in there.
+                </p>
+                <a
+                  href={discordUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="border-[var(--amw-line)] hover:border-[var(--amw-accent)] hover:text-[var(--amw-accent)] mt-4 inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-zinc-700 transition-colors dark:text-zinc-300"
+                >
+                  Accept the Discord invite
+                </a>
+              </Step>
+            )}
+
+            <Step n={discordUrl ? '3' : '2'} title="Set up your copy">
+              {maskedLicenseKey && (
+                <>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    Your licence key, masked for this page. The full key is in
+                    your receipt email.
+                  </p>
+                  <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] mt-3 block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
+                    {maskedLicenseKey}
+                  </code>
+                </>
+              )}
+
+              <div className="mt-4 space-y-2">
+                <p className="amw-kicker">in your terminal</p>
+                <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
+                  git clone git@github.com:{repo || 'amwaredotdev/your-kit'}.git
+                </code>
+                {cliCommand && (
+                  <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
+                    {cliCommand}
+                  </code>
                 )}
-              </>
-            )}
-            <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-              A copy is in your inbox. Wrong account? Reply to that email and I
-              will move it.
-            </p>
-          </div>
-        ) : (
-          <form action={formAction}>
-            <input type="hidden" name="r" value={requestId} />
-            <input type="hidden" name="s" value={signature} />
-
-            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              {itemName} is delivered as a GitHub invitation. Give me the
-              account it should go to and I will send it now.
-            </p>
-
-            <GithubAccountField
-              serverError={fieldError}
-              inputRef={usernameRef}
-              onGateChange={setGated}
-            />
-
-            {formError && (
-              <p
-                role="alert"
-                className="mb-3 text-sm text-red-700 dark:text-red-400"
-              >
-                {formError}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              className="amw-cta"
-              disabled={isPending || gated}
-            >
-              {isPending
-                ? 'Sending the invitation…'
-                : gated
-                ? 'Confirm the account'
-                : 'Send my invitation'}
-            </button>
-          </form>
-        )}
-      </Step>
-
-      {/* Rendered only when a server exists to join. A community link that
-          404s is worse than no community section. */}
-      {discordUrl && (
-        <Step n="2" title="Join the Discord">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Where questions get answered and bugs get reported. Other people
-            building on the same kit are in there.
-          </p>
-          <a
-            href={discordUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="border-[var(--amw-line)] hover:border-[var(--amw-accent)] hover:text-[var(--amw-accent)] mt-4 inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-zinc-700 transition-colors dark:text-zinc-300"
-          >
-            Accept the Discord invite
-          </a>
-        </Step>
-      )}
-
-      <Step n={discordUrl ? '3' : '2'} title="Set up your copy">
-        {licenseKey ? (
-          <>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Your licence key. Creem emailed it to you as well, so you do not
-              have to keep this page open.
-            </p>
-            <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] mt-3 block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
-              {licenseKey}
-            </code>
+              </div>
+            </Step>
           </>
         ) : (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Clone the repository once the invitation is accepted, then follow
-            its README.
-          </p>
+          <Step n="1" title="Repository access" done={false}>
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+              Payment received. Repository access is being prepared for{' '}
+              <span className="font-medium">
+                {githubUsername ? `@${githubUsername}` : 'the account on file'}
+              </span>
+              . If that is the wrong account, reply to your receipt email and it
+              will be fixed.
+            </p>
+          </Step>
         )}
+      </ol>
 
-        <div className="mt-4 space-y-2">
-          <p className="amw-kicker">in your terminal</p>
-          <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
-            git clone git@github.com:{shownRepo || 'amwaredotdev/your-kit'}.git
-          </code>
-          {cliCommand && (
-            <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
-              {cliCommand}
-            </code>
-          )}
-        </div>
-      </Step>
-    </ol>
+      <NextStep tier={tier} />
+    </>
   )
 }
