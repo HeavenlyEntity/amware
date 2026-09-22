@@ -122,3 +122,89 @@ export async function inviteToRepo(args: {
 
   return { ok: false, reason: 'unreachable', detail: String(res.status) }
 }
+
+/* The inverse of inviteToRepo, for a licence that has ended.
+ *
+ * Two cases, because an invitation is not access. Someone who accepted is
+ * a collaborator and is removed directly. Someone who never accepted is
+ * not a collaborator at all -- removing them answers 404 -- so their
+ * pending invitation is found by login and cancelled instead, or it would
+ * still be sitting there to accept.
+ *
+ * Like inviteToRepo, nothing here throws. It runs inside a webhook. */
+
+export type RemoveResult =
+  | {
+      ok: true
+      state: 'removed' | 'invitation-cancelled' | 'nothing-to-remove'
+    }
+  | { ok: false; reason: InviteFailure; detail?: string }
+
+export async function removeFromRepo(args: {
+  repo?: string | null
+  username?: string | null
+}): Promise<RemoveResult> {
+  const token = process.env.GITHUB_TOKEN
+  if (!token) return { ok: false, reason: 'not-configured' }
+  const repo = args.repo?.trim()
+  if (!repo || !REPO.test(repo)) return { ok: false, reason: 'no-repo' }
+  const username = args.username?.trim()
+  if (!username) return { ok: false, reason: 'no-username' }
+
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    Authorization: `Bearer ${token}`,
+    'X-GitHub-Api-Version': '2022-11-28',
+  }
+  const call = (path: string, method = 'GET') =>
+    fetch(`${API}${path}`, {
+      method,
+      headers,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+
+  try {
+    const removed = await call(
+      `/repos/${repo}/collaborators/${encodeURIComponent(username)}`,
+      'DELETE'
+    )
+    if (removed.status === 204) return { ok: true, state: 'removed' }
+    if (removed.status !== 404) return failure(removed)
+
+    const listed = await call(`/repos/${repo}/invitations?per_page=100`)
+    if (listed.status !== 200) return failure(listed)
+    const invitations = (await listed.json().catch(() => [])) as Array<{
+      id: number
+      invitee?: { login?: string } | null
+    }>
+    const pending = invitations.find(
+      (i) => i.invitee?.login?.toLowerCase() === username.toLowerCase()
+    )
+    if (!pending) return { ok: true, state: 'nothing-to-remove' }
+
+    const cancelled = await call(
+      `/repos/${repo}/invitations/${pending.id}`,
+      'DELETE'
+    )
+    if (cancelled.status === 204)
+      return { ok: true, state: 'invitation-cancelled' }
+    return failure(cancelled)
+  } catch {
+    return { ok: false, reason: 'unreachable' }
+  }
+}
+
+function failure(res: Response): RemoveResult {
+  if (res.status === 403) {
+    return {
+      ok: false,
+      reason:
+        res.headers.get('x-ratelimit-remaining') === '0'
+          ? 'rate-limited'
+          : 'forbidden',
+    }
+  }
+  if (res.status === 429) return { ok: false, reason: 'rate-limited' }
+  if (res.status === 404) return { ok: false, reason: 'not-found' }
+  return { ok: false, reason: 'unreachable', detail: String(res.status) }
+}

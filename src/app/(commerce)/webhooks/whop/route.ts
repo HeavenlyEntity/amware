@@ -5,7 +5,7 @@ import {
   type WhopPayment,
 } from '@/lib/commerce/whop'
 import { whopEnvironment } from '@/lib/commerce/whopEnv'
-import { inviteToRepo } from '@/lib/commerce/githubInvite'
+import { inviteToRepo, removeFromRepo } from '@/lib/commerce/githubInvite'
 import { seatLimit } from '@/lib/commerce/seats'
 import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
 import {
@@ -77,6 +77,10 @@ export async function POST(req: Request) {
   }
   const event = verifyWhopWebhook(raw, Object.fromEntries(req.headers))
   if (!event) return new Response('Invalid signature', { status: 401 })
+
+  if (event.type === 'membership.deactivated') {
+    return handleDeactivated(event.data as { id?: string; status?: string })
+  }
 
   if (event.type !== 'payment.succeeded') {
     return new Response('ignored (event)', { status: 200 })
@@ -313,5 +317,75 @@ export async function POST(req: Request) {
     }).catch((err) => console.error('Deposit notify failed', paymentId, err)),
   ])
 
+  return new Response('ok', { status: 200 })
+}
+
+/* A membership that has ended takes its repository access with it.
+ *
+ * "Repo access is the licence" is the spec's enforcement model, and it is
+ * only half true if a refunded or charged-back buyer keeps the repo.
+ *
+ * Two guards before anything is removed. Whop documents that `completed`
+ * one-time purchases KEEP access -- and every kit is a one-time purchase --
+ * so only `canceled` and `expired` ever act. And removal is destructive
+ * against an event this codebase has never seen a real payload for, so it
+ * is off until WAREKIT_REVOKE_ON_DEACTIVATE=1. Until then the handler logs
+ * exactly what it would have done, and those log lines are the capture
+ * that justifies turning it on.
+ *
+ * Every seat member is removed, not just the buyer: a Team licence that
+ * ends ends for all five. Nothing here throws, and the answer is always
+ * 200 -- a retry cannot un-refund anyone. */
+const ENDS_ACCESS = new Set(['canceled', 'expired'])
+
+async function handleDeactivated(membership: { id?: string; status?: string }) {
+  const membershipId = membership?.id
+  const status = membership?.status
+  if (!membershipId || !status || !ENDS_ACCESS.has(status)) {
+    return new Response('ignored (access retained)', { status: 200 })
+  }
+
+  try {
+    const payload = await getPayloadClient()
+    const { docs } = await payload.find({
+      collection: 'purchases',
+      where: { whopMembershipId: { equals: membershipId } },
+      limit: 1,
+      overrideAccess: true,
+    })
+    const sold = docs[0]
+    if (!sold?.githubRepo) {
+      return new Response('ignored (no kit for membership)', { status: 200 })
+    }
+
+    const usernames: string[] = (sold.seatMembers || [])
+      .map((m: { githubUsername?: string }) => m.githubUsername)
+      .filter(
+        (u: unknown): u is string => typeof u === 'string' && u.length > 0
+      )
+
+    if (process.env.WAREKIT_REVOKE_ON_DEACTIVATE !== '1') {
+      console.warn('Would revoke repo access (flag off)', {
+        membershipId,
+        status,
+        repo: sold.githubRepo,
+        usernames,
+      })
+      return new Response('ok (logged only)', { status: 200 })
+    }
+
+    for (const username of usernames) {
+      const result = await removeFromRepo({ repo: sold.githubRepo, username })
+      if (!result.ok) {
+        console.error('Revoke failed', {
+          membershipId,
+          username,
+          reason: result.reason,
+        })
+      }
+    }
+  } catch (err) {
+    console.error('Deactivation handling failed', membershipId, err)
+  }
   return new Response('ok', { status: 200 })
 }

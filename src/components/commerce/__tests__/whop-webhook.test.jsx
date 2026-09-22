@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /* The route lives in src/app but is tested from here on purpose: the ui
    project has the `@/` alias the route imports through. Everything past
@@ -9,7 +9,10 @@ vi.mock('@/lib/commerce/whop', async (importOriginal) => ({
   ...(await importOriginal()),
   verifyWhopWebhook: vi.fn(),
 }))
-vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
+vi.mock('@/lib/commerce/githubInvite', () => ({
+  inviteToRepo: vi.fn(),
+  removeFromRepo: vi.fn(),
+}))
 vi.mock('@/lib/commerce/fulfillment', () => ({
   sendDepositReceivedEmail: vi.fn().mockResolvedValue(undefined),
   notifyDepositReceived: vi.fn().mockResolvedValue(undefined),
@@ -19,7 +22,7 @@ vi.mock('@/lib/commerce/accessToken', () => ({ tryCreateAccessToken: vi.fn() }))
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { verifyWhopWebhook } from '@/lib/commerce/whop'
-import { inviteToRepo } from '@/lib/commerce/githubInvite'
+import { inviteToRepo, removeFromRepo } from '@/lib/commerce/githubInvite'
 import {
   sendDepositReceivedEmail,
   notifyDepositReceived,
@@ -114,6 +117,18 @@ const kitPayment = (over = {}) =>
     custom_field_responses: [{ name: 'GitHub username', value: 'octocat' }],
     ...over,
   })
+
+const deactivated = (status) => ({
+  id: 'msg_2',
+  type: 'membership.deactivated',
+  data: { id: 'mem_1', status, plan_id: 'plan_pro' },
+})
+
+const soldKit = {
+  id: 99,
+  githubRepo: 'amwaredotdev/warekit-next-netsuite',
+  seatMembers: [{ githubUsername: 'octocat' }, { githubUsername: 'hubot' }],
+}
 
 describe('Whop webhook', () => {
   it('rejects a request whose signature does not verify', async () => {
@@ -423,5 +438,57 @@ describe('Whop webhook', () => {
     expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
       expect.objectContaining({ seatsUrl: null })
     )
+  })
+
+  afterEach(() => {
+    delete process.env.WAREKIT_REVOKE_ON_DEACTIVATE
+  })
+
+  it('ignores a completed one-time membership, which keeps access', async () => {
+    verifyWhopWebhook.mockReturnValue(deactivated('completed'))
+    find.mockResolvedValue({ docs: [soldKit] })
+    const res = await POST(request())
+    expect(res.status).toBe(200)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+  })
+
+  it('logs, but does not remove, when the flag is off', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '0'
+    verifyWhopWebhook.mockReturnValue(deactivated('canceled'))
+    find.mockResolvedValue({ docs: [soldKit] })
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const res = await POST(request())
+    expect(res.status).toBe(200)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledWith(
+      expect.stringMatching(/would revoke/i),
+      expect.objectContaining({
+        membershipId: 'mem_1',
+        usernames: ['octocat', 'hubot'],
+      })
+    )
+  })
+
+  it('removes every seat member when the flag is on and the membership was cancelled', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    verifyWhopWebhook.mockReturnValue(deactivated('canceled'))
+    find.mockResolvedValue({ docs: [soldKit] })
+    removeFromRepo.mockResolvedValue({ ok: true, state: 'removed' })
+    const res = await POST(request())
+    expect(res.status).toBe(200)
+    expect(removeFromRepo).toHaveBeenCalledTimes(2)
+    expect(removeFromRepo).toHaveBeenCalledWith({
+      repo: 'amwaredotdev/warekit-next-netsuite',
+      username: 'hubot',
+    })
+  })
+
+  it('answers 200 for a membership it has no purchase for', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    verifyWhopWebhook.mockReturnValue(deactivated('expired'))
+    find.mockResolvedValue({ docs: [] })
+    const res = await POST(request())
+    expect(res.status).toBe(200)
+    expect(removeFromRepo).not.toHaveBeenCalled()
   })
 })

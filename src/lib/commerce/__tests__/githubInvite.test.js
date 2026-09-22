@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 /* Relative import: the engine project defines no `@/` alias, and this module
    reaches nothing but global fetch. */
-import { inviteToRepo } from '../githubInvite'
+import { inviteToRepo, removeFromRepo } from '../githubInvite'
 
 const REPO = 'amwaredotdev/warekit-react-netsuite-lite'
 
@@ -128,5 +128,67 @@ describe('inviteToRepo', () => {
     const r = await inviteToRepo({ repo: REPO, username: 'ghost' })
     expect(r.ok).toBe(false)
     expect(r.reason).toBe('not-found')
+  })
+})
+
+describe('removeFromRepo', () => {
+  it('removes a collaborator and reports it', async () => {
+    reply(204)
+    const result = await removeFromRepo({ repo: REPO, username: 'octocat' })
+    expect(result).toEqual({ ok: true, state: 'removed' })
+    expect(global.fetch.mock.calls[0][0]).toMatch(/\/collaborators\/octocat$/)
+    expect(global.fetch.mock.calls[0][1].method).toBe('DELETE')
+  })
+
+  it('cancels a pending invitation when the person never accepted', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 404,
+        headers: { get: () => null },
+        json: async () => null,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: { get: () => null },
+        json: async () => [{ id: 42, invitee: { login: 'OctoCat' } }],
+      })
+      .mockResolvedValueOnce({
+        status: 204,
+        headers: { get: () => null },
+        json: async () => null,
+      })
+    const result = await removeFromRepo({ repo: REPO, username: 'octocat' })
+    expect(result).toEqual({ ok: true, state: 'invitation-cancelled' })
+    expect(global.fetch.mock.calls[2][0]).toMatch(/\/invitations\/42$/)
+  })
+
+  it('reports nothing-to-remove when there is neither access nor an invitation', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 404,
+        headers: { get: () => null },
+        json: async () => null,
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: { get: () => null },
+        json: async () => [],
+      })
+    expect(await removeFromRepo({ repo: REPO, username: 'octocat' })).toEqual({
+      ok: true,
+      state: 'nothing-to-remove',
+    })
+  })
+
+  it('never throws when GitHub is unreachable', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNRESET'))
+    await expect(
+      removeFromRepo({ repo: REPO, username: 'octocat' })
+    ).resolves.toEqual({
+      ok: false,
+      reason: 'unreachable',
+    })
   })
 })
