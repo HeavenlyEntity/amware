@@ -44,6 +44,7 @@ export function OnboardingSteps({
   cliCommand,
   tier,
   delivered,
+  seats = 1,
 }) {
   return (
     <>
@@ -129,6 +130,15 @@ export function OnboardingSteps({
           </Step>
         )}
       </ol>
+
+      {/* A Team buyer is seat one of several. The rest are added from the
+          signed seat link, which only the receipt email carries -- without
+          this line the page never mentions them at all. */}
+      {seats > 1 && (
+        <p className="mt-10 text-sm text-zinc-600 dark:text-zinc-400">
+          {`Your licence covers ${seats} GitHub accounts — add the rest from the link in your receipt email.`}
+        </p>
+      )}
 
       <NextStep tier={tier} />
     </>

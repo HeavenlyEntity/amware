@@ -32,4 +32,26 @@ describe('OnboardingSteps', () => {
     render(<OnboardingSteps {...base} delivered />)
     expect(screen.queryByLabelText(/github/i)).toBeNull()
   })
+
+  it('tells a Team buyer how many accounts the licence covers, and where to add them', () => {
+    render(<OnboardingSteps {...base} tier="team" seats={5} delivered />)
+    expect(
+      screen.getByText(
+        'Your licence covers 5 GitHub accounts — add the rest from the link in your receipt email.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('says the same while the invitation is still pending', () => {
+    render(
+      <OnboardingSteps {...base} tier="team" seats={5} delivered={false} />
+    )
+    expect(screen.getByText(/covers 5 GitHub accounts/)).toBeInTheDocument()
+  })
+
+  it('says nothing about seats on a single-seat licence', () => {
+    render(<OnboardingSteps {...base} seats={1} delivered />)
+    // Not /GitHub accounts/: the Pro upsell below names Team's five.
+    expect(screen.queryByText(/licence covers/i)).toBeNull()
+  })
 })

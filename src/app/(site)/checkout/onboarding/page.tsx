@@ -12,6 +12,7 @@ import {
   maskLicenseKey,
   tierFromSlug,
 } from '@/lib/commerce/onboardingDisplay'
+import { seatLimit } from '@/lib/commerce/seats'
 import type { Purchase } from '@/payload-types'
 
 export const dynamic = 'force-dynamic'
@@ -229,6 +230,7 @@ export default async function OnboardingPage({
     title?: string | null
     slug?: string | null
     githubRepo?: string | null
+    seats?: number | null
   } | null
 
   const tier = tierFromSlug(itemDoc?.slug)
@@ -275,6 +277,8 @@ export default async function OnboardingPage({
         cliCommand={process.env.WAREKIT_CLI_COMMAND || null}
         tier={tier}
         delivered={delivered}
+        /* The product's own limit, the same one the seat page enforces. */
+        seats={seatLimit(itemDoc)}
       />
 
       <p className="mt-12 text-sm text-zinc-600 dark:text-zinc-400">

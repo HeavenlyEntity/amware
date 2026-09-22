@@ -245,3 +245,36 @@ describe('Onboarding page for a purchase that is not a kit', () => {
     expect(container.textContent).not.toMatch(/git clone/i)
   })
 })
+
+describe('Onboarding page for a Team licence', () => {
+  it('mentions the other seats, from the product’s own seat count', async () => {
+    find.mockResolvedValue({
+      docs: [
+        row({
+          item: {
+            relationTo: 'products',
+            value: {
+              ...proKit,
+              name: 'WareKit Next NetSuite (Team)',
+              slug: 'warekit-next-netsuite-team',
+              seats: 5,
+            },
+          },
+        }),
+      ],
+    })
+    await renderPage({ payment_id: 'pay_1' })
+
+    expect(
+      screen.getByText(
+        'Your licence covers 5 GitHub accounts — add the rest from the link in your receipt email.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('does not mention seats for a single-seat kit', async () => {
+    find.mockResolvedValue({ docs: [row()] })
+    const { container } = await renderPage({ payment_id: 'pay_1' })
+    expect(container.textContent).not.toMatch(/licence covers/i)
+  })
+})
