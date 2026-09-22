@@ -125,11 +125,19 @@ export async function inviteToRepo(args: {
 
 /* The inverse of inviteToRepo, for a licence that has ended.
  *
- * Two cases, because an invitation is not access. Someone who accepted is
- * a collaborator and is removed directly. Someone who never accepted is
- * not a collaborator at all -- removing them answers 404 -- so their
- * pending invitation is found by login and cancelled instead, or it would
- * still be sitting there to accept.
+ * An invitation is not access, and removing a collaborator does not touch
+ * one. So the collaborator is removed first, and then the pending
+ * invitations are ALWAYS checked and the one for this login cancelled --
+ * after a 204 as much as after a 404. GitHub documents 204, 403 and 422 for
+ * the collaborator DELETE, never "you also cancelled their invitation", and
+ * refunds land early, exactly when an invitation is most likely still
+ * sitting there unaccepted.
+ *
+ * The result names the strongest thing that happened: `removed` when the
+ * collaborator DELETE answered 204, else `invitation-cancelled`, else
+ * `nothing-to-remove`. Any other collaborator status is a failure, and so is
+ * an invitation list that cannot be read -- "nothing pending" is only ever
+ * reported after looking.
  *
  * Like inviteToRepo, nothing here throws. It runs inside a webhook. */
 
@@ -168,27 +176,35 @@ export async function removeFromRepo(args: {
       `/repos/${repo}/collaborators/${encodeURIComponent(username)}`,
       'DELETE'
     )
-    if (removed.status === 204) return { ok: true, state: 'removed' }
-    if (removed.status !== 404) return failure(removed)
+    // 204: was a collaborator, is not now. 404: never was one.
+    if (removed.status !== 204 && removed.status !== 404) {
+      return failure(removed)
+    }
 
     const listed = await call(`/repos/${repo}/invitations?per_page=100`)
     if (listed.status !== 200) return failure(listed)
-    const invitations = (await listed.json().catch(() => [])) as Array<{
-      id: number
-      invitee?: { login?: string } | null
-    }>
-    const pending = invitations.find(
-      (i) => i.invitee?.login?.toLowerCase() === username.toLowerCase()
-    )
-    if (!pending) return { ok: true, state: 'nothing-to-remove' }
+    const invitations: unknown = await listed.json().catch(() => null)
+    if (!Array.isArray(invitations)) return { ok: false, reason: 'unreachable' }
 
-    const cancelled = await call(
-      `/repos/${repo}/invitations/${pending.id}`,
-      'DELETE'
-    )
-    if (cancelled.status === 204)
-      return { ok: true, state: 'invitation-cancelled' }
-    return failure(cancelled)
+    const login = username.toLowerCase()
+    const pending = (
+      invitations as Array<{
+        id?: number
+        invitee?: { login?: string } | null
+      } | null>
+    ).find((i) => i?.invitee?.login?.toLowerCase() === login)
+
+    if (pending) {
+      const cancelled = await call(
+        `/repos/${repo}/invitations/${pending.id}`,
+        'DELETE'
+      )
+      if (cancelled.status !== 204) return failure(cancelled)
+    }
+
+    if (removed.status === 204) return { ok: true, state: 'removed' }
+    if (pending) return { ok: true, state: 'invitation-cancelled' }
+    return { ok: true, state: 'nothing-to-remove' }
   } catch {
     return { ok: false, reason: 'unreachable' }
   }

@@ -131,13 +131,87 @@ describe('inviteToRepo', () => {
   })
 })
 
+/* One response per call, in order: removal is a short conversation with
+   GitHub, not a single request. */
+const replies = (...responses) => {
+  global.fetch = vi.fn()
+  for (const { status, body = null, headers = {} } of responses) {
+    global.fetch.mockResolvedValueOnce({
+      status,
+      headers: { get: (k) => headers[k.toLowerCase()] ?? null },
+      json: async () => {
+        if (body instanceof Error) throw body
+        return body
+      },
+    })
+  }
+}
+
 describe('removeFromRepo', () => {
   it('removes a collaborator and reports it', async () => {
-    reply(204)
+    replies({ status: 204 }, { status: 200, body: [] })
     const result = await removeFromRepo({ repo: REPO, username: 'octocat' })
     expect(result).toEqual({ ok: true, state: 'removed' })
     expect(global.fetch.mock.calls[0][0]).toMatch(/\/collaborators\/octocat$/)
     expect(global.fetch.mock.calls[0][1].method).toBe('DELETE')
+    // A 204 does not say no invitation is pending, so it still looks.
+    expect(global.fetch.mock.calls[1][0]).toMatch(
+      /\/invitations\?per_page=100$/
+    )
+  })
+
+  it('also cancels a pending invitation when the collaborator was removed', async () => {
+    replies(
+      { status: 204 },
+      { status: 200, body: [{ id: 42, invitee: { login: 'OctoCat' } }] },
+      { status: 204 }
+    )
+    const result = await removeFromRepo({ repo: REPO, username: 'octocat' })
+    expect(result).toEqual({ ok: true, state: 'removed' })
+    expect(global.fetch).toHaveBeenCalledTimes(3)
+    expect(global.fetch.mock.calls[2][0]).toMatch(/\/invitations\/42$/)
+    expect(global.fetch.mock.calls[2][1].method).toBe('DELETE')
+  })
+
+  it('never reports success when the invitation list cannot be read', async () => {
+    replies(
+      { status: 404 },
+      { status: 200, body: new SyntaxError('Unexpected token < in JSON') }
+    )
+    expect(await removeFromRepo({ repo: REPO, username: 'octocat' })).toEqual({
+      ok: false,
+      reason: 'unreachable',
+    })
+  })
+
+  it('never reports success when the invitation list is not a list', async () => {
+    replies({ status: 204 }, { status: 200, body: { message: 'Not a list' } })
+    expect(await removeFromRepo({ repo: REPO, username: 'octocat' })).toEqual({
+      ok: false,
+      reason: 'unreachable',
+    })
+  })
+
+  it('returns any other removal status as the failure it is, without going further', async () => {
+    replies({
+      status: 403,
+      headers: { 'x-ratelimit-remaining': '4999' },
+    })
+    expect(await removeFromRepo({ repo: REPO, username: 'octocat' })).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    })
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a failure when a pending invitation cannot be cancelled', async () => {
+    replies(
+      { status: 204 },
+      { status: 200, body: [{ id: 42, invitee: { login: 'octocat' } }] },
+      { status: 500 }
+    )
+    const result = await removeFromRepo({ repo: REPO, username: 'octocat' })
+    expect(result.ok).toBe(false)
   })
 
   it('cancels a pending invitation when the person never accepted', async () => {
