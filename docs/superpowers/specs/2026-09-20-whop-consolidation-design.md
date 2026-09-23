@@ -1,7 +1,11 @@
 # Whop Consolidation — one platform for kits, services and community — Design Spec
 
 **Date:** 2026-09-20
-**Status:** Draft for review
+**Status:** Draft for review — **amended 2026-09-22.** By owner decision, checkout for kits AND
+engagement deposits moved to Whop Elements (`@whop/elements`), and `@whop/checkout` was removed. The
+Locked Decisions rows "Checkout: Whop embedded checkout (`data-whop-checkout-plan-id`)" and
+"Deposits: Unchanged" are superseded by `docs/superpowers/plans/2026-09-22-whop-elements-checkout.md`.
+Deploy steps: `docs/superpowers/plans/2026-09-22-whop-deploy-runbook.md`.
 **Author:** Alec M (with Claude)
 **Supersedes:** `2026-06-08-payload-commerce-b2-design.md` (Creem.io checkout) and `2026-09-20-polar-migration-design.md` (the Polar route, rejected — see below).
 
