@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { WhopElements, Checkout, CheckoutElement } from '@whop/elements-react'
 import { loadWhop } from '@whop/elements'
 import { whopEnvironment } from '@/lib/commerce/whopEnv'
@@ -40,12 +41,60 @@ import { useMounted } from '@/hooks/use-client-value'
  * Elements run in their own frames and cannot see the page's theme, so the
  * mode is read from the root class when the element first mounts. */
 
-let whopLoad
-const load = () => (whopLoad ??= loadWhop())
+/* Holds the checkout's space while Whop's frame paints, so the sheet or
+   the product page is never a blank gap. */
+function CheckoutSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading checkout"
+      className="h-72 w-full rounded-lg bg-zinc-100 motion-safe:animate-pulse dark:bg-zinc-800/60"
+    />
+  )
+}
+
+/* Whop's script did not load: a proxy, a privacy extension, a CDN
+   incident. Said here, in the checkout's own space, so nothing else on the
+   page goes with it. Try again starts a fresh load of the script. */
+function CheckoutLoadFailed({ onRetry }) {
+  return (
+    <div
+      role="alert"
+      className="rounded-lg border border-zinc-200 p-6 text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-400"
+    >
+      <p className="font-medium text-zinc-900 dark:text-zinc-100">
+        The checkout could not load.
+      </p>
+      <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="min-h-11 inline-flex items-center justify-center rounded-md border border-zinc-300 px-4 font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+        >
+          Try again
+        </button>
+        <span>
+          or{' '}
+          <Link
+            href="/contact"
+            className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
+          >
+            get in touch
+          </Link>
+        </span>
+      </p>
+    </div>
+  )
+}
 
 export function WhopCheckout({ planId, returnPath, returnParams, className }) {
   const mounted = useMounted()
   const [ref] = useState(() => crypto.randomUUID())
+  /* Set when Whop's script fails to load: holds the provider's retry(),
+     which starts a fresh load in place. With onLoadError set, the provider
+     reports the failure here instead of throwing it during render -- which,
+     with no error boundary under src/app, would take the whole page down. */
+  const [loadFailure, setLoadFailure] = useState(null)
 
   const returnUrl = useMemo(() => {
     if (!mounted) return null
@@ -77,16 +126,41 @@ export function WhopCheckout({ planId, returnPath, returnParams, className }) {
 
   if (!planId || !returnUrl) return null
 
+  /* loadWhop() is called on every render, and that is safe: it injects the
+     script once and hands back one shared promise, so the provider keeps
+     seeing the same load. It holds a failed load until retry() replaces it,
+     then hands out the fresh one -- so nothing is cached here, where a copy
+     would pin the failure for the life of the tab. */
+  const onLoadError = (error, retry) => {
+    console.error('Whop checkout failed to load', error)
+    setLoadFailure({ retry })
+  }
+
+  const tryAgain = () => {
+    loadFailure.retry()
+    setLoadFailure(null)
+  }
+
   return (
     <div className={className}>
       <WhopElements
-        elements={load()}
+        elements={loadWhop()}
         environment={whopEnvironment()}
         appearance={appearance}
+        onLoadError={onLoadError}
       >
-        <Checkout plan={planId} returnUrl={returnUrl} metadata={metadata}>
-          <CheckoutElement />
-        </Checkout>
+        {loadFailure ? (
+          <CheckoutLoadFailed onRetry={tryAgain} />
+        ) : (
+          <Checkout
+            plan={planId}
+            returnUrl={returnUrl}
+            metadata={metadata}
+            fallback={<CheckoutSkeleton />}
+          >
+            <CheckoutElement />
+          </Checkout>
+        )}
       </WhopElements>
     </div>
   )
