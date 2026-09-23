@@ -39,11 +39,11 @@ export const metadata = {
  * The webhook is server-to-server and the redirect regularly beats it, so
  * a valid ref with no purchase yet is usually the first few seconds after
  * paying: the page checks again, a bounded number of times, carrying the
- * service name. It is not always that. A declined or abandoned bank or 3DS step sends the
- * client back to this same URL with no failure signal, and no row ever
- * arrives -- so that state never claims the deposit exists: it says not to
- * pay again only if the payment went through, and once the checks run out,
- * that an unfinished step took nothing.
+ * service name. It is not always that. A declined or abandoned bank or 3DS
+ * step sends the client back to this same URL with no failure signal, and
+ * no row ever arrives -- so that state never claims the deposit exists: it
+ * says not to pay again only if the payment went through, and once the
+ * checks run out, that an unfinished step took nothing.
  *
  * There is no signature, and a ref is client-minted: a lookup handle, never
  * proof. It is validated as a UUID before it reaches a query, and the query
