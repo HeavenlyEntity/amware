@@ -257,6 +257,30 @@ describe('Deposit return page: a ref with no purchase yet', () => {
     expect(container.textContent).not.toMatch(FAILED)
   })
 
+  /* Trusting ?status=success while the webhook is late is the tempting
+     shortcut -- the redirect often beats the webhook, and a success flag
+     on the URL looks like the answer. Anyone can write it, so only a paid
+     row may say the start is reserved. */
+  it('keeps confirming for ?status=success with a valid ref and no row, never calling it reserved', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      status: 'success',
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /confirming your deposit/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).toMatch(/checks again automatically/i)
+    expect(container.textContent).not.toMatch(/your start is reserved/i)
+    expect(container.textContent).not.toMatch(/reserved/i)
+    expect(
+      screen.queryByRole('button', { name: /book the intro call/i })
+    ).toBeNull()
+  })
+
   it('keeps the service and the Cal.com link on the automatic retry, so the popup survives the wait', async () => {
     find.mockResolvedValue({ docs: [] })
     const element = await page({

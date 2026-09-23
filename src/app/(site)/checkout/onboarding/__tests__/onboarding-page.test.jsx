@@ -351,6 +351,22 @@ describe('Onboarding page reference lookup', () => {
     expect(container.textContent).toMatch(/do not need to pay again/i)
   })
 
+  /* Trusting ?status=success while the webhook is late is the tempting
+     shortcut. Anyone can write it, so only a paid row may describe a
+     purchase. */
+  it('keeps confirming for ?status=success with a valid ref and no row, never describing a purchase', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({ status: 'success', ref: REF })
+
+    expect(
+      screen.getByRole('heading', { name: /confirming your payment/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).toMatch(/checks again automatically/i)
+    expect(container.textContent).not.toMatch(
+      /is yours|purchase is confirmed|payment received/i
+    )
+  })
+
   it('offers a ref-keyed manual refresh once the attempts run out', async () => {
     find.mockResolvedValue({ docs: [] })
     await renderPage({ ref: REF, attempt: '6' })
