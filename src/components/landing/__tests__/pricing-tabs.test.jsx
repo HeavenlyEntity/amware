@@ -3,8 +3,8 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 
 /* Whop's embed is an iframe loader; the sheet stays closed in these tests,
    so a stub is all the button needs. */
-vi.mock('@whop/checkout/react', () => ({
-  WhopCheckoutEmbed: () => <div data-testid="embed" />,
+vi.mock('@/components/commerce/WhopCheckout', () => ({
+  WhopCheckout: () => <div data-testid="embed" />,
 }))
 
 import { Pricing } from '../pricing'

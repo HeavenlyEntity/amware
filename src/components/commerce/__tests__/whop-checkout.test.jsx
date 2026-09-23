@@ -118,4 +118,35 @@ describe('WhopCheckout', () => {
     )
     expect(checkoutProps.returnUrl).toBe(first)
   })
+
+  /* Carried over from the deposit sheet's tests, which pinned both when the
+     sheet built the embed's options itself. */
+  it('follows the page’s light or dark mode, read when the element mounts', () => {
+    const { unmount } = render(
+      <WhopCheckout planId="plan_dep" returnPath="/checkout/deposit" />
+    )
+    expect(providerProps.appearance.theme.appearance).toBe('light')
+    unmount()
+
+    document.documentElement.classList.add('dark')
+    try {
+      render(<WhopCheckout planId="plan_dep" returnPath="/checkout/deposit" />)
+      expect(providerProps.appearance.theme.appearance).toBe('dark')
+    } finally {
+      document.documentElement.classList.remove('dark')
+    }
+  })
+
+  it('leaves a return parameter with no value off the URL', () => {
+    render(
+      <WhopCheckout
+        planId="plan_dep"
+        returnPath="/checkout/deposit"
+        returnParams={{ service: 'Advisor', booking: null }}
+      />
+    )
+    const url = new URL(checkoutProps.returnUrl)
+    expect(url.searchParams.get('service')).toBe('Advisor')
+    expect(url.searchParams.has('booking')).toBe(false)
+  })
 })
