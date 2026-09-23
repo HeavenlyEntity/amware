@@ -22,11 +22,11 @@ export const metadata = {
  * Whop Elements has no completion callback: a finished checkout redirects
  * the whole tab here, to the return URL WhopCheckout built. It carries
  * ?ref=, the reference WhopCheckout minted and handed to Whop as order
- * metadata, plus the service name and its booking link from the sheet.
- * What Whop itself appends is undocumented, so nothing here reads it as an
- * outcome. The webhook stores the reference on the purchase, and a paid
- * purchase with this reference is the only thing that says the deposit
- * went through.
+ * metadata, plus the service name from the sheet. What Whop itself appends
+ * is undocumented, so nothing here reads it as an outcome. The webhook
+ * stores the reference on the purchase, and a paid purchase of a service
+ * with this reference is the only thing that says the deposit went
+ * through.
  *
  * Arriving here proves nothing either way. Without a valid ref there is
  * nothing to look up, so the page points at the email -- never at "did not
@@ -34,13 +34,12 @@ export const metadata = {
  * The failure message answers only an explicit ?status=error -- which only
  * the old embed ever appended, on the way back from a failed bank redirect
  * -- and only where there is no paid row to show: with a valid ref the page
- * looks first, and a paid row wins over anything on the URL.
+ * looks first, and a paid deposit wins over anything on the URL.
  *
  * The webhook is server-to-server and the redirect regularly beats it, so
  * a valid ref with no purchase yet is usually the first few seconds after
  * paying: the page checks again, a bounded number of times, carrying the
- * booking link so the intro call is still offered when the deposit lands.
- * It is not always that. A declined or abandoned bank or 3DS step sends the
+ * service name. It is not always that. A declined or abandoned bank or 3DS step sends the
  * client back to this same URL with no failure signal, and no row ever
  * arrives -- so that state never claims the deposit exists: it says not to
  * pay again only if the payment went through, and once the checks run out,
@@ -48,13 +47,18 @@ export const metadata = {
  *
  * There is no signature, and a ref is client-minted: a lookup handle, never
  * proof. It is validated as a UUID before it reaches a query, and the query
- * reads the row's status and nothing else -- the email and the amount stay
- * in the receipt only the client received. A lookup that fails points at
- * the email too: a public page degrades, it never throws.
+ * reads the row's status, what was bought and that service's booking link
+ * and nothing else -- the email and the amount stay in the receipt only
+ * the client received. Only a paid service counts as a deposit: the ref is
+ * browser-set, so a paid $0 kit could carry one its buyer chose. A lookup
+ * that fails points at the email too: a public page degrades, it never
+ * throws.
  *
- * The booking param is untrusted query input. calLinkFromUrl only accepts a
- * real Cal.com URL, and anything else is dropped rather than rendered -- the
- * page falls back to its own links. */
+ * The booking link comes from the purchased service, never from the URL.
+ * DepositCheckout still puts one on the return URL, but that is untrusted
+ * query input, and the page no longer reads it: the service's own link is
+ * the owner's, so calLinkFromUrl only decides whether it becomes the Cal.com
+ * popup or a plain link. */
 
 const bodyClass =
   'mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400'
@@ -105,27 +109,42 @@ function PaymentFailed() {
   )
 }
 
-/* The ledger has the deposit. A Cal.com booking link flows straight into
-   the intro call -- the same popup the card's "Book an intro call" opens. */
-function Reserved({ cal, serviceName }) {
+/* The ledger has the deposit. The booking link is the one the owner set on
+   the purchased service -- trusted, unlike anything on the URL -- and
+   calLinkFromUrl decides what it becomes, as it does on the service card:
+   a Cal.com link flows straight into the intro call, the same popup the
+   card's "Book an intro call" opens, and any other opens where it points. */
+function Reserved({ bookingUrl, serviceName }) {
+  const cal = calLinkFromUrl(bookingUrl)
   return (
     <Shell kicker="deposit received" title="Your start is reserved.">
       <p className={bodyClass}>
-        {cal
+        {bookingUrl
           ? 'The deposit is credited in full against your first month. A receipt is on its way — one thing left: pick a time for the intro call.'
           : 'The deposit is credited in full against your first month. A receipt is on its way, and I will be in touch within one business day to set the engagement up.'}
       </p>
       <p className={actionsClass}>
-        {cal ? (
+        {bookingUrl ? (
           <>
-            <BookCallButton
-              calLink={cal.link}
-              namespace={cal.namespace}
-              serviceName={serviceName}
-              className={ctaClass}
-            >
-              Book the intro call
-            </BookCallButton>
+            {cal ? (
+              <BookCallButton
+                calLink={cal.link}
+                namespace={cal.namespace}
+                serviceName={serviceName}
+                className={ctaClass}
+              >
+                Book the intro call
+              </BookCallButton>
+            ) : (
+              <Link
+                href={bookingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={ctaClass}
+              >
+                Book the intro call
+              </Link>
+            )}
             <Link href="/services" className={quietLinkClass}>
               Back to engagements →
             </Link>
@@ -187,8 +206,9 @@ function Confirming({ checkoutRef, attempt, keep }) {
 }
 
 /* The neutral state, for a link with no deposit to show: no ref, a ref
-   that is not a UUID, a purchase that is no longer paid, or a lookup that
-   failed. It says nothing about any purchase, and nothing that would be
+   that is not a UUID, a purchase that is no longer paid or was never a
+   deposit, or a lookup that failed. It says nothing about any purchase,
+   and nothing that would be
    untrue for a client who has just paid -- it points at the email and a
    human, which always work. */
 function CheckEmail() {
@@ -222,6 +242,25 @@ function retryHref(checkoutRef, keep) {
   return `/checkout/deposit?${params.toString()}`
 }
 
+/* A deposit is a paid purchase of a service, and nothing else found by
+   this ref is one -- not a refund, and not a paid kit or a plan no service
+   claims. The ref and the metadata behind it are browser-set, so a paid $0
+   Lite order could carry any ref its buyer chose. */
+function isPaidDeposit(purchase) {
+  return purchase?.status === 'paid' && purchase.itemType === 'service'
+}
+
+/* The booking link the owner set on the purchased service, as the lookup
+   populated it. Never the URL's. */
+function bookingUrlOf(purchase) {
+  const item = purchase.item
+  const service =
+    item?.relationTo === 'services' && typeof item.value === 'object'
+      ? item.value
+      : null
+  return service?.bookingUrl || null
+}
+
 export default async function DepositReturn({ searchParams }) {
   /* A repeated param arrives as an array; firstParam takes the first, so an
      array never reaches the query, the status check or a URL. */
@@ -230,18 +269,16 @@ export default async function DepositReturn({ searchParams }) {
   const ref = validCheckoutRef(firstParam(params.ref))
   const attempt = Math.max(0, parseInt(firstParam(params.attempt), 10) || 0)
   const serviceName = firstParam(params.service)
-  const booking = firstParam(params.booking)
-  const cal = calLinkFromUrl(booking)
 
   /* Without a valid ref there is nothing to look up, so nothing waits and
      the URL is all there is: an explicit ?status=error still says the
      payment failed, and anything else points at the email. */
   if (!ref) return status === 'error' ? <PaymentFailed /> : <CheckEmail />
 
-  /* With one, the page looks first, whatever the URL says: a paid row wins
-     over any parameter, because a client who paid must never read "did not
-     go through… Try again" -- that is how a deposit gets paid twice. */
-
+  /* With one, the page looks first, whatever the URL says: a paid deposit
+     wins over any parameter, because a client who paid must never read
+     "did not go through… Try again" -- that is how a deposit gets paid
+     twice. */
   let deposit = null
   let loadError = false
   try {
@@ -249,10 +286,12 @@ export default async function DepositReturn({ searchParams }) {
     const { docs } = await payload.find({
       collection: 'purchases',
       where: { whopCheckoutRef: { equals: ref } },
-      /* Whether the row exists, and its status: nothing else leaves the
-         database for this page. */
-      select: { status: true },
-      depth: 0,
+      /* Whether the row exists, its status, what was bought, and -- for a
+         service -- the booking link the owner set on it. Never the email
+         or the amount. */
+      select: { status: true, itemType: true, item: true },
+      depth: 1,
+      populate: { services: { bookingUrl: true } },
       limit: 1,
       overrideAccess: true,
     })
@@ -267,26 +306,30 @@ export default async function DepositReturn({ searchParams }) {
      say the payment failed either. */
   if (loadError) return <CheckEmail />
 
-  // Only now may ?status=error decide: the ref has no paid row.
-  if (status === 'error' && deposit?.status !== 'paid') {
-    return <PaymentFailed />
+  if (isPaidDeposit(deposit)) {
+    return (
+      <Reserved bookingUrl={bookingUrlOf(deposit)} serviceName={serviceName} />
+    )
   }
+
+  // Only now may ?status=error decide: the ref has no paid deposit.
+  if (status === 'error') return <PaymentFailed />
 
   if (!deposit) {
     return (
       <Confirming
         checkoutRef={ref}
         attempt={attempt}
-        /* What a retry must carry for the success state: the service name,
-           and the booking link only if it passed the Cal.com gate. */
-        keep={{ service: serviceName, booking: cal ? booking : '' }}
+        /* What a retry carries: the service name, for the popup's own
+           reporting. Never the URL's booking link -- the paid state reads
+           the service's. */
+        keep={{ service: serviceName }}
       />
     )
   }
 
-  /* A refunded deposit still resolves by its ref, so only a paid one is
-     called reserved. */
-  if (deposit.status !== 'paid') return <CheckEmail />
-
-  return <Reserved cal={cal} serviceName={serviceName} />
+  /* A refunded deposit still resolves by its ref, and so does a purchase
+     that was never a deposit. Neither turns into one by waiting, so
+     neither waits. */
+  return <CheckEmail />
 }

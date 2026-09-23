@@ -27,9 +27,10 @@ const REFRESH_MS = 5000
  *
  * keepParams is whatever else the page needs back on the retried URL, and
  * nothing is carried unless the page names it. The deposit page names its
- * service and booking link: a deposit that lands on the third retry must
- * still be able to offer the intro call. Empty values are left out, and the
- * identifier and the attempt are always set last, so they win.
+ * service, which the intro-call popup reports a booking under, so a deposit
+ * that lands on the third retry still has it; the booking link itself comes
+ * from the service record, so it is not carried. Empty values are left
+ * out, and the identifier and the attempt are always set last, so they win.
  *
  * Deliberately no local state. `react-hooks/set-state-in-effect` exists to
  * catch exactly the pattern this used to be -- a `useState` counter written
