@@ -35,10 +35,14 @@ export const metadata = {
  * older embed appended on the way back from a failed bank redirect.
  *
  * The webhook is server-to-server and the redirect regularly beats it, so
- * a valid ref with no purchase yet is the ordinary first few seconds after
- * paying: the page says so and checks again, a bounded number of times,
- * carrying the booking link so the intro call is still offered when the
- * deposit lands.
+ * a valid ref with no purchase yet is usually the first few seconds after
+ * paying: the page checks again, a bounded number of times, carrying the
+ * booking link so the intro call is still offered when the deposit lands.
+ * It is not always that. A declined or abandoned bank or 3DS step sends the
+ * client back to this same URL with no failure signal, and no row ever
+ * arrives -- so that state never claims the deposit exists: it says not to
+ * pay again only if the payment went through, and once the checks run out,
+ * that an unfinished step took nothing.
  *
  * There is no signature, and a ref is client-minted: a lookup handle, never
  * proof. It is validated as a UUID before it reaches a query, and the query
@@ -133,13 +137,19 @@ function Reserved({ cal, serviceName }) {
   )
 }
 
-/* The webhook has not landed yet. The page says so, and asks again. */
+/* No row for this ref yet. Usually the webhook has not landed, and the page
+   asks again. But a declined or abandoned bank or 3DS step returns the
+   client to this same URL with no failure signal, and then no row ever
+   arrives. So every sentence here is true either way: nothing promises a
+   deposit or an email that may not exist, and another try is offered only
+   once the checks have run out -- never while the webhook may just be
+   late. */
 function Confirming({ checkoutRef, attempt, keep }) {
   return (
     <Shell title="Confirming your deposit">
       <p className={bodyClass}>
-        You do not need to pay again. Your deposit is safe either way, and the
-        email confirming it is on its way to your inbox.
+        If your payment went through, you do not need to pay again — it can take
+        a minute to show here.
       </p>
       {attempt < MAX_ATTEMPTS ? (
         <>
@@ -154,15 +164,19 @@ function Confirming({ checkoutRef, attempt, keep }) {
         </>
       ) : (
         <p className={noteClass}>
-          Still nothing after a minute or two?{' '}
+          If your bank or card step did not finish, nothing was taken.{' '}
+          <Link href="/services" className={inlineLinkClass}>
+            Try again
+          </Link>{' '}
+          from the engagement you chose,{' '}
           <Link href={retryHref(checkoutRef, keep)} className={inlineLinkClass}>
-            Refresh the page
-          </Link>
-          , reply to that email and I will sort it by hand, or{' '}
+            refresh the page
+          </Link>{' '}
+          to check once more, or{' '}
           <Link href="/contact" className={inlineLinkClass}>
             get in touch
-          </Link>
-          .
+          </Link>{' '}
+          and I will sort it by hand.
         </p>
       )}
     </Shell>

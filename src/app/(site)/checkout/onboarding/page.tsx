@@ -47,7 +47,12 @@ export const metadata = {
  * The webhook is server-to-server and the browser redirect regularly beats
  * it, so "no purchase yet" is a normal state for the first few seconds
  * after paying, not an error: it refreshes itself a bounded number of times
- * rather than showing a 404 to someone who has just been charged.
+ * rather than showing a 404 to someone who has just been charged. It is not
+ * always that. A declined or abandoned bank or 3DS step sends the buyer
+ * back to this same URL with no failure signal, and no row ever arrives --
+ * so that state never claims the payment exists: it says not to pay again
+ * only if the payment went through, and once the checks run out, that an
+ * unfinished step took nothing.
  *
  * Only that case waits. A payment Whop reports as failed (?status=error on
  * the way back from a bank redirect) says so and offers another try; a link
@@ -202,6 +207,11 @@ export default async function OnboardingPage({
     return <ManualState />
   }
 
+  /* No row yet: usually the webhook has not landed, but a declined or
+     abandoned bank or 3DS step lands here too, and its row never comes. So
+     every sentence is true either way -- nothing promises a payment or a
+     receipt that may not exist -- and another try is offered only once the
+     checks have run out, never while the webhook may just be late. */
   if (!purchase) {
     const manualHref = ref
       ? `/checkout/onboarding?ref=${encodeURIComponent(ref)}`
@@ -210,8 +220,8 @@ export default async function OnboardingPage({
     return (
       <Shell title="Confirming your payment">
         <p className="mt-6 text-zinc-600 dark:text-zinc-400">
-          You do not need to pay again. Your payment is safe either way, and the
-          receipt in your inbox has a link back to this page.
+          If your payment went through, you do not need to pay again — it can
+          take a minute to show here.
         </p>
         {attempt < MAX_ATTEMPTS ? (
           <>
@@ -226,15 +236,19 @@ export default async function OnboardingPage({
           </>
         ) : (
           <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-            Still nothing after a minute or two?{' '}
+            If your bank or card step did not finish, nothing was taken.{' '}
+            <Link href="/pricing" className={linkClass}>
+              Try again
+            </Link>{' '}
+            from the pricing page,{' '}
             <Link href={manualHref} className={linkClass}>
-              Refresh the page
-            </Link>
-            , reply to that receipt and I will sort it by hand, or{' '}
+              refresh the page
+            </Link>{' '}
+            to check once more, or{' '}
             <Link href="/contact" className={linkClass}>
               get in touch
-            </Link>
-            .
+            </Link>{' '}
+            and I will sort it by hand.
           </p>
         )}
       </Shell>

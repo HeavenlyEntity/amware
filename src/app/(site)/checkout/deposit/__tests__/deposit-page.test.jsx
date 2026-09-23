@@ -241,7 +241,7 @@ describe('Deposit return page: a paid deposit found by its ref', () => {
 describe('Deposit return page: a ref with no purchase yet', () => {
   /* The webhook is server-to-server and the redirect regularly beats it,
      so this is the ordinary first few seconds after paying. */
-  it('says it is confirming the deposit, that there is no need to pay again, and checks again', async () => {
+  it('says it is confirming the deposit, that there is no need to pay again if it went through, and checks again', async () => {
     find.mockResolvedValue({ docs: [] })
     const { container } = await renderPage({
       ref: REF,
@@ -313,6 +313,65 @@ describe('Deposit return page: a ref with no purchase yet', () => {
     expect(refresh.searchParams.get('service')).toBe('Advisor')
     expect(refresh.searchParams.get('booking')).toBe(CAL)
     expect(refresh.searchParams.get('attempt')).toBeNull()
+    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
+      'href',
+      '/contact'
+    )
+  })
+})
+
+/* Under Whop Elements a declined or abandoned off-site step -- 3DS, a bank
+   page -- returns the client to this same URL with no failure signal, and
+   no row ever arrives. So a ref with no row is either a deposit the webhook
+   has not recorded yet or a payment that never happened, and every sentence
+   in this state has to be true for both. */
+describe('Deposit return page: a ref with no row could be either outcome', () => {
+  const IF_PAID =
+    'If your payment went through, you do not need to pay again — it can take a minute to show here.'
+  const IF_NOT_FINISHED =
+    'If your bank or card step did not finish, nothing was taken.'
+
+  it('while it checks again, says not to pay again only if the payment went through', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({ ref: REF, service: 'Advisor' })
+    const text = container.textContent
+
+    expect(text).toMatch(/checks again automatically/i)
+    expect(text).toContain(IF_PAID)
+    // That conditional sentence is the only reassurance on the page.
+    expect(text.match(/do not need to pay again/gi)).toHaveLength(1)
+    expect(text).not.toMatch(/safe either way|deposit is safe/i)
+    expect(text).not.toMatch(/on its way/i)
+    // A payment that never happened has no email to point at.
+    expect(text).not.toMatch(/email|receipt/i)
+    // The webhook may just be late: nothing nudges a second payment yet.
+    expect(screen.queryByRole('link', { name: /try again/i })).toBeNull()
+  })
+
+  it('once the checks run out, says plainly an unfinished bank or card step took nothing, and offers another try', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      attempt: '6',
+    })
+    const text = container.textContent
+
+    expect(text).not.toMatch(/checks again automatically/i)
+    expect(text).toContain(IF_NOT_FINISHED)
+    expect(text).toContain(IF_PAID)
+    expect(text.match(/do not need to pay again/gi)).toHaveLength(1)
+    expect(text).not.toMatch(/safe either way|deposit is safe/i)
+    expect(text).not.toMatch(/on its way/i)
+    expect(text).not.toMatch(/email|receipt/i)
+    expect(text).not.toMatch(FAILED)
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      '/services'
+    )
+    expect(
+      screen.getByRole('link', { name: /refresh the page/i })
+    ).toHaveAttribute('href', expect.stringContaining(`ref=${REF}`))
     expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
       'href',
       '/contact'

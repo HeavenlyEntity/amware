@@ -361,6 +361,62 @@ describe('Onboarding page reference lookup', () => {
   })
 })
 
+/* Under Whop Elements a declined or abandoned off-site step -- 3DS, a bank
+   page -- returns the buyer to this same URL with no failure signal, and no
+   row ever arrives. So no row yet is either a purchase the webhook has not
+   recorded or a payment that never happened, and every sentence in this
+   state has to be true for both. */
+describe('Onboarding page while no row has arrived, which could be either outcome', () => {
+  const REF = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b'
+  const IF_PAID =
+    'If your payment went through, you do not need to pay again — it can take a minute to show here.'
+  const IF_NOT_FINISHED =
+    'If your bank or card step did not finish, nothing was taken.'
+
+  it('while it checks again, says not to pay again only if the payment went through', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({ ref: REF })
+    const text = container.textContent
+
+    expect(text).toMatch(/checks again automatically/i)
+    expect(text).toContain(IF_PAID)
+    // That conditional sentence is the only reassurance on the page.
+    expect(text.match(/do not need to pay again/gi)).toHaveLength(1)
+    expect(text).not.toMatch(/safe either way|payment is safe/i)
+    expect(text).not.toMatch(/on its way/i)
+    // A payment that never happened has no receipt to point at.
+    expect(text).not.toMatch(/email|receipt/i)
+    // The webhook may just be late: nothing nudges a second payment yet.
+    expect(screen.queryByRole('link', { name: /try again/i })).toBeNull()
+  })
+
+  it('once the checks run out, says plainly an unfinished bank or card step took nothing, and offers another try', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({ ref: REF, attempt: '6' })
+    const text = container.textContent
+
+    expect(text).not.toMatch(/checks again automatically/i)
+    expect(text).toContain(IF_NOT_FINISHED)
+    expect(text).toContain(IF_PAID)
+    expect(text.match(/do not need to pay again/gi)).toHaveLength(1)
+    expect(text).not.toMatch(/safe either way|payment is safe/i)
+    expect(text).not.toMatch(/on its way/i)
+    expect(text).not.toMatch(/email|receipt/i)
+    expect(text).not.toMatch(/did not go through|nothing was charged/i)
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      '/pricing'
+    )
+    expect(
+      screen.getByRole('link', { name: /refresh the page/i })
+    ).toHaveAttribute('href', `/checkout/onboarding?ref=${REF}`)
+    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
+      'href',
+      '/contact'
+    )
+  })
+})
+
 describe('Onboarding page for a Team licence', () => {
   it('mentions the other seats, from the product’s own seat count', async () => {
     find.mockResolvedValue({
