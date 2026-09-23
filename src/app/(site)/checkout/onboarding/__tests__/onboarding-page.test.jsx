@@ -482,6 +482,33 @@ describe('Onboarding page while no row has arrived, which could be either outcom
       '/contact'
     )
   })
+
+  /* A failed lookup is the one state where the page could not check at all:
+     the buyer may have paid, or their bank step may have failed. So it says
+     what is true either way, points at no receipt that may not exist, and --
+     unlike the exhausted checks -- offers no second purchase, because a paid
+     buyer must not be nudged into paying twice. */
+  it('when the lookup itself fails, reassures only conditionally and never nudges a second payment', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    find.mockRejectedValue(new Error('connection refused'))
+    const { container } = await renderPage({ ref: REF })
+    const text = container.textContent
+
+    expect(text).toContain(IF_PAID)
+    expect(text).toContain(IF_NOT_FINISHED)
+    expect(text.match(/do not need to pay again/gi)).toHaveLength(1)
+    expect(text).not.toMatch(/safe either way|payment is safe/i)
+    expect(text).not.toMatch(/email|receipt/i)
+    expect(screen.queryByRole('link', { name: /try again/i })).toBeNull()
+    expect(
+      screen.getByRole('link', { name: /refresh the page/i })
+    ).toHaveAttribute('href', `/checkout/onboarding?ref=${REF}`)
+    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
+      'href',
+      '/contact'
+    )
+    logged.mockRestore()
+  })
 })
 
 describe('Onboarding page for a Team licence', () => {

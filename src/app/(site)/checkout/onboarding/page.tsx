@@ -93,6 +93,14 @@ const linkClass =
  * about any purchase -- no item, repo, key or account -- so it is safe in
  * front of whoever holds the link, and it points at the one thing that
  * always works: the purchase email and a human. */
+/* Reload this page for the same purchase. Both states that cannot yet
+   describe the order offer it, keyed the way the buyer arrived. */
+function refreshHref(ref: string | null, paymentId: string | null | undefined) {
+  return ref
+    ? `/checkout/onboarding?ref=${encodeURIComponent(ref)}`
+    : `/checkout/onboarding?payment_id=${encodeURIComponent(paymentId ?? '')}`
+}
+
 function ManualState() {
   return (
     <Shell title="Check your email">
@@ -189,20 +197,28 @@ export default async function OnboardingPage({
     loadError = true
   }
 
-  /* A failed lookup cannot rule out a paid row, so the URL does not get to
-     say the payment failed either. */
+  /* A failed lookup can neither rule out a paid row nor confirm one, so the
+     URL does not get to say the payment failed, and the copy promises
+     nothing either: it says what is true whether or not the buyer paid,
+     points at no receipt that may not exist, and offers no second purchase
+     -- a paid buyer must not be nudged into paying twice. */
   if (loadError) {
     return (
       <Shell title="Something went wrong">
         <p className="mt-6 text-zinc-600 dark:text-zinc-400">
-          This page could not load just now. Your payment is safe either way —
-          refresh to try again, or reply to your receipt and I will sort it by
-          hand.
+          This page could not load just now. If your payment went through, you
+          do not need to pay again — it can take a minute to show here.
         </p>
         <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+          If your bank or card step did not finish, nothing was taken.{' '}
+          <Link href={refreshHref(ref, paymentId)} className={linkClass}>
+            Refresh the page
+          </Link>{' '}
+          to check again, or{' '}
           <Link href="/contact" className={linkClass}>
-            Get in touch
-          </Link>
+            get in touch
+          </Link>{' '}
+          and I will sort it by hand.
         </p>
       </Shell>
     )
@@ -227,9 +243,7 @@ export default async function OnboardingPage({
      receipt that may not exist -- and another try is offered only once the
      checks have run out, never while the webhook may just be late. */
   if (!purchase) {
-    const manualHref = ref
-      ? `/checkout/onboarding?ref=${encodeURIComponent(ref)}`
-      : `/checkout/onboarding?payment_id=${encodeURIComponent(paymentId)}`
+    const manualHref = refreshHref(ref, paymentId)
 
     return (
       <Shell title="Confirming your payment">

@@ -57,11 +57,12 @@ never turns a real payment into a 500.
 
 This is the real gate, and it only becomes possible after step 2.
 
-### 4. Fix the one parked copy defect
+### 4. ~~Fix the one parked copy defect~~ — done
 
-`src/app/(site)/checkout/onboarding/page.tsx:198-200` — the failed-lookup (database error) state
-still says "Your payment is safe either way — … reply to your receipt". It should be conditional,
-the same way the review made the pending states conditional. It is a two-line change.
+The onboarding page's failed-lookup (database error) state no longer says "Your payment is safe
+either way — … reply to your receipt". It now uses the same conditional sentences as the pending
+states, offers a refresh and the contact route, and — because the page could not check — no second
+purchase.
 
 ### 5. Environment
 
