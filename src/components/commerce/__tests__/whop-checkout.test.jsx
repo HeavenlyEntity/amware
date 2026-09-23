@@ -84,4 +84,38 @@ describe('WhopCheckout', () => {
     render(<WhopCheckout planId={null} returnPath="/checkout/onboarding" />)
     expect(screen.queryByTestId('checkout')).toBeNull()
   })
+
+  it('keeps metadata, returnUrl and appearance as the same object across a re-render', () => {
+    const { rerender } = render(
+      <WhopCheckout planId="plan_pro" returnPath="/checkout/onboarding" />
+    )
+    const firstMetadata = checkoutProps.metadata
+    const firstReturnUrl = checkoutProps.returnUrl
+    const firstAppearance = providerProps.appearance
+    rerender(
+      <WhopCheckout planId="plan_pro" returnPath="/checkout/onboarding" />
+    )
+    expect(checkoutProps.metadata).toBe(firstMetadata)
+    expect(checkoutProps.returnUrl).toBe(firstReturnUrl)
+    expect(providerProps.appearance).toBe(firstAppearance)
+  })
+
+  it('ignores a changed returnPath and returnParams after mount, because returnUrl is frozen', () => {
+    const { rerender } = render(
+      <WhopCheckout
+        planId="plan_pro"
+        returnPath="/checkout/onboarding"
+        returnParams={{ service: 'Fractional CTO' }}
+      />
+    )
+    const first = checkoutProps.returnUrl
+    rerender(
+      <WhopCheckout
+        planId="plan_pro"
+        returnPath="/checkout/deposit"
+        returnParams={{ service: 'Something Else' }}
+      />
+    )
+    expect(checkoutProps.returnUrl).toBe(first)
+  })
 })
