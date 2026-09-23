@@ -2,6 +2,7 @@ import { getPayloadClient } from '@/lib/getPayloadClient'
 import {
   verifyWhopWebhook,
   customFieldAnswer,
+  checkoutRefFrom,
   type WhopPayment,
 } from '@/lib/commerce/whop'
 import { whopEnvironment } from '@/lib/commerce/whopEnv'
@@ -165,6 +166,7 @@ export async function POST(req: Request) {
         whopMembershipId:
           payment.membership?.id ?? payment.membership_id ?? undefined,
         whopPlanId: planId || undefined,
+        whopCheckoutRef: checkoutRefFrom(payment) || undefined,
         amount,
         currency,
         status: 'paid',

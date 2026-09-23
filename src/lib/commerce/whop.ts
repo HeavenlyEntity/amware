@@ -160,3 +160,17 @@ export function customFieldAnswer(
   }
   return null
 }
+
+/* The reference our checkout component minted and handed to Whop as order
+ * metadata. It is how a return page finds the purchase without trusting
+ * anything Whop puts in the URL. Client-minted, so it proves nothing on
+ * its own: it is a lookup handle, never an authorisation. Anything that is
+ * not a UUID is dropped rather than stored. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function checkoutRefFrom(
+  payment: { metadata?: Record<string, unknown> | null } | null | undefined
+): string | null {
+  const ref = payment?.metadata?.checkout_ref
+  return typeof ref === 'string' && UUID.test(ref) ? ref.toLowerCase() : null
+}

@@ -540,6 +540,10 @@ export interface Purchase {
    * The membership the sale created. Carries the licence key and is what community access follows from.
    */
   whopMembershipId?: string | null
+  /**
+   * Our own reference for the checkout session, minted in the browser and carried through Whop as order metadata. Return pages find the purchase by it. A lookup handle, not proof of anything.
+   */
+  whopCheckoutRef?: string | null
   whopEnvironment?: ('production' | 'sandbox') | null
   /**
    * Retainers only. Ties every renewal row back to one subscription.
@@ -947,6 +951,7 @@ export interface PurchasesSelect<T extends boolean = true> {
   whopPaymentId?: T
   whopPlanId?: T
   whopMembershipId?: T
+  whopCheckoutRef?: T
   whopEnvironment?: T
   creemSubscriptionId?: T
   creemTransactionId?: T

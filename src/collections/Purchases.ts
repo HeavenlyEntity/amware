@@ -103,6 +103,17 @@ export const Purchases: CollectionConfig = {
       },
     },
     {
+      name: 'whopCheckoutRef',
+      type: 'text',
+      index: true,
+      admin: {
+        description:
+          'Our own reference for the checkout session, minted in the browser ' +
+          'and carried through Whop as order metadata. Return pages find the ' +
+          'purchase by it. A lookup handle, not proof of anything.',
+      },
+    },
+    {
       name: 'whopEnvironment',
       type: 'select',
       options: [

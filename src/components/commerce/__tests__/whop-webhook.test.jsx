@@ -941,3 +941,39 @@ describe('Whop webhook: what the buyer typed as their GitHub username', () => {
     })
   }
 })
+
+describe('Whop webhook: our own checkout reference', () => {
+  const ref = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b'
+
+  it('stores the checkout reference the browser minted, off the payment metadata', async () => {
+    verifyWhopWebhook.mockReturnValue(
+      event(payment({ metadata: { checkout_ref: ref } }))
+    )
+    db()
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ whopCheckoutRef: ref }),
+      })
+    )
+  })
+
+  it('omits it when the metadata holds nothing that looks like our reference', async () => {
+    verifyWhopWebhook.mockReturnValue(
+      event(payment({ metadata: { checkout_ref: 'not-a-uuid' } }))
+    )
+    db()
+
+    const res = await POST(request())
+
+    expect(res.status).toBe(200)
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ whopCheckoutRef: undefined }),
+      })
+    )
+  })
+})

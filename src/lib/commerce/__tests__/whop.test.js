@@ -8,6 +8,7 @@ import {
   verifyWhopWebhook,
   whopRequest,
   customFieldAnswer,
+  checkoutRefFrom,
 } from '../whop'
 
 /* The thin edge between this code and Whop: the webhook helper's throw
@@ -138,5 +139,20 @@ describe('customFieldAnswer', () => {
     }
     expect(customFieldAnswer(asAnswer, 'GitHub username')).toBe('octocat')
     expect(customFieldAnswer(asMetadata, 'GitHub username')).toBe('octocat')
+  })
+})
+
+describe('checkoutRefFrom', () => {
+  const ref = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b'
+  it('reads a UUID reference from the payment metadata', () => {
+    expect(checkoutRefFrom({ metadata: { checkout_ref: ref } })).toBe(ref)
+  })
+  it('refuses anything that is not a UUID', () => {
+    expect(
+      checkoutRefFrom({ metadata: { checkout_ref: 'drop table' } })
+    ).toBeNull()
+    expect(checkoutRefFrom({ metadata: { checkout_ref: 42 } })).toBeNull()
+    expect(checkoutRefFrom({ metadata: null })).toBeNull()
+    expect(checkoutRefFrom(null)).toBeNull()
   })
 })
