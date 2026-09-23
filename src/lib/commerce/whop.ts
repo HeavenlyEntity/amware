@@ -174,3 +174,14 @@ export function checkoutRefFrom(
   const ref = payment?.metadata?.checkout_ref
   return typeof ref === 'string' && UUID.test(ref) ? ref.toLowerCase() : null
 }
+
+/* The same reference, read back off the URL a buyer's browser returns with
+ * rather than off payment metadata. Client-minted, so it is validated just
+ * as strictly and by the same pattern -- canonical UUID only, lower-cased --
+ * and anything else is null, exactly like an absent one, rather than ever
+ * reaching a query. */
+export function validCheckoutRef(value: unknown): string | null {
+  return typeof value === 'string' && UUID.test(value)
+    ? value.toLowerCase()
+    : null
+}

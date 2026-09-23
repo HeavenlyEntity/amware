@@ -13,6 +13,7 @@ import {
   tierFromSlug,
 } from '@/lib/commerce/onboardingDisplay'
 import { seatLimit } from '@/lib/commerce/seats'
+import { validCheckoutRef } from '@/lib/commerce/whop'
 import type { Purchase } from '@/payload-types'
 
 export const dynamic = 'force-dynamic'
@@ -26,10 +27,21 @@ export const metadata = {
  *
  * The page has no signature -- there is nothing on it worth forging. It
  * grants nothing (Whop's webhook already delivered the repo invitation by
- * the time this renders), so all a payment_id unlocks is a look at your own
- * purchase: the item name, the repo, a masked licence key, the GitHub
- * username on file, and one relevant next step. Never the full key, the
- * email or the amount -- those stay in the receipt only you received.
+ * the time this renders), so all a payment_id or ref unlocks is a look at
+ * your own purchase: the item name, the repo, a masked licence key, the
+ * GitHub username on file, and one relevant next step. Never the full key,
+ * the email or the amount -- those stay in the receipt only you received.
+ *
+ * Two ways in. WhopCheckout mints a reference before the buyer ever pays,
+ * carries it through Whop as order metadata, and always returns with it as
+ * ?ref=; the webhook stores it as whopCheckoutRef. The receipt email's setup
+ * link predates that and still points at ?payment_id=, Whop's own id for the
+ * payment. Both must keep resolving, so the lookup tries ref first and
+ * falls back to payment_id -- ref is the fresher of the two when a URL
+ * somehow carries both, being the one the checkout that just ran actually
+ * minted. ref is client-minted, so before it is trusted as far as a query it
+ * is validated against the canonical UUID shape and lower-cased; anything
+ * else is treated as no ref at all.
  *
  * The webhook is server-to-server and the browser redirect regularly beats
  * it, so "no purchase yet" is a normal state for the first few seconds
@@ -38,8 +50,9 @@ export const metadata = {
  *
  * Only that case waits. A payment Whop reports as failed (?status=error on
  * the way back from a bank redirect) says so and offers another try; a link
- * with no payment id, or one whose purchase is no longer paid, can never
- * turn into a purchase by waiting, so it points at the email straight away.
+ * with no payment id or ref, or one whose purchase is no longer paid, can
+ * never turn into a purchase by waiting, so it points at the email straight
+ * away.
  */
 
 function Shell({
@@ -66,11 +79,12 @@ const linkClass =
   'text-teal-700 underline underline-offset-4 dark:text-teal-300'
 
 /* The manual route, for a link that can never show a purchase by waiting:
- * no payment id at all (Whop gave none, so there is nothing to look up), or
- * a purchase that is no longer paid (a revoked licence is marked refunded).
- * It says nothing about any purchase -- no item, repo, key or account -- so
- * it is safe in front of whoever holds the link, and it points at the one
- * thing that always works: the purchase email and a human. */
+ * no ref or payment id at all (Whop gave none, or the ref on the URL was
+ * not a valid one, so there is nothing to look up), or a purchase that is
+ * no longer paid (a revoked licence is marked refunded). It says nothing
+ * about any purchase -- no item, repo, key or account -- so it is safe in
+ * front of whoever holds the link, and it points at the one thing that
+ * always works: the purchase email and a human. */
 function ManualState() {
   return (
     <Shell title="Check your email">
@@ -119,6 +133,7 @@ export default async function OnboardingPage({
   searchParams,
 }: {
   searchParams: Promise<{
+    ref?: string | string[]
     payment_id?: string | string[]
     attempt?: string | string[]
     status?: string | string[]
@@ -127,16 +142,18 @@ export default async function OnboardingPage({
   /* A repeated param arrives as an array; firstParam takes the first, so an
      array never reaches the query, the refresh URL or the status check. */
   const params = await searchParams
+  const ref = validCheckoutRef(firstParam(params.ref))
   const paymentId = firstParam(params.payment_id)
   const status = firstParam(params.status)
   const attempt = Math.max(0, parseInt(firstParam(params.attempt), 10) || 0)
 
-  /* Before any lookup: whatever a payment id would find, Whop has just said
-     this payment failed, and "you do not need to pay again" would be a lie. */
+  /* Before any lookup: whatever a ref or payment id would find, Whop has
+     just said this payment failed, and "you do not need to pay again"
+     would be a lie. */
   if (status === 'error') return <PaymentFailed />
 
-  // Without an id the lookup can never succeed, so nothing waits for it.
-  if (!paymentId) return <ManualState />
+  // Without a ref or an id the lookup can never succeed, so nothing waits.
+  if (!ref && !paymentId) return <ManualState />
 
   let purchase: Purchase | null = null
   let loadError = false
@@ -145,7 +162,9 @@ export default async function OnboardingPage({
     const payload = await getPayloadClient()
     const { docs } = await payload.find({
       collection: 'purchases',
-      where: { whopPaymentId: { equals: paymentId } },
+      where: ref
+        ? { whopCheckoutRef: { equals: ref } }
+        : { whopPaymentId: { equals: paymentId } },
       depth: 1,
       limit: 1,
       overrideAccess: true,
@@ -175,17 +194,17 @@ export default async function OnboardingPage({
   }
 
   /* Only a paid purchase is described. A revoked licence is marked refunded,
-     and its payment id still finds the row -- so the page has to refuse it
-     here, or it would go on showing the repo and account it no longer
-     grants. */
+     and its ref or payment id still finds the row -- so the page has to
+     refuse it here, or it would go on showing the repo and account it no
+     longer grants. */
   if (purchase && purchase.status !== 'paid') {
     return <ManualState />
   }
 
   if (!purchase) {
-    const manualHref = `/checkout/onboarding?payment_id=${encodeURIComponent(
-      paymentId
-    )}`
+    const manualHref = ref
+      ? `/checkout/onboarding?ref=${encodeURIComponent(ref)}`
+      : `/checkout/onboarding?payment_id=${encodeURIComponent(paymentId)}`
 
     return (
       <Shell title="Confirming your payment">
@@ -198,7 +217,11 @@ export default async function OnboardingPage({
             <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
               This checks again automatically every few seconds.
             </p>
-            <PendingRefresh paymentId={paymentId} attempt={attempt} />
+            <PendingRefresh
+              checkoutRef={ref}
+              paymentId={paymentId}
+              attempt={attempt}
+            />
           </>
         ) : (
           <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">

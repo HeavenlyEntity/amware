@@ -9,6 +9,7 @@ import {
   whopRequest,
   customFieldAnswer,
   checkoutRefFrom,
+  validCheckoutRef,
 } from '../whop'
 
 /* The thin edge between this code and Whop: the webhook helper's throw
@@ -154,5 +155,26 @@ describe('checkoutRefFrom', () => {
     expect(checkoutRefFrom({ metadata: { checkout_ref: 42 } })).toBeNull()
     expect(checkoutRefFrom({ metadata: null })).toBeNull()
     expect(checkoutRefFrom(null)).toBeNull()
+  })
+})
+
+describe('validCheckoutRef', () => {
+  const ref = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b'
+
+  it('accepts a canonical UUID, exactly as checkoutRefFrom would', () => {
+    expect(validCheckoutRef(ref)).toBe(ref)
+  })
+
+  it('lower-cases a mixed-case UUID before it can reach a query', () => {
+    expect(validCheckoutRef(ref.toUpperCase())).toBe(ref)
+  })
+
+  it('refuses anything that is not a canonical UUID, never throwing', () => {
+    expect(validCheckoutRef('drop table')).toBeNull()
+    expect(validCheckoutRef('')).toBeNull()
+    expect(validCheckoutRef(42)).toBeNull()
+    expect(validCheckoutRef(null)).toBeNull()
+    expect(validCheckoutRef(undefined)).toBeNull()
+    expect(validCheckoutRef(['not', 'a', 'string'])).toBeNull()
   })
 })

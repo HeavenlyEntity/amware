@@ -14,13 +14,19 @@ export const MAX_ATTEMPTS = 6
  * purchase. The page stops rendering this component once `attempt` reaches
  * MAX_ATTEMPTS, in favour of a manual refresh link.
  *
+ * checkoutRef and paymentId mirror the page's own two ways in -- a Whop
+ * Elements checkout's ?ref= or a receipt email's ?payment_id=. checkoutRef
+ * wins when both are given, the same preference the page's lookup applies,
+ * so a retry never starts querying a different field than the one that
+ * found -- or will eventually find -- the row.
+ *
  * Deliberately no local state. `react-hooks/set-state-in-effect` exists to
  * catch exactly the pattern this used to be -- a `useState` counter written
  * from inside `useEffect` -- and the honest fix is not to have that state at
  * all: the URL is the counter, the server component that reads
  * `searchParams` is the source of truth, and this effect's only side effect
  * is a navigation call, never a setState. */
-export function PendingRefresh({ paymentId, attempt }) {
+export function PendingRefresh({ checkoutRef, paymentId, attempt }) {
   const router = useRouter()
   const pathname = usePathname()
 
@@ -29,13 +35,14 @@ export function PendingRefresh({ paymentId, attempt }) {
 
     const timer = setTimeout(() => {
       const params = new URLSearchParams()
-      if (paymentId) params.set('payment_id', paymentId)
+      if (checkoutRef) params.set('ref', checkoutRef)
+      else if (paymentId) params.set('payment_id', paymentId)
       params.set('attempt', String(attempt + 1))
       router.replace(`${pathname}?${params.toString()}`)
     }, REFRESH_MS)
 
     return () => clearTimeout(timer)
-  }, [attempt, paymentId, pathname, router])
+  }, [attempt, checkoutRef, paymentId, pathname, router])
 
   return null
 }

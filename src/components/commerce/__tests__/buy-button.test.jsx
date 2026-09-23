@@ -1,14 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-const push = vi.fn()
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
-
-let embedProps
-vi.mock('@whop/checkout/react', () => ({
-  WhopCheckoutEmbed: (props) => {
-    embedProps = props
-    return <div data-testid="embed" data-plan={props.planId} />
+let checkoutProps
+vi.mock('../WhopCheckout', () => ({
+  WhopCheckout: (props) => {
+    checkoutProps = props
+    return <div data-testid="checkout" data-plan={props.planId} />
   },
 }))
 
@@ -22,15 +19,11 @@ import { BuyButton } from '../BuyButton'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  embedProps = undefined
-})
-
-afterEach(() => {
-  delete process.env.NEXT_PUBLIC_WHOP_ENV
+  checkoutProps = undefined
 })
 
 describe('BuyButton', () => {
-  it('mounts the Whop embed for the plan', () => {
+  it('renders the Whop Elements checkout for the plan, returning to onboarding', () => {
     render(
       <BuyButton
         planId="plan_pro"
@@ -40,53 +33,12 @@ describe('BuyButton', () => {
         price={499}
       />
     )
-    expect(screen.getByTestId('embed')).toHaveAttribute('data-plan', 'plan_pro')
-  })
-
-  it('sends the buyer to onboarding with the receipt when payment completes', () => {
-    render(
-      <BuyButton
-        planId="plan_pro"
-        itemType="product"
-        slug="pro"
-        name="Pro"
-        price={499}
-      />
+    expect(screen.getByTestId('checkout')).toHaveAttribute(
+      'data-plan',
+      'plan_pro'
     )
-    embedProps.onComplete('plan_pro', 'pay_123')
-    expect(push).toHaveBeenCalledWith('/checkout/onboarding?payment_id=pay_123')
-  })
-
-  it('still sends the buyer to onboarding when Whop gives no receipt id', () => {
-    render(
-      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
-    )
-    embedProps.onComplete('plan_pro', undefined)
-    expect(push).toHaveBeenCalledWith('/checkout/onboarding')
-  })
-
-  it('returns bank-redirect payments to the same onboarding page', () => {
-    render(
-      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
-    )
-    expect(embedProps.returnUrl).toBe(
-      `${window.location.origin}/checkout/onboarding`
-    )
-  })
-
-  it('mounts against the sandbox when the site runs against the sandbox, and production otherwise', () => {
-    process.env.NEXT_PUBLIC_WHOP_ENV = 'sandbox'
-    const { unmount } = render(
-      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
-    )
-    expect(embedProps.environment).toBe('sandbox')
-    unmount()
-
-    delete process.env.NEXT_PUBLIC_WHOP_ENV
-    render(
-      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
-    )
-    expect(embedProps.environment).toBe('production')
+    expect(checkoutProps.planId).toBe('plan_pro')
+    expect(checkoutProps.returnPath).toBe('/checkout/onboarding')
   })
 
   it('reports begin_checkout with the price, and omits value when price is unknown', () => {
@@ -115,41 +67,9 @@ describe('BuyButton', () => {
     expect(whopTrack.mock.calls[0][1].value).toBeUndefined()
   })
 
-  it('says the item is not on sale rather than rendering a dead embed', () => {
+  it('says the item is not on sale rather than rendering a dead checkout', () => {
     render(<BuyButton planId={null} itemType="product" slug="pro" name="Pro" />)
     expect(screen.getByRole('status')).toHaveTextContent(/not on sale yet/i)
-    expect(screen.queryByTestId('embed')).toBeNull()
-  })
-
-  /* Without it Whop may navigate the top frame after payment and pre-empt
-     the router.push onComplete makes -- the same prop DepositCheckout sets. */
-  it('keeps the page loaded after payment, so onComplete is what moves the buyer', () => {
-    render(
-      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
-    )
-    expect(embedProps.skipRedirect).toBe(true)
-  })
-
-  it('themes the embed the way the deposit sheet does', () => {
-    render(
-      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
-    )
-    expect(embedProps.theme).toBe('light')
-    expect(embedProps.themeOptions).toEqual({
-      accentColor: '#14bbac',
-      borderRadius: 8,
-    })
-  })
-
-  it('mounts the embed dark on a dark page', () => {
-    document.documentElement.classList.add('dark')
-    try {
-      render(
-        <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
-      )
-      expect(embedProps.theme).toBe('dark')
-    } finally {
-      document.documentElement.classList.remove('dark')
-    }
+    expect(screen.queryByTestId('checkout')).toBeNull()
   })
 })

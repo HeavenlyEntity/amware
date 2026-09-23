@@ -246,6 +246,101 @@ describe('Onboarding page for a purchase that is not a kit', () => {
   })
 })
 
+describe('Onboarding page reference lookup', () => {
+  /* WhopCheckout mints this and puts it on the return URL as ?ref=; the
+     receipt email's setup link, from before Elements existed, still uses
+     ?payment_id=. Both must keep finding the purchase. */
+  const REF = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b'
+
+  it('looks up the purchase by ref when one is present', async () => {
+    find.mockResolvedValue({ docs: [row()] })
+    await renderPage({ ref: REF })
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { whopCheckoutRef: { equals: REF } },
+      })
+    )
+    expect(
+      screen.getByRole('heading', { name: /WareKit Next NetSuite \(Pro\)/ })
+    ).toBeInTheDocument()
+  })
+
+  it('validates the ref and lower-cases it before querying', async () => {
+    find.mockResolvedValue({ docs: [row()] })
+    await renderPage({ ref: REF.toUpperCase() })
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { whopCheckoutRef: { equals: REF } },
+      })
+    )
+  })
+
+  it('falls back to payment_id when there is no ref', async () => {
+    find.mockResolvedValue({ docs: [row()] })
+    await renderPage({ payment_id: 'pay_1' })
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { whopPaymentId: { equals: 'pay_1' } },
+      })
+    )
+  })
+
+  it('prefers ref over payment_id when both are on the URL', async () => {
+    find.mockResolvedValue({ docs: [row()] })
+    await renderPage({ ref: REF, payment_id: 'pay_1' })
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { whopCheckoutRef: { equals: REF } },
+      })
+    )
+  })
+
+  it('treats an invalid ref as absent, and never sends it to the database', async () => {
+    const { container } = await renderPage({ ref: 'not-a-uuid' })
+
+    expect(find).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('heading', { name: /check your email/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).not.toContain('not-a-uuid')
+  })
+
+  it('falls back to payment_id when the ref on the URL is invalid', async () => {
+    find.mockResolvedValue({ docs: [row()] })
+    await renderPage({ ref: 'not-a-uuid', payment_id: 'pay_1' })
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { whopPaymentId: { equals: 'pay_1' } },
+      })
+    )
+  })
+
+  it('treats a ref with no row yet as the ordinary confirming state', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({ ref: REF })
+
+    expect(
+      screen.getByRole('heading', { name: /confirming your payment/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).toMatch(/checks again automatically/i)
+    expect(container.textContent).toMatch(/do not need to pay again/i)
+  })
+
+  it('offers a ref-keyed manual refresh once the attempts run out', async () => {
+    find.mockResolvedValue({ docs: [] })
+    await renderPage({ ref: REF, attempt: '6' })
+
+    expect(
+      screen.getByRole('link', { name: /refresh the page/i })
+    ).toHaveAttribute('href', `/checkout/onboarding?ref=${REF}`)
+  })
+})
+
 describe('Onboarding page for a Team licence', () => {
   it('mentions the other seats, from the product’s own seat count', async () => {
     find.mockResolvedValue({
