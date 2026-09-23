@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { validCheckoutRef } from '@/lib/commerce/whop'
 
 let providerProps
 let checkoutProps
@@ -24,6 +25,51 @@ beforeEach(() => {
   providerProps = undefined
   checkoutProps = undefined
   delete process.env.NEXT_PUBLIC_WHOP_ENV
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+/* crypto.randomUUID needs a secure context: on http://<LAN-IP>, or Safari
+   before 15.4, it is not there, and calling it would throw during render --
+   a crash no load-error handling can catch. getRandomValues has no such
+   requirement. */
+describe('WhopCheckout without crypto.randomUUID', () => {
+  const V4 =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+  const withoutRandomUUID = () => {
+    const real = globalThis.crypto
+    const getRandomValues = vi.fn((bytes) => real.getRandomValues(bytes))
+    vi.stubGlobal('crypto', { getRandomValues })
+    return getRandomValues
+  }
+
+  it('mints an RFC 4122 version 4 reference from getRandomValues instead', () => {
+    const getRandomValues = withoutRandomUUID()
+    render(<WhopCheckout planId="plan_pro" returnPath="/checkout/onboarding" />)
+
+    const ref = checkoutProps.metadata.checkout_ref
+    expect(getRandomValues).toHaveBeenCalled()
+    expect(ref).toMatch(V4)
+    // The same validator the webhook and both return pages apply.
+    expect(validCheckoutRef(ref)).toBe(ref)
+    expect(new URL(checkoutProps.returnUrl).searchParams.get('ref')).toBe(ref)
+  })
+
+  it('mints a different reference for each checkout', () => {
+    withoutRandomUUID()
+    const { unmount } = render(
+      <WhopCheckout planId="plan_pro" returnPath="/checkout/onboarding" />
+    )
+    const first = checkoutProps.metadata.checkout_ref
+    unmount()
+    render(<WhopCheckout planId="plan_pro" returnPath="/checkout/onboarding" />)
+
+    expect(checkoutProps.metadata.checkout_ref).toMatch(V4)
+    expect(checkoutProps.metadata.checkout_ref).not.toBe(first)
+  })
 })
 
 describe('WhopCheckout', () => {

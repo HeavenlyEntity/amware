@@ -87,9 +87,32 @@ function CheckoutLoadFailed({ onRetry }) {
   )
 }
 
+/* The checkout's reference: a random RFC 4122 version 4 UUID.
+   crypto.randomUUID only exists in a secure context -- not on
+   http://<LAN-IP>, and not in Safari before 15.4 -- and calling it there
+   throws during render, a crash no load-error handling can catch.
+   getRandomValues needs no secure context, so without randomUUID the same
+   UUID is built from 16 random bytes: the version nibble set to 4, the
+   variant bits to 10. Either way it passes the validator the webhook and
+   the return pages share. */
+function newCheckoutRef() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join('-')
+}
+
 export function WhopCheckout({ planId, returnPath, returnParams, className }) {
   const mounted = useMounted()
-  const [ref] = useState(() => crypto.randomUUID())
+  const [ref] = useState(newCheckoutRef)
   /* Set when Whop's script fails to load: holds the provider's retry(),
      which starts a fresh load in place. With onLoadError set, the provider
      reports the failure here instead of throwing it during render -- which,
