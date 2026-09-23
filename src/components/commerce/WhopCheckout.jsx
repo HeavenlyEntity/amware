@@ -16,10 +16,16 @@ import { useMounted } from '@/hooks/use-client-value'
  * webhook stores it; the return page looks the purchase up by it. What Whop
  * itself appends to the URL is undocumented, and nothing here depends on it.
  *
- * Every Elements option is fixed at creation — changing one later fails
- * rather than updating — so the element mounts only once the absolute
- * origin is known, and every option handed to it is frozen for the life of
- * the mount, not just correct in value on the first render:
+ * Not every Elements option is fixed at creation. The checkout's session
+ * options — plan, returnUrl and metadata among them — are set at create
+ * only: the session is minted from them, and changing one later refuses
+ * rather than updating (CheckoutOptions in @whop/elements/checkout.d.ts).
+ * appearance and locale are not: appearance changes live through update(),
+ * and locale is not create-only either (this component passes none). Even
+ * so, the element mounts only once the absolute origin is known, and every
+ * option handed to it is frozen for the life of the mount — the create-only
+ * ones because they must be, appearance because the mode is read once, on
+ * mount (below) — not just correct in value on the first render:
  *
  *  - returnUrl is built once, on the render where `mounted` first turns
  *    true, from whatever returnPath/returnParams are current at that

@@ -19,7 +19,9 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-/* Whop's webhook, for the deposit that starts an engagement.
+/* Whop's webhook, for every sale the site's Whop Elements checkout makes:
+ * the deposit that starts an engagement, a kit, or any other product or
+ * course.
  *
  * Whop delivers at least once, in no particular order, and retries a non-2xx
  * for three days. So: verify, record once (the payment id is unique on the
@@ -27,16 +29,23 @@ export const dynamic = 'force-dynamic'
  * answer 200 for anything that is not a fault of ours. Only a failed write
  * gets a 500, because that is the one case where a retry helps.
  *
- * What is recorded: a Purchase with provider "whop", the service the plan
- * belongs to, the amount in cents, and the buyer's email. Nothing to deliver:
- * an engagement is scheduled with the client by hand, so fulfilment is
- * "not_required" from the start. The buyer gets a receipt with the booking
- * link and the owner gets a heads-up, because a deposit is a client, not a
- * download.
+ * What a payment.succeeded records: a Purchase with provider "whop", the
+ * service, product or course the plan belongs to, the amount in cents, the
+ * buyer's email, the membership and any licence key it carries, the GitHub
+ * account a kit's checkout asks for, and the checkout reference WhopCheckout
+ * put in the order metadata -- how the return pages find the purchase.
  *
- * Four routes, decided by what the plan resolves to: a service's deposit, a
- * kit (a repository invitation), any other product or course (owed by hand),
- * or nothing at all (recorded as failed for a human to look at). */
+ * Four routes after that, decided by what the plan resolves to: a service's
+ * deposit (nothing to deliver -- an engagement is scheduled with the client
+ * by hand, so fulfilment is "not_required"; the buyer gets a receipt with
+ * the booking link and the owner a heads-up, because a deposit is a client,
+ * not a download), a kit (a repository invitation), any other product or
+ * course (owed by hand), or nothing at all (recorded as failed for a human
+ * to look at).
+ *
+ * membership.deactivated is the one other event acted on: an ended
+ * membership takes its repository access with it (handleDeactivated,
+ * below). Every other event is acknowledged and ignored. */
 
 /* Which collection a plan belongs to.
  *

@@ -8,10 +8,11 @@ import { fireEvent, render, screen } from '@testing-library/react'
 
    BuyButton's begin_checkout coverage used to live here too, fired from a
    submitted form into createCheckout. Both are gone now that checkout is
-   Whop's embed: there is no form and no server action to submit into, so
-   that coverage moved to buy-button.test.jsx, which checks the embed mounts
-   and that a missing plan id renders the "not on sale" status instead of a
-   dead button. */
+   the site's one Whop Elements checkout, WhopCheckout: there is no form and
+   no server action to submit into, so that coverage moved to
+   buy-button.test.jsx, which checks the Elements checkout mounts for the
+   plan, that begin_checkout reports the price, and that a missing plan id
+   renders the "not on sale" status instead of a dead checkout. */
 
 vi.mock('@/lib/commerce/claim', () => ({ claimFreeKit: vi.fn() }))
 vi.mock('@/components/commerce/GithubAccountField', () => ({

@@ -2,14 +2,15 @@ import { unwrapWebhook } from '@whop/sdk/helpers'
 import { whopEnvironment } from './whopEnv'
 
 /*
- * Whop, for the engagements.
+ * Whop, for everything the site sells.
  *
- * Whop takes the deposit that starts a retainer; Creem keeps the kits and
- * downloads. The two never meet: a service carries a `whopPlanId`, the
- * checkout embed mounts from that plan id alone, and Whop tells us about
+ * Whop takes the deposit that starts an engagement and the kits alike, and
+ * any other product or course with a plan. A service, product or course
+ * carries a `whopPlanId`, the site's one Whop Elements checkout
+ * (WhopCheckout) mounts from that plan id alone, and Whop tells us about
  * the sale on its webhook. There is no server call before checkout and no
  * session to create -- the plan is the product, and the plan id in the
- * payment payload is how a sale finds its service again.
+ * payment payload is how a sale finds its item again.
  *
  * `whopRequest` is only used by the setup simulation (creating the product,
  * the plans and the webhook) and by nothing at request time, so a missing
