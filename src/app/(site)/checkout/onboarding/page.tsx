@@ -54,11 +54,13 @@ export const metadata = {
  * only if the payment went through, and once the checks run out, that an
  * unfinished step took nothing.
  *
- * Only that case waits. A payment Whop reports as failed (?status=error on
- * the way back from a bank redirect) says so and offers another try; a link
- * with no payment id or ref, or one whose purchase is no longer paid, can
- * never turn into a purchase by waiting, so it points at the email straight
- * away.
+ * Only that case waits. An explicit ?status=error -- which only the old
+ * embed ever appended, on the way back from a failed bank redirect -- says
+ * the payment did not go through and offers another try, but only where
+ * there is no paid row to show: with a valid ref the page looks first, and
+ * a paid row wins over anything on the URL. A link with no payment id or
+ * ref, or one whose purchase is no longer paid, can never turn into a
+ * purchase by waiting, so it points at the email straight away.
  */
 
 function Shell({
@@ -110,9 +112,10 @@ function ManualState() {
   )
 }
 
-/* Whop's word that the payment failed, on the way back from a method that
- * left the page. Mirrors the deposit's return page: nothing was charged, so
- * the one useful thing is another try. */
+/* An explicit ?status=error with no paid row to show for it. Only the old
+ * embed ever appended one, on the way back from a method that left the
+ * page. Mirrors the deposit's return page: nothing was charged, so the one
+ * useful thing is another try. */
 function PaymentFailed() {
   return (
     <Shell title="That payment did not go through">
@@ -153,13 +156,17 @@ export default async function OnboardingPage({
   const status = firstParam(params.status)
   const attempt = Math.max(0, parseInt(firstParam(params.attempt), 10) || 0)
 
-  /* Before any lookup: whatever a ref or payment id would find, Whop has
-     just said this payment failed, and "you do not need to pay again"
-     would be a lie. */
-  if (status === 'error') return <PaymentFailed />
+  /* Without a valid ref there is nothing to look up first, so the URL
+     decides: an explicit ?status=error says the payment failed, and "you do
+     not need to pay again" would be a lie after it. */
+  if (!ref && status === 'error') return <PaymentFailed />
 
   // Without a ref or an id the lookup can never succeed, so nothing waits.
   if (!ref && !paymentId) return <ManualState />
+
+  /* With a valid ref the page looks first, whatever the URL says: a paid
+     row wins over any parameter, because a buyer who paid must never read
+     "did not go through… Try again" -- that is how a kit gets paid twice. */
 
   let purchase: Purchase | null = null
   let loadError = false
@@ -182,6 +189,8 @@ export default async function OnboardingPage({
     loadError = true
   }
 
+  /* A failed lookup cannot rule out a paid row, so the URL does not get to
+     say the payment failed either. */
   if (loadError) {
     return (
       <Shell title="Something went wrong">
@@ -197,6 +206,11 @@ export default async function OnboardingPage({
         </p>
       </Shell>
     )
+  }
+
+  // Only now may ?status=error decide: the ref has no paid row.
+  if (status === 'error' && purchase?.status !== 'paid') {
+    return <PaymentFailed />
   }
 
   /* Only a paid purchase is described. A revoked licence is marked refunded,

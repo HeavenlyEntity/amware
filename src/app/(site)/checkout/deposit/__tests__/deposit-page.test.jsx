@@ -96,11 +96,62 @@ const retryUrl = () => {
   return new URL(replace.mock.calls[0][0], 'https://amware.dev')
 }
 
-describe('Deposit return page: Whop said the payment failed', () => {
-  /* Only an explicit ?status=error shows the failure copy -- and it is read
-     before any lookup, because whatever a ref would find, "you do not need
-     to pay again" would be a lie after it. */
-  it('says the payment did not go through, and offers another try, before any lookup', async () => {
+describe('Deposit return page: ?status=error on the URL', () => {
+  /* Only the old embed ever appended ?status=error, on the way back from a
+     failed bank redirect; Whop Elements appends no outcome. It still gets
+     the failure copy -- but only where there is no paid row to show. With a
+     valid ref the page looks first, because a client who paid must never
+     read "did not go through… Try again": that is a second $1,500 charge. */
+  it.each([
+    ['no row', () => []],
+    ['a row that is no longer paid', () => [deposit({ status: 'refunded' })]],
+  ])(
+    'says the payment did not go through when the ref has %s, and offers another try',
+    async (_, docs) => {
+      find.mockResolvedValue({ docs: docs() })
+      const { container } = await renderPage({
+        status: 'error',
+        ref: REF,
+        service: 'Advisor',
+        booking: CAL,
+      })
+
+      expect(
+        screen.getByRole('heading', { name: /did not go through/i })
+      ).toBeInTheDocument()
+      expect(container.textContent).toMatch(/nothing was charged/i)
+      expect(container.textContent).not.toMatch(/do not need to pay again/i)
+      expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+        'href',
+        '/services'
+      )
+      expect(
+        screen.getByRole('link', { name: /get in touch/i })
+      ).toHaveAttribute('href', '/contact')
+      expect(find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { whopCheckoutRef: { equals: REF } },
+        })
+      )
+    }
+  )
+
+  it('says the payment did not go through, without a lookup, when there is no valid ref', async () => {
+    const { container } = await renderPage({
+      status: 'error',
+      ref: 'not-a-uuid',
+      service: 'Advisor',
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /did not go through/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).not.toContain('not-a-uuid')
+    expect(find).not.toHaveBeenCalled()
+  })
+
+  it('confirms the deposit when the ref has a paid row, whatever the URL says', async () => {
+    find.mockResolvedValue({ docs: [deposit()] })
     const { container } = await renderPage({
       status: 'error',
       ref: REF,
@@ -109,19 +160,28 @@ describe('Deposit return page: Whop said the payment failed', () => {
     })
 
     expect(
-      screen.getByRole('heading', { name: /did not go through/i })
+      screen.getByRole('heading', { name: /your start is reserved/i })
     ).toBeInTheDocument()
-    expect(container.textContent).toMatch(/nothing was charged/i)
-    expect(container.textContent).not.toMatch(/do not need to pay again/i)
-    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
-      'href',
-      '/services'
-    )
-    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
-      'href',
-      '/contact'
-    )
-    expect(find).not.toHaveBeenCalled()
+    expect(container.textContent).not.toMatch(FAILED)
+    expect(screen.queryByRole('link', { name: /try again/i })).toBeNull()
+  })
+
+  /* A failed lookup cannot rule out a paid row, so the URL does not get
+     to say the payment failed: the page degrades to the neutral state. */
+  it('shows the neutral email state, never the failure message, when the lookup fails', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    find.mockRejectedValue(new Error('connection refused'))
+    const { container } = await renderPage({
+      status: 'error',
+      ref: REF,
+      service: 'Advisor',
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /check your email/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(FAILED)
+    logged.mockRestore()
   })
 })
 

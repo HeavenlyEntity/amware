@@ -134,8 +134,10 @@ describe('Onboarding page', () => {
     )
   })
 
-  /* Whop appends ?status=success|error when a bank redirect or wallet comes
-     back. After a failure, "you do not need to pay again" would be a lie. */
+  /* Only the old embed ever appended ?status=error, on the way back from a
+     failed bank redirect or wallet; Whop Elements appends no outcome. With
+     no valid ref there is nothing to look up first, so the URL decides --
+     and after a failure, "you do not need to pay again" would be a lie. */
   it('says a failed payment did not go through, and offers another try', async () => {
     const { container } = await renderPage({ status: 'error' })
 
@@ -349,6 +351,55 @@ describe('Onboarding page reference lookup', () => {
     ).toBeInTheDocument()
     expect(container.textContent).toMatch(/checks again automatically/i)
     expect(container.textContent).toMatch(/do not need to pay again/i)
+  })
+
+  /* With a valid ref the page looks first: a paid row wins over anything on
+     the URL, because a buyer who paid must never read "did not go through…
+     Try again". ?status=error decides only once the ref has no paid row. */
+  it('shows the purchase when the ref has a paid row, even with ?status=error', async () => {
+    find.mockResolvedValue({ docs: [row()] })
+    const { container } = await renderPage({ status: 'error', ref: REF })
+
+    expect(
+      screen.getByRole('heading', { name: /WareKit Next NetSuite \(Pro\)/ })
+    ).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(
+      /did not go through|nothing was charged/i
+    )
+  })
+
+  it.each([
+    ['no row', () => []],
+    ['a row that is no longer paid', () => [row({ status: 'refunded' })]],
+  ])(
+    'says a failed payment did not go through when the ref has %s',
+    async (_, docs) => {
+      find.mockResolvedValue({ docs: docs() })
+      const { container } = await renderPage({ status: 'error', ref: REF })
+
+      expect(
+        screen.getByRole('heading', { name: /did not go through/i })
+      ).toBeInTheDocument()
+      expect(container.textContent).not.toMatch(/do not need to pay again/i)
+      expect(find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { whopCheckoutRef: { equals: REF } },
+        })
+      )
+    }
+  )
+
+  /* A failed lookup cannot rule out a paid row, so the URL does not get to
+     say the payment failed. */
+  it('never shows the failure message for ?status=error when the lookup fails', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    find.mockRejectedValue(new Error('connection refused'))
+    const { container } = await renderPage({ status: 'error', ref: REF })
+
+    expect(container.textContent).not.toMatch(
+      /did not go through|nothing was charged/i
+    )
+    logged.mockRestore()
   })
 
   /* Trusting ?status=success while the webhook is late is the tempting

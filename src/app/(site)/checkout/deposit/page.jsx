@@ -31,8 +31,10 @@ export const metadata = {
  * Arriving here proves nothing either way. Without a valid ref there is
  * nothing to look up, so the page points at the email -- never at "did not
  * go through", which a client who has just paid must not read on a guess.
- * The failure message answers only an explicit ?status=error, which the
- * older embed appended on the way back from a failed bank redirect.
+ * The failure message answers only an explicit ?status=error -- which only
+ * the old embed ever appended, on the way back from a failed bank redirect
+ * -- and only where there is no paid row to show: with a valid ref the page
+ * looks first, and a paid row wins over anything on the URL.
  *
  * The webhook is server-to-server and the redirect regularly beats it, so
  * a valid ref with no purchase yet is usually the first few seconds after
@@ -81,8 +83,9 @@ function Shell({ kicker = 'deposit', title, children }) {
   )
 }
 
-/* Whop's own word that the payment failed. Nothing was charged, so the one
-   useful thing is another try. */
+/* An explicit ?status=error with no paid row to show for it. Only the old
+   embed ever appended one. Nothing was charged, so the one useful thing is
+   another try. */
 function PaymentFailed() {
   return (
     <Shell title="That payment did not go through.">
@@ -230,12 +233,14 @@ export default async function DepositReturn({ searchParams }) {
   const booking = firstParam(params.booking)
   const cal = calLinkFromUrl(booking)
 
-  /* Before any lookup: whatever the ref would find, Whop has just said this
-     payment failed. */
-  if (status === 'error') return <PaymentFailed />
+  /* Without a valid ref there is nothing to look up, so nothing waits and
+     the URL is all there is: an explicit ?status=error still says the
+     payment failed, and anything else points at the email. */
+  if (!ref) return status === 'error' ? <PaymentFailed /> : <CheckEmail />
 
-  // Without a ref the lookup can never succeed, so nothing waits.
-  if (!ref) return <CheckEmail />
+  /* With one, the page looks first, whatever the URL says: a paid row wins
+     over any parameter, because a client who paid must never read "did not
+     go through… Try again" -- that is how a deposit gets paid twice. */
 
   let deposit = null
   let loadError = false
@@ -258,7 +263,14 @@ export default async function DepositReturn({ searchParams }) {
     loadError = true
   }
 
+  /* A failed lookup cannot rule out a paid row, so the URL does not get to
+     say the payment failed either. */
   if (loadError) return <CheckEmail />
+
+  // Only now may ?status=error decide: the ref has no paid row.
+  if (status === 'error' && deposit?.status !== 'paid') {
+    return <PaymentFailed />
+  }
 
   if (!deposit) {
     return (
