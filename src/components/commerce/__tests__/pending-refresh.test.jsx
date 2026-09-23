@@ -10,6 +10,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/checkout/onboarding',
 }))
 
+import * as clientModule from '../PendingRefresh'
 import { PendingRefresh } from '../PendingRefresh'
 
 const REF = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b'
@@ -73,5 +74,14 @@ describe('PendingRefresh', () => {
       ['ref', REF],
       ['attempt', '3'],
     ])
+  })
+
+  /* The return pages are server components. Anything they import from this
+     'use client' module arrives as a client reference, so a constant here
+     reads as a stub on the server: the attempt bound once did, and the
+     automatic re-check never rendered. The bound lives in
+     lib/commerce/pendingRefresh; this module offers the component alone. */
+  it('exports only the component, so a server page cannot import a stub from it', () => {
+    expect(Object.keys(clientModule)).toEqual(['PendingRefresh'])
   })
 })

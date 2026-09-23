@@ -3,15 +3,16 @@ import { Container } from '@/components/Container'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { OnboardingSteps } from '@/components/commerce/OnboardingSteps'
 import { NextStep } from '@/components/commerce/NextStep'
-import {
-  PendingRefresh,
-  MAX_ATTEMPTS,
-} from '@/components/commerce/PendingRefresh'
+import { PendingRefresh } from '@/components/commerce/PendingRefresh'
 import {
   firstParam,
   maskLicenseKey,
   tierFromSlug,
 } from '@/lib/commerce/onboardingDisplay'
+/* From the plain module, never from PendingRefresh.jsx: on the server this
+   page would get a 'use client' export as a client reference, not the
+   number, and every attempt would compare as done. */
+import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
 import { seatLimit } from '@/lib/commerce/seats'
 import { validCheckoutRef } from '@/lib/commerce/whop'
 import type { Purchase } from '@/payload-types'

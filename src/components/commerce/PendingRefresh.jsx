@@ -2,9 +2,9 @@
 
 import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
 
 const REFRESH_MS = 5000
-export const MAX_ATTEMPTS = 6
 
 /* The purchase webhook is server-to-server and the browser redirect
  * regularly beats it, so a buyer who has just paid often lands on the
@@ -13,6 +13,11 @@ export const MAX_ATTEMPTS = 6
  * URL, which re-runs the page's server component and re-queries the
  * purchase. The page stops rendering this component once `attempt` reaches
  * MAX_ATTEMPTS, in favour of a manual refresh link.
+ *
+ * MAX_ATTEMPTS lives in lib/commerce/pendingRefresh, and this module exports
+ * the component alone. The pages are server components: anything they
+ * import from a 'use client' module is a client reference there, not a
+ * value, so a constant exported from here would compare as a stub.
  *
  * checkoutRef and paymentId mirror the page's own two ways in -- a Whop
  * Elements checkout's ?ref= or a receipt email's ?payment_id=. checkoutRef

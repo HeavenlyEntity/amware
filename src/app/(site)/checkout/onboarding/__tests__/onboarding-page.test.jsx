@@ -7,6 +7,26 @@ import { render, screen } from '@testing-library/react'
    payment id would see, because this page has no signature. */
 vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
 
+/* The RSC boundary Vitest does not have. On the server, a page receives
+   every export of a 'use client' module as a client reference: the
+   component still renders, but anything read as a value -- a constant, a
+   helper -- is a stub, never the value. Recreated here for PendingRefresh,
+   so a page that read a value from it fails these tests the way it fails
+   in the real app. */
+vi.mock('@/components/commerce/PendingRefresh', async (importOriginal) => {
+  const actual = await importOriginal()
+  return Object.fromEntries(
+    Object.keys(actual).map((name) => [
+      name,
+      name === 'PendingRefresh'
+        ? actual.PendingRefresh
+        : () => {
+            throw new Error(`${name} is a client reference on the server`)
+          },
+    ])
+  )
+})
+
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import OnboardingPage from '../page'
 

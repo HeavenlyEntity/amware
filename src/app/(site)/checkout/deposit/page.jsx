@@ -1,13 +1,14 @@
 import Link from 'next/link'
 import { Container } from '@/components/Container'
 import { BookCallButton } from '@/components/commerce/BookCallButton'
-import {
-  PendingRefresh,
-  MAX_ATTEMPTS,
-} from '@/components/commerce/PendingRefresh'
+import { PendingRefresh } from '@/components/commerce/PendingRefresh'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { calLinkFromUrl } from '@/lib/commerce/calLink'
 import { firstParam } from '@/lib/commerce/onboardingDisplay'
+/* From the plain module, never from PendingRefresh.jsx: on the server this
+   page would get a 'use client' export as a client reference, not the
+   number, and every attempt would compare as done. */
+import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
 import { validCheckoutRef } from '@/lib/commerce/whop'
 
 export const dynamic = 'force-dynamic'
