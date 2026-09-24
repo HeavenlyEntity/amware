@@ -16,7 +16,7 @@ username lookup, where it is optional and only raises the rate limit.
 
 **`GITHUB_TOKEN` is the only GitHub credential in this app.** Anything
 GitHub-related is prefixed `GITHUB_*`. In particular `ACCESS_LINK_SECRET` is
-*not* a GitHub token — it is an HMAC key we generate ourselves to sign the
+_not_ a GitHub token — it is an HMAC key we generate ourselves to sign the
 `/access/<token>` download links emailed after a digital purchase. It was
 called `ACCESS_TOKEN_SECRET`, which read like a third-party access token and
 sat one line away from this one in `.env.example`; the old name still works
@@ -27,24 +27,24 @@ and warns.
 GitHub's REST quickstart lists four ways to authenticate. Three of them are
 wrong for this, and it is worth knowing why before you generate anything.
 
-| | Works here? | |
-| --- | --- | --- |
-| **Fine-grained PAT** | **Yes — use this** | Scoped to the four kit repos, expires on a date you choose |
-| Classic PAT | Works, but blunt | `repo` grants read/write on *every* repository you can reach, including private ones with nothing to do with WareKit |
-| GitHub CLI (`gh auth token`) | No | It is your personal login session. It rotates, it dies when you `gh auth logout`, and it carries your whole account into a deployed environment |
-| OAuth App | Works, but pointless here | A redirect URI and a callback to build, and the token you end up holding is a user token with `repo` — the classic PAT, the long way round. See below |
-| `GITHUB_TOKEN` in Actions | No | That token only exists inside a workflow run. This code runs in a Vercel function |
+|                              | Works here?               |                                                                                                                                                       |
+| ---------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fine-grained PAT**         | **Yes — use this**        | Scoped to the four kit repos, expires on a date you choose                                                                                            |
+| Classic PAT                  | Works, but blunt          | `repo` grants read/write on _every_ repository you can reach, including private ones with nothing to do with WareKit                                  |
+| GitHub CLI (`gh auth token`) | No                        | It is your personal login session. It rotates, it dies when you `gh auth logout`, and it carries your whole account into a deployed environment       |
+| OAuth App                    | Works, but pointless here | A redirect URI and a callback to build, and the token you end up holding is a user token with `repo` — the classic PAT, the long way round. See below |
+| `GITHUB_TOKEN` in Actions    | No                        | That token only exists inside a workflow run. This code runs in a Vercel function                                                                     |
 
 ### What about an OAuth App?
 
 Worth spelling out, because it looks like the missing option and is not.
 
-An OAuth App issues a **user access token**: it authenticates *as whoever
-authorised it*. Build the redirect URI, handle the callback, and what lands
+An OAuth App issues a **user access token**: it authenticates _as whoever
+authorised it_. Build the redirect URI, handle the callback, and what lands
 in your hand is a token that acts as you, with `repo` scope, which is exactly
 what a classic PAT already is. You would have written an OAuth flow to arrive
 at the token you can generate in a web form in thirty seconds — and it is
-still a long-lived user token in an environment variable. For *sending*
+still a long-lived user token in an environment variable. For _sending_
 invitations there is nothing an OAuth App gives you that the PAT does not.
 GitHub also recommends GitHub Apps over OAuth Apps generally.
 
@@ -76,14 +76,14 @@ Fine-grained tokens → **Generate new token**
    step people miss: a token owned by your user cannot administer org repos
    even though you can. If the org requires approval, the token sits pending
    until an owner approves it — you are an owner, so approve it.
-2. **Repository access:** *Only select repositories*, and pick the four kits:
+2. **Repository access:** _Only select repositories_, and pick the four kits:
    - `warekit-react-netsuite-lite`
-   - `warekit-react-netsuite` *(once it exists)*
+   - `warekit-react-netsuite` _(once it exists)_
    - `warekit-next-netsuite-lite`
    - `warekit-next-netsuite`
 3. **Repository permissions:** **Administration → Read and write.** That one
    permission is what "add a repository collaborator" requires. Nothing else
-   needs to be granted; leave Contents, Issues and the rest at *No access*.
+   needs to be granted; leave Contents, Issues and the rest at _No access_.
 4. **Expiration:** pick a date and put it in your calendar. A token that
    expires silently turns every sale into a manual invite, and the only
    symptom is `forbidden` in the logs.
@@ -107,25 +107,33 @@ fine-grained one.
 
 ## Checking it works
 
-```bash
-pnpm sim
-```
-
-With `GITHUB_TOKEN` set, the first file is a preflight: for every kit
-repository it confirms the token can administer it, and prints what the token
-is and when it expires. With no token it says so and skips, rather than
-passing quietly and leaving you to discover the problem through a customer.
-
-To sanity-check by hand:
+Check the token against GitHub alone. The command waits for you to paste the
+token. Nothing appears on screen while you paste; press Enter when done:
 
 ```bash
-curl -sI -H "Authorization: Bearer $GITHUB_TOKEN" \
-  https://api.github.com/repos/amwaredotdev/warekit-next-netsuite/invitations
+read -s GH_TOKEN && export GH_TOKEN && echo && for r in warekit-next-netsuite warekit-next-netsuite-lite warekit-react-netsuite-lite; do printf "%s: " "$r"; gh api "repos/amwaredotdev/$r/invitations" --silent && echo ok; done; unset GH_TOKEN
 ```
 
-`200` means the token can see the repo's invitations. `404` usually means the
-resource owner is your personal account rather than `amwaredotdev`, or the
-repo was not in the selected list.
+Listing a repository's invitations needs the Administration permission, so
+`ok` means the token reaches that kit with it. Add `warekit-react-netsuite` to
+the list once it exists.
+
+- `404` means the resource owner is your personal account rather than
+  `amwaredotdev`, or the repo was not in the selected list, or the org has not
+  approved the token yet.
+- `403` means Administration was not granted.
+
+Listing needs only read access, and sending an invitation needs write, but this
+check gets the same answer for both. So confirm the token's settings say
+**Read and write**.
+
+**Do not use `pnpm sim` for this.** Most sim files start Payload, and that
+includes the token preflight, which uses it to read the kit list. Outside
+production, Payload pushes the checkout's schema to the database whenever it
+starts. Development and production share one database, so a sim run from any
+checkout rewrites production's tables to match that checkout. It adds that
+checkout's columns, and it can drop columns it does not know about. The other
+sim files also seed rows, send real mail and edit the live Whop webhook.
 
 ## What GitHub limits
 
