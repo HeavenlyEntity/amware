@@ -38,6 +38,7 @@ import logoConventionSuite from '@/images/logos/ConventionSuite.png'
 import KingdomKodeMark from '@/components/brand/kingdom-kode-mark'
 import logoCelestial from '@/images/logos/dark-celestial-square.svg'
 import logoGearz from '@/images/logos/gearz-icon.svg'
+import logoEdenKode from '@/images/logos/edenkode-mark.png'
 import mockupMipi from '@/images/photos/MiPi-mockup.webp'
 import coverWindstone from '@/images/projects/windstone-cover.png'
 import coverAuthjs from '@/images/projects/authjs-cover.png'
@@ -51,6 +52,7 @@ import coverVrsa from '@/images/projects/vrsa-cover.png'
 import coverVbRemoteSat from '@/images/projects/vbremotesat-cover.png'
 import coverCelestial from '@/images/projects/celestial-cover.png'
 import coverGearz from '@/images/projects/gearz-mockup.webp'
+import coverEdenKode from '@/images/projects/edenkode-cover.png'
 
 /* Projects page in the "minimal" landing template's grammar: a centred
    header, the three newest builds as the template's numbered split
@@ -76,6 +78,7 @@ function getFullYear(dateStr) {
 
 const projectMedia = {
   Gearz: { logo: logoGearz, cover: coverGearz },
+  'EdenKode Investor Readiness': { logo: logoEdenKode, cover: coverEdenKode },
   'Celestial Studio Salon': { logo: logoCelestial, cover: coverCelestial },
   'Kingdom Kode': { cover: coverKingdomKode, mark: KingdomKodeMark },
   'ConventionSuite - GSC\u2122': {
