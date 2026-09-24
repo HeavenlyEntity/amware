@@ -317,11 +317,21 @@ export function ServiceCard({ service, index = 0, description = null }) {
             name={service.name}
             label={'Purchase'}
           />
+        ) : booking && (depositPlan || service.depositAmount > 0) ? (
+          <DepositRiskReversal>
+            <BookCallButton
+              calLink={booking.link}
+              namespace={`${booking.namespace}-${service.slug}`}
+              serviceName={service.name}
+              notes={`Engagement: ${service.name}`}
+              className={CTA_CLASS}
+            >
+              <CtaLabel>
+                Book your strategy call · {usd(deposit)} deposit
+              </CtaLabel>
+            </BookCallButton>
+          </DepositRiskReversal>
         ) : depositPlan ? (
-          /* One ask, not two. The deposit reserves the start, and its
-             received state opens the same Cal.com popup the intro-call
-             button used to -- so the call now lives inside the reservation
-             instead of beside it. */
           <DepositRiskReversal>
             <DepositCheckout
               planId={depositPlan}
@@ -334,13 +344,11 @@ export function ServiceCard({ service, index = 0, description = null }) {
             </DepositCheckout>
           </DepositRiskReversal>
         ) : booking ? (
-          /* No plan to charge against yet, so the conversation is still the
-             way in. A Cal.com link opens the booking here, in a popup, which
-             is the only way the booking itself can be observed. */
           <BookCallButton
             calLink={booking.link}
-            namespace={booking.namespace}
+            namespace={`${booking.namespace}-${service.slug}`}
             serviceName={service.name}
+            notes={`Engagement: ${service.name}`}
             className={CTA_CLASS}
           >
             <CtaLabel>Book an intro call</CtaLabel>

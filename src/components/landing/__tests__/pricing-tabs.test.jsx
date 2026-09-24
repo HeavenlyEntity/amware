@@ -7,6 +7,10 @@ vi.mock('@/components/commerce/WhopCheckout', () => ({
   WhopCheckout: () => <div data-testid="embed" />,
 }))
 
+vi.mock('@calcom/embed-react', () => ({
+  getCalApi: vi.fn(async () => vi.fn()),
+}))
+
 import { Pricing } from '../pricing'
 
 /* The homepage offer section as a buyer meets it: two tabs, the right one
@@ -90,7 +94,7 @@ describe('Pricing tabs', () => {
     expect(within(p).getByText('Embedded CTO')).toBeInTheDocument()
     expect(within(p).getByText('$7,500')).toBeInTheDocument()
     expect(
-      within(p).getByRole('link', { name: /book an intro call/i })
+      within(p).getByRole('link', { name: /compare engagements/i })
     ).toHaveAttribute('href', '/services')
     expect(within(p).queryByText('$499')).toBeNull()
   })
@@ -131,11 +135,11 @@ describe('Pricing retainers and the deposit', () => {
     },
   ]
 
-  it('offers the deposit only on the card whose service has a Whop plan', () => {
+  it('opens the matching Cal.com booking on the engagement card', () => {
     render(<Pricing kits={[]} services={services} />)
     const p = panel()
     const buttons = within(p).getAllByRole('button', {
-      name: /reserve your start/i,
+      name: /book your strategy call/i,
     })
     expect(buttons).toHaveLength(1)
     expect(buttons[0]).toHaveTextContent('$1,500')
@@ -166,20 +170,42 @@ describe('Pricing retainers and the deposit', () => {
     )
   })
 
-  it('opens the deposit sheet for that service from the homepage', () => {
+  it('bypasses standalone Whop checkout and carries the selected engagement', () => {
     render(<Pricing kits={[]} services={services} />)
-    fireEvent.click(
-      within(panel()).getByRole('button', { name: /reserve your start/i })
+    const book = within(panel()).getByRole('button', {
+      name: /book your strategy call/i,
+    })
+    expect(book).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
+    expect(book).toHaveAttribute(
+      'data-cal-namespace',
+      'on-demand-outcome-fractional-cto'
     )
-    const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('$1,500 deposit for Fractional CTO')
-    expect(within(dialog).getByTestId('embed')).toBeInTheDocument()
+    expect(JSON.parse(book.getAttribute('data-cal-config')).notes).toBe(
+      'Engagement: Fractional CTO'
+    )
+    fireEvent.click(book)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByTestId('embed')).toBeNull()
+  })
+
+  it('allows Cal.com booking without a standalone Whop plan', () => {
+    render(
+      <Pricing
+        kits={[]}
+        services={services.map((service) => ({ ...service, whopPlanId: null }))}
+      />
+    )
+    expect(
+      within(panel()).getByRole('button', { name: /book your strategy call/i })
+    ).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
   })
 
   it('shows no deposit button when no service carries a plan', () => {
     render(<Pricing kits={[]} services={[]} />)
     expect(
-      within(panel()).queryByRole('button', { name: /reserve your start/i })
+      within(panel()).queryByRole('button', {
+        name: /book your strategy call/i,
+      })
     ).toBeNull()
   })
 })

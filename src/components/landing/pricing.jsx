@@ -6,6 +6,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
 import Link from 'next/link'
 import { SectionEyebrow } from './section-eyebrow'
+import { BookCallButton } from '@/components/commerce/BookCallButton'
+import { calLinkFromUrl } from '@/lib/commerce/calLink'
 import { DepositCheckout } from '@/components/commerce/DepositCheckout'
 import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
 import { usd } from '@/lib/commerce/money'
@@ -153,31 +155,41 @@ function Price({ value, under }) {
   )
 }
 
-/* The deposit button on a retainer card. The copy on the card is written
-   here; what the button needs (the Whop plan, the amount, the booking
-   link) lives on the service in Payload, matched by slug, so the homepage
-   and /services can never charge different deposits. Absent service or
-   plan, no button: the card still reads and the intro-call CTA below
-   still works. */
+/* Booking and payment happen together in Cal.com. Service data supplies
+   the event URL and deposit amount; a standalone deposit remains a fallback
+   only for services that do not have a Cal.com event. */
 const reserveClass =
   'border-[var(--amw-line-strong)] hover:border-[var(--amw-accent)] hover:text-[var(--amw-accent-ink)] inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border px-5 py-3 text-sm font-medium text-zinc-800 no-underline transition-colors dark:text-zinc-200'
 
 function ReserveStart({ plan, service }) {
   const planId = depositPlanId(service)
-  if (!planId) return null
+  const booking = calLinkFromUrl(service?.bookingUrl)
+  if (!booking && !planId) return null
   const amount =
-    typeof service.depositAmount === 'number' ? service.depositAmount : 1500
+    typeof service?.depositAmount === 'number' ? service.depositAmount : 1500
   return (
     <DepositRiskReversal className="mt-auto pt-6">
-      <DepositCheckout
-        planId={planId}
-        serviceName={plan.name}
-        amount={amount}
-        bookingUrl={service.bookingUrl || null}
-        className={reserveClass}
-      >
-        Reserve your start · {usd(amount)}
-      </DepositCheckout>
+      {booking ? (
+        <BookCallButton
+          calLink={booking.link}
+          namespace={`${booking.namespace}-${service.slug}`}
+          serviceName={plan.name}
+          notes={`Engagement: ${plan.name}`}
+          className={reserveClass}
+        >
+          Book your strategy call · {usd(amount)} deposit
+        </BookCallButton>
+      ) : (
+        <DepositCheckout
+          planId={planId}
+          serviceName={plan.name}
+          amount={amount}
+          bookingUrl={service.bookingUrl || null}
+          className={reserveClass}
+        >
+          Reserve your start · {usd(amount)}
+        </DepositCheckout>
+      )}
     </DepositRiskReversal>
   )
 }
@@ -392,7 +404,7 @@ export function Pricing({ kits = [], services = [] }) {
                   href="/services"
                   className="bg-[var(--amw-accent)] text-zinc-950 group inline-flex w-full items-center justify-center gap-3 rounded-md py-3 pl-5 pr-3 font-medium no-underline transition-all duration-500 ease-out hover:rounded-[50px] hover:shadow-lg sm:w-auto"
                 >
-                  <span>Book an intro call</span>
+                  <span>Compare engagements</span>
                   <span className="text-zinc-950 flex h-10 w-10 items-center justify-center rounded-full bg-white transition-all duration-300 group-hover:scale-110">
                     <ChevronRight
                       className="relative left-px h-4 w-4"
