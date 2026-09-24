@@ -49,7 +49,7 @@ never turns a real payment into a 500.
 > **Shared database hazard.** Payload pushes schema whenever a dev server starts outside
 > production. A `pnpm dev` from any checkout whose collections lack these fields — your main
 > checkout on `polar-migration`, or the other worktrees — generates `DROP COLUMN` for them.
-> drizzle-kit only prompts (default *No*) for tables with rows; an **empty `courses` table loses its
+> drizzle-kit only prompts (default _No_) for tables with rows; an **empty `courses` table loses its
 > columns silently**, and one accepted prompt puts the deposit webhook back on 500s. Do not run
 > `pnpm dev` from another checkout until these fields are on `main`.
 
@@ -69,11 +69,24 @@ purchase.
 - `NEXT_PUBLIC_WHOP_ENV` and `WHOP_ENV` unset, or `production`, in Vercel.
 - `WAREKIT_REVOKE_ON_DEACTIVATE` **unset**. Revocation ships log-only; see "Owner decisions".
 
-### 6. Register Whop payment-method domains
+### 6. Register `www.amware.dev` for Apple Pay and Google Pay
 
-Register `www.amware.dev` and `amware.dev` through Whop's Payment Method Domains API. Without it,
-Apple Pay and Google Pay stay hidden in the Elements checkout. The old embed ran on whop.com's
-pre-approved pages; Elements runs on yours.
+Whop hides both wallets in an embedded checkout until the page's domain is registered with Whop.
+That applies to Elements on this branch and to the `@whop/checkout` embed live on `main` today.
+One registration covers both wallets. It does not depend on this branch, so do it as soon as #13
+is live.
+
+1. Merge [#13](https://github.com/HeavenlyEntity/amware/pull/13). It serves Whop's verification
+   file at `/.well-known/apple-developer-merchantid-domain-association`. The file is Whop's, byte
+   for byte, so never edit or reformat it. Check that
+   https://www.amware.dev/.well-known/apple-developer-merchantid-domain-association returns the
+   228-byte file.
+2. In Whop, go to Settings → Checkout → **Apple Pay and Google Pay for embedded checkout** →
+   **Configure** → **+** → **Self-hosted verification**, and enter `www.amware.dev`. Whop fetches
+   the file before it registers the domain with Apple.
+
+Register `www.amware.dev` only. `amware.dev` 308-redirects to it, so no checkout ever renders on
+the bare domain.
 
 ### 7. Subscribe the webhook to `membership.deactivated`
 
