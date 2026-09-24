@@ -23,11 +23,26 @@ look at rather than vanishing.
 
 ## Setup and idempotency
 
-`pnpm sim` (step `6-whop-engagements`) creates, once each: the hidden
-product "Anti-Slop Alec engagements", one deposit plan per published
-retainer (found again by `internal_notes: deposit:<slug>`), and the
-webhook. It writes each plan id onto its service. Running it twice changes
-nothing. It needs `WHOP_API_KEY` in `.env.local`.
+Step 6 of the sim creates, once each: the hidden product "Anti-Slop Alec
+engagements", one deposit plan per published retainer (found again by
+`internal_notes: deposit:<slug>`), and the webhook. It writes each plan id
+onto its service. Running it twice changes nothing. It needs `WHOP_API_KEY`
+in `.env.local`. Run that file on its own, with the schema push off:
+
+```bash
+PAYLOAD_MIGRATING=true pnpm sim sim/6-whop-engagements.sim.test.mjs
+```
+
+Both parts matter.
+
+- **Run step 6 alone.** A plain `pnpm sim` runs every file, and the others
+  seed the catalogue, place test orders and send real mail.
+- **Turn the schema push off.** Outside production, Payload pushes the
+  checkout's collection schema to the database every time it starts. This
+  database is shared with production, so a push from a checkout whose
+  collections differ from production's adds or drops production columns.
+  Payload's own `migrate` command sets `PAYLOAD_MIGRATING=true` to skip that
+  push, and nothing else reads the variable.
 
 The webhook secret is shown by Whop **once**, on creation; the step writes
 it to `.whop-webhook-secret` (git-ignored). Store it as
@@ -56,7 +71,7 @@ WHOP_ENV=sandbox
 NEXT_PUBLIC_WHOP_ENV=sandbox
 ```
 
-With that set, `pnpm sim` creates the product and plans on the sandbox and
+With that set, the same command creates the product and plans on the sandbox and
 writes them to `whopSandboxPlanId` (the live `whopPlanId` is untouched: the
 database is shared, and a sandbox plan must never reach a real customer),
 the cards mount the sandbox embed with a visible "Sandbox" chip, and the
