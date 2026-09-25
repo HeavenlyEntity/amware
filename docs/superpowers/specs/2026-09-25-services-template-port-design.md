@@ -17,7 +17,87 @@ Add two sections to `/services`:
    micro-interaction cards, a globe card and a feature list. It shows buyers what the
    website-building package delivers.
 
-Page order: intro → engagement cards → website-build section → testimonials.
+3. **Two tracks, as tabs.** Services are split into **Consulting** and **Build & support** by a
+   new Payload `category` field. The tabs reuse the homepage's `OfferTabs`.
+
+Page order: intro → tabs (**Consulting**, the default: the engagement cards · **Build &
+support**: that category's service cards, then the website-build section) → testimonials,
+which are shared by both tabs.
+
+## Tracks: the `category` field and the tabs
+
+### Payload field (`src/collections/Services.ts`)
+
+```ts
+{
+  name: 'category',
+  type: 'select',
+  required: true,
+  defaultValue: 'consulting',
+  options: [
+    { label: 'Consulting', value: 'consulting' },
+    { label: 'Build & support', value: 'technical' },
+  ],
+  admin: {
+    position: 'sidebar',
+    description: 'Which /services tab this engagement sits under.',
+  },
+}
+```
+
+- **Values:** stored values are neutral, so a label can be renamed without a migration.
+  Adding a third track later is a non-destructive `ALTER TYPE … ADD VALUE`.
+- **Admin list:** `category` joins `defaultColumns`.
+- **Types:** `src/payload-types.ts` is edited by hand, because `generate:types` is broken. That
+  means `category: 'consulting' | 'technical'` on `Service`, and `category?: T` on
+  `ServicesSelect`.
+
+### Database, shared with production (owner step, before merge)
+
+Payload never pushes schema in production. `/services` and the homepage both query services, so
+they break until the column exists. This SQL was checked against `@payloadcms/drizzle` 3.85.0:
+
+- **Type name:** a single `select` becomes an enum named `enum_<table>_<field>`.
+- **Default:** a static `defaultValue` becomes the column's `DEFAULT`.
+- **Not null:** `required` becomes `NOT NULL`, because Services has no drafts.
+
+Adding a `NOT NULL` column with a default fills the existing rows. Advisor, Fractional CTO and
+Embedded CTO all become `consulting`.
+
+```sql
+DO $$ BEGIN
+  CREATE TYPE "public"."enum_services_category" AS ENUM ('consulting', 'technical');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+ALTER TABLE "services"
+  ADD COLUMN IF NOT EXISTS "category" "enum_services_category" DEFAULT 'consulting' NOT NULL;
+```
+
+- **The other way to create it:** a `pnpm dev` from this branch creates the same column by push.
+- **The hazard afterwards:** once the column exists, a `pnpm dev` from any checkout without the
+  field would try to drop it. `services` has rows, so drizzle-kit prompts first, and the default
+  answer is No. Until this merges, run `pnpm dev` only from this branch.
+
+### Tabs (`/services`)
+
+- **`groupServices(docs)`**, a plain helper, returns
+  `{ consulting: [...], technical: [...] }` in `order`. An unknown or missing category counts as
+  `consulting`.
+- **`ServiceTracks`**, a client component, renders `OfferTabs` with **Consulting** (the default)
+  and **Build & support**.
+- **Both panels stay in the HTML.** The inactive one is `hidden` rather than unmounted. The
+  homepage unmounts its inactive panel, but here the website-build content should still be
+  indexed.
+- **Deep links:** `#consulting` and `#build-support` select a tab on load. Switching tabs updates
+  the hash with `history.replaceState`, so it adds no history entries and no scroll jump.
+- **Build & support panel:** shows that category's service cards when there are any (none yet),
+  then the website-build section.
+- **Testimonials** sit below the tabs and are the same for both.
+
+### Homepage
+
+`src/app/(site)/page.jsx` adds `category: { equals: 'consulting' }` to its services query. A
+future Build & support service then never appears among the homepage's retainer offers.
 
 ## Decisions (from the owner, 2026-09-25)
 
@@ -160,11 +240,21 @@ Both themes must hold, and dark values come from the `.amw` scope.
 - **`masonryGridColsClass`:** counts 1 to 9 give the template's classes.
 - **Featured quote:** under reduced motion it renders as plain text, and in full.
 - **Website-build section:** it renders the approved copy, and the CTA links to `/contact`.
+- **`groupServices`:** splits by category, keeps `order`, and falls back to `consulting`.
+- **Tabs:**
+  - **Default:** Consulting is selected by default.
+  - **Deep link:** `#build-support` opens the other tab.
+  - **Both panels in the HTML:** the inactive panel is present but `hidden`.
+  - **Keyboard:** handled by `OfferTabs`, which has its own tests.
+- **Homepage:** its services query filters to `consulting`.
 - **Removed:** the carousel component and its test go. `src/content/site/testimonials.js` stays.
-- **Visual check** of both sections, in light and dark, on the Vercel preview.
+- **Visual check** of the tabs and both sections, in light and dark, on the Vercel preview. The
+  preview reads the production database, so the column must exist before this check.
 
 ## Owner sign-off before merge
 
+- [ ] **Run the `category` SQL above** (or `pnpm dev` from this branch) before merging, and before
+      the preview check.
 - [ ] Every card title and description in the copy table: confirm or strike.
 - [ ] The featured testimonial (Mark) and the supporting order.
 - [ ] Headshots or links for any of the four, if available.
