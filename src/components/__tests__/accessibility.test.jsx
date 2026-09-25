@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import axe from 'axe-core'
 import { WizardShell } from '@/components/founders/wizard-shell'
+import { Footer } from '@/components/Footer'
 import { SiteHeader } from '@/components/SiteHeader'
 import { SliderField } from '@/components/founders/slider-field'
 import {
@@ -79,6 +86,23 @@ describe('public-site accessibility', () => {
     )
     expect(screen.getByRole('status')).toHaveTextContent('paused')
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  /* One pause for the whole site, in the footer on every page. The menu no
+     longer carries a second copy; the footer's is what keeps WCAG 2.2.2
+     (Pause, Stop, Hide) met. */
+  it('keeps the motion pause in the footer, not the navigation menu', () => {
+    render(
+      <AccessibilityProvider>
+        <SiteHeader />
+        <Footer />
+      </AccessibilityProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
+    const pause = { name: 'Pause continuous animations' }
+    const dialog = screen.getByRole('dialog', { name: 'Site navigation' })
+    expect(within(dialog).queryByRole('button', pause)).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', pause)).toHaveLength(1)
   })
 
   it('exposes a rolling number once, hiding the visual digit reels', () => {

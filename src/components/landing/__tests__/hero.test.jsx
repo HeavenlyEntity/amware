@@ -18,7 +18,7 @@ vi.mock('../rotating-cards', () => ({
 import { Hero } from '../hero'
 
 /* The hero has no pause link of its own. The project ring stops from the
-   site-wide motion toggle in the header and footer, and that toggle is what
+   site-wide motion toggle in the footer, and that toggle is what
    keeps WCAG 2.2.2 (Pause, Stop, Hide) met on the homepage. */
 
 const ring = () => screen.getByTestId('project-ring')
