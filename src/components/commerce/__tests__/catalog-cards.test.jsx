@@ -137,7 +137,7 @@ describe('catalog cards', () => {
     // Cal.com collects payment as part of the booking, even with a legacy plan.
     expect(
       screen.getByRole('button', {
-        name: /book your strategy call · \$1,500 deposit/i,
+        name: 'Book your strategy call · $1,500',
       })
     ).toBeInTheDocument()
     expect(

@@ -326,9 +326,7 @@ export function ServiceCard({ service, index = 0, description = null }) {
               notes={`Engagement: ${service.name}`}
               className={CTA_CLASS}
             >
-              <CtaLabel>
-                Book your strategy call · {usd(deposit)} deposit
-              </CtaLabel>
+              <CtaLabel>Book your strategy call · {usd(deposit)}</CtaLabel>
             </BookCallButton>
           </DepositRiskReversal>
         ) : depositPlan ? (

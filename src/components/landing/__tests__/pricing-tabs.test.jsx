@@ -142,7 +142,8 @@ describe('Pricing retainers and the deposit', () => {
       name: /book your strategy call/i,
     })
     expect(buttons).toHaveLength(1)
-    expect(buttons[0]).toHaveTextContent('$1,500')
+    // The amount says enough; "deposit" only widened the button.
+    expect(buttons[0]).toHaveAccessibleName('Book your strategy call · $1,500')
     // It sits inside the Fractional CTO card, not beside another tier.
     const card = buttons[0].closest('li')
     expect(card).toHaveTextContent('Fractional CTO')

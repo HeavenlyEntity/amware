@@ -177,7 +177,7 @@ function ReserveStart({ plan, service }) {
           notes={`Engagement: ${plan.name}`}
           className={reserveClass}
         >
-          Book your strategy call · {usd(amount)} deposit
+          Book your strategy call · {usd(amount)}
         </BookCallButton>
       ) : (
         <DepositCheckout
