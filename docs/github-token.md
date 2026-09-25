@@ -1,10 +1,18 @@
 # The GitHub token that sends repository invitations
 
-`src/lib/commerce/githubInvite.ts` calls one endpoint:
+`src/lib/commerce/githubInvite.ts` sends an invitation with one call:
 
 ```
 PUT /repos/{owner}/{repo}/collaborators/{username}   { "permission": "pull" }
 ```
+
+Taking access back, when a Whop membership is cancelled or expires, uses
+three more. `DELETE` on the same collaborator path removes a buyer who
+accepted. Then `GET /repos/{owner}/{repo}/invitations` finds any invitation
+they never accepted, and `DELETE /repos/{owner}/{repo}/invitations/{id}`
+cancels it. The webhook only logs what it would remove until
+`WAREKIT_REVOKE_ON_DEACTIVATE=1`. All four calls need the same Administration
+permission, so the token below covers both directions.
 
 It reads `process.env.GITHUB_TOKEN`. With that unset it returns
 `not-configured`, the order stays `pending_invite`, and the buyer gets the
