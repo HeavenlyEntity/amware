@@ -19,6 +19,18 @@ export const projects = [
     activity: [5, 10, 20, 30, 45, 55, 70, 85, 95],
   },
   {
+    name: 'EdenKode Investor Readiness',
+    tags: ['Enterprise SaaS', 'AI', 'Fintech'],
+    date: '07/28/26',
+    description:
+      'The capital-readiness operating system for a strategic advisory firm. A 31-signal, 8-vector IR-01 assessment collects document and bank evidence, AI drafts an advisory score, and a human reviewer holds the decision — then the engagement carries on through project boards, a data room, NDA signing, and billing.',
+    link: { href: 'https://edenkode.io', label: 'edenkode.io' },
+    status: 'live',
+    whatHappened:
+      'Live at edenkode.io with the public application open. Founders move from the IR-01 intake through AI-assisted scoring into a super-admin review; scores stay advisory and never auto-apply.',
+    activity: [15, 30, 45, 60, 75, 90, 85, 80, 80],
+  },
+  {
     name: 'Celestial Studio Salon',
     tags: ['Full Stack', 'SaaS', 'Booking'],
     date: '03/15/25',

@@ -313,6 +313,8 @@ export interface Product {
    * Creem prod_… id. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.
    */
   creemProductId?: string | null
+  whopPlanId?: string | null
+  whopSandboxPlanId?: string | null
   price?: number | null
   /**
    * How many GitHub accounts this licence may invite. 1 for Lite and Pro, 5 for Team. The seat page refuses the seat past this number, so it is the licence, not a label.
@@ -384,6 +386,8 @@ export interface Course {
    * Creem prod_… id. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.
    */
   creemProductId?: string | null
+  whopPlanId?: string | null
+  whopSandboxPlanId?: string | null
   price?: number | null
   featured?: boolean | null
   order?: number | null
@@ -528,6 +532,18 @@ export interface Purchase {
   provider?: ('creem' | 'whop') | null
   creemOrderId?: string | null
   whopPaymentId?: string | null
+  /**
+   * The plan this sale was made against.
+   */
+  whopPlanId?: string | null
+  /**
+   * The membership the sale created. Carries the licence key and is what community access follows from.
+   */
+  whopMembershipId?: string | null
+  /**
+   * Our own reference for the checkout session, minted in the browser and carried through Whop as order metadata. Return pages find the purchase by it. A lookup handle, not proof of anything.
+   */
+  whopCheckoutRef?: string | null
   whopEnvironment?: ('production' | 'sandbox') | null
   /**
    * Retainers only. Ties every renewal row back to one subscription.
@@ -818,6 +834,8 @@ export interface ProductsSelect<T extends boolean = true> {
         id?: T
       }
   creemProductId?: T
+  whopPlanId?: T
+  whopSandboxPlanId?: T
   price?: T
   seats?: T
   currency?: T
@@ -853,6 +871,8 @@ export interface CoursesSelect<T extends boolean = true> {
   coverImage?: T
   level?: T
   creemProductId?: T
+  whopPlanId?: T
+  whopSandboxPlanId?: T
   price?: T
   featured?: T
   order?: T
@@ -929,6 +949,9 @@ export interface PurchasesSelect<T extends boolean = true> {
   provider?: T
   creemOrderId?: T
   whopPaymentId?: T
+  whopPlanId?: T
+  whopMembershipId?: T
+  whopCheckoutRef?: T
   whopEnvironment?: T
   creemSubscriptionId?: T
   creemTransactionId?: T

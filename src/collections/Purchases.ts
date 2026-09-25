@@ -87,6 +87,33 @@ export const Purchases: CollectionConfig = {
       },
     },
     {
+      name: 'whopPlanId',
+      type: 'text',
+      index: true,
+      admin: { description: 'The plan this sale was made against.' },
+    },
+    {
+      name: 'whopMembershipId',
+      type: 'text',
+      index: true,
+      admin: {
+        description:
+          'The membership the sale created. Carries the licence key and is ' +
+          'what community access follows from.',
+      },
+    },
+    {
+      name: 'whopCheckoutRef',
+      type: 'text',
+      index: true,
+      admin: {
+        description:
+          'Our own reference for the checkout session, minted in the browser ' +
+          'and carried through Whop as order metadata. Return pages find the ' +
+          'purchase by it. A lookup handle, not proof of anything.',
+      },
+    },
+    {
       name: 'whopEnvironment',
       type: 'select',
       options: [

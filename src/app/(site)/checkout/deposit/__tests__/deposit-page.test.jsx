@@ -1,0 +1,638 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+
+/* The page is an async server component: it is called with its search
+   params and the element it resolves to is rendered. The database is the
+   only thing mocked -- what is asserted is what a client sees after paying
+   a deposit, and what a stranger holding the URL would see, because this
+   page has no signature. */
+vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
+
+/* A confirmed deposit books the intro call through the Cal.com popup; the
+   embed script has no business loading in jsdom. */
+vi.mock('@calcom/embed-react', () => ({
+  getCalApi: vi.fn(async () => vi.fn()),
+}))
+
+/* PendingRefresh asks again through router.replace. Recorded here so a
+   retry's URL can be read back. */
+let replace
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace, push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/checkout/deposit',
+}))
+
+/* The RSC boundary Vitest does not have. On the server, a page receives
+   every export of a 'use client' module as a client reference: the
+   component still renders, but anything read as a value -- a constant, a
+   helper -- is a stub, never the value. Recreated here for PendingRefresh,
+   so a page that read a value from it fails these tests the way it fails
+   in the real app. */
+vi.mock('@/components/commerce/PendingRefresh', async (importOriginal) => {
+  const actual = await importOriginal()
+  return Object.fromEntries(
+    Object.keys(actual).map((name) => [
+      name,
+      name === 'PendingRefresh'
+        ? actual.PendingRefresh
+        : () => {
+            throw new Error(`${name} is a client reference on the server`)
+          },
+    ])
+  )
+})
+
+import { getPayloadClient } from '@/lib/getPayloadClient'
+import DepositReturn from '../page'
+
+/* What WhopCheckout mints and puts on the return URL as ?ref=. */
+const REF = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b'
+const CAL = 'https://cal.com/amware/on-demand-outcome'
+
+/* The purchased service as the lookup populates it: the booking link the
+   owner set on it, and nothing else. */
+const service = (bookingUrl = CAL) => ({
+  relationTo: 'services',
+  value: { id: 3, bookingUrl },
+})
+
+/* What the webhook records for a deposit. The page may read whether it
+   exists, its status, what was bought and that service's booking link;
+   the email and the amount are here so the tests can prove neither
+   reaches the page. */
+const deposit = (over = {}) => ({
+  id: 41,
+  email: 'client@example.com',
+  amount: 150000,
+  currency: 'usd',
+  status: 'paid',
+  itemType: 'service',
+  item: service(),
+  whopCheckoutRef: REF,
+  ...over,
+})
+
+/* A paid purchase that is not a deposit, carrying the same ref. The ref
+   and the metadata behind it are browser-set, so a $0 Lite order could
+   carry any ref its buyer chose. */
+const liteKit = () =>
+  deposit({
+    amount: 0,
+    itemType: 'product',
+    item: { relationTo: 'products', value: { id: 9 } },
+  })
+
+const FAILED = /did not go through|nothing was charged/i
+
+let find
+let track
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  find = vi.fn()
+  getPayloadClient.mockResolvedValue({ find })
+  replace = vi.fn()
+  track = vi.fn()
+  window.whop = { track }
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  delete window.whop
+})
+
+const page = (params = {}) =>
+  DepositReturn({ searchParams: Promise.resolve(params) })
+
+const renderPage = async (params) => render(await page(params))
+
+/* Advances past one refresh interval and returns the URL PendingRefresh
+   asked the router for, parsed. */
+const retryUrl = () => {
+  act(() => {
+    vi.advanceTimersByTime(5000)
+  })
+  expect(replace).toHaveBeenCalledTimes(1)
+  return new URL(replace.mock.calls[0][0], 'https://amware.dev')
+}
+
+describe('Deposit return page: ?status=error on the URL', () => {
+  /* Only the old embed ever appended ?status=error, on the way back from a
+     failed bank redirect; Whop Elements appends no outcome. It still gets
+     the failure copy -- but only where there is no paid row to show. With a
+     valid ref the page looks first, because a client who paid must never
+     read "did not go through… Try again": that is a second $1,500 charge. */
+  it.each([
+    ['no row', () => []],
+    ['a row that is no longer paid', () => [deposit({ status: 'refunded' })]],
+    ['a paid purchase that is not a deposit', () => [liteKit()]],
+  ])(
+    'says the payment did not go through when the ref has %s, and offers another try',
+    async (_, docs) => {
+      find.mockResolvedValue({ docs: docs() })
+      const { container } = await renderPage({
+        status: 'error',
+        ref: REF,
+        service: 'Advisor',
+        booking: CAL,
+      })
+
+      expect(
+        screen.getByRole('heading', { name: /did not go through/i })
+      ).toBeInTheDocument()
+      expect(container.textContent).toMatch(/nothing was charged/i)
+      expect(container.textContent).not.toMatch(/do not need to pay again/i)
+      expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+        'href',
+        '/services'
+      )
+      expect(
+        screen.getByRole('link', { name: /get in touch/i })
+      ).toHaveAttribute('href', '/contact')
+      expect(find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { whopCheckoutRef: { equals: REF } },
+        })
+      )
+    }
+  )
+
+  it('says the payment did not go through, without a lookup, when there is no valid ref', async () => {
+    const { container } = await renderPage({
+      status: 'error',
+      ref: 'not-a-uuid',
+      service: 'Advisor',
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /did not go through/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).not.toContain('not-a-uuid')
+    expect(find).not.toHaveBeenCalled()
+  })
+
+  it('confirms the deposit when the ref has a paid row, whatever the URL says', async () => {
+    find.mockResolvedValue({ docs: [deposit()] })
+    const { container } = await renderPage({
+      status: 'error',
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /your start is reserved/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(FAILED)
+    expect(screen.queryByRole('link', { name: /try again/i })).toBeNull()
+  })
+
+  /* A failed lookup cannot rule out a paid row, so the URL does not get
+     to say the payment failed: the page degrades to the neutral state. */
+  it('shows the neutral email state, never the failure message, when the lookup fails', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    find.mockRejectedValue(new Error('connection refused'))
+    const { container } = await renderPage({
+      status: 'error',
+      ref: REF,
+      service: 'Advisor',
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /check your email/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(FAILED)
+    logged.mockRestore()
+  })
+})
+
+describe('Deposit return page: a paid deposit found by its ref', () => {
+  /* The booking link is the one the owner set on the purchased service,
+     read off the purchase itself -- never off the URL, which anyone
+     holding it can rewrite. */
+  it('confirms the deposit and flows it into the same Cal.com popup as "Book an intro call"', async () => {
+    find.mockResolvedValue({ docs: [deposit()] })
+    await renderPage({ ref: REF, service: 'Advisor' })
+
+    expect(
+      screen.getByRole('heading', { name: /your start is reserved/i })
+    ).toBeInTheDocument()
+    /* The intro call is the element-click embed the Cal script looks for,
+       not a link that sends the client away. */
+    const book = screen.getByRole('button', { name: /book the intro call/i })
+    expect(book).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
+    expect(book).toHaveAttribute('data-cal-namespace', 'on-demand-outcome')
+    expect(
+      screen.getByRole('link', { name: /back to engagements/i })
+    ).toHaveAttribute('href', '/services')
+  })
+
+  it('books the intro call from the service record even when the URL carries a different link', async () => {
+    find.mockResolvedValue({ docs: [deposit()] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      booking: 'https://cal.com/someone-else/other-event',
+    })
+
+    const book = screen.getByRole('button', { name: /book the intro call/i })
+    expect(book).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
+    expect(container.innerHTML).not.toContain('someone-else')
+  })
+
+  /* calLinkFromUrl still decides popup or plain link. The service's link is
+     the owner's own, so one that is not Cal.com opens where it points, as
+     it does on the service card. */
+  it('opens a service booking link that is not Cal.com where it points', async () => {
+    find.mockResolvedValue({
+      docs: [deposit({ item: service('https://calendly.com/amware/intro') })],
+    })
+    const { container } = await renderPage({ ref: REF, service: 'Advisor' })
+
+    expect(
+      screen.getByRole('heading', { name: /your start is reserved/i })
+    ).toBeInTheDocument()
+    const book = screen.getByRole('link', { name: /book the intro call/i })
+    expect(book).toHaveAttribute('href', 'https://calendly.com/amware/intro')
+    expect(book).toHaveAttribute('target', '_blank')
+    expect(book).toHaveAttribute('rel', 'noreferrer')
+    expect(
+      screen.queryByRole('button', { name: /book the intro call/i })
+    ).toBeNull()
+    expect(container.textContent).toMatch(/pick a time for the intro call/i)
+  })
+
+  it('confirms a deposit whose service has no booking link by saying what happens next, whatever the URL carries', async () => {
+    find.mockResolvedValue({ docs: [deposit({ item: service(null) })] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /your start is reserved/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).toMatch(/in touch within one business day/i)
+    expect(
+      screen.getByRole('link', { name: /back to engagements/i })
+    ).toHaveAttribute('href', '/services')
+    expect(
+      screen.queryByRole('button', { name: /book the intro call/i })
+    ).toBeNull()
+    expect(
+      screen.queryByRole('link', { name: /book the intro call/i })
+    ).toBeNull()
+  })
+
+  /* The booking param is untrusted query input, and no longer read at all:
+     nothing from it is ever rendered as a link or a popup. */
+  it.each([
+    ['a Calendly link', 'https://calendly.com/amware/intro', 'calendly.com'],
+    [
+      'a Cal.com lookalike host',
+      'https://cal.com.evil.example/amware/on-demand-outcome',
+      'evil.example',
+    ],
+    ['a javascript: URL', 'javascript:alert(1)', 'javascript:'],
+  ])(
+    'never turns %s from the URL into a link or a popup',
+    async (_, booking, marker) => {
+      find.mockResolvedValue({ docs: [deposit({ item: service(null) })] })
+      const { container } = await renderPage({
+        ref: REF,
+        service: 'Advisor',
+        booking,
+      })
+
+      expect(
+        screen.getByRole('heading', { name: /your start is reserved/i })
+      ).toBeInTheDocument()
+      expect(container.innerHTML).not.toContain(marker)
+      expect(
+        screen.queryByRole('button', { name: /book the intro call/i })
+      ).toBeNull()
+      expect(
+        screen.getByRole('link', { name: /back to engagements/i })
+      ).toHaveAttribute('href', '/services')
+    }
+  )
+
+  it('reads the status, what was bought and the service’s booking link, never the email or the amount', async () => {
+    find.mockResolvedValue({ docs: [deposit()] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+    })
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'purchases',
+        where: { whopCheckoutRef: { equals: REF } },
+        select: { status: true, itemType: true, item: true },
+        depth: 1,
+        populate: { services: { bookingUrl: true } },
+        limit: 1,
+      })
+    )
+    const text = container.textContent
+    expect(text).not.toContain('client@example.com')
+    expect(text).not.toMatch(/1,?500/)
+    expect(text).not.toContain('150000')
+  })
+
+  it('validates the ref and lower-cases it before querying', async () => {
+    find.mockResolvedValue({ docs: [deposit()] })
+    await renderPage({ ref: REF.toUpperCase() })
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { whopCheckoutRef: { equals: REF } },
+      })
+    )
+  })
+
+  /* Whop processed the sale and reports it to the ad platforms itself; its
+     pixel rejects a duplicate. Confirming the deposit is not a reason for
+     this site to report one. */
+  it('never reports purchase itself for a confirmed deposit', async () => {
+    find.mockResolvedValue({ docs: [deposit()] })
+    await renderPage({ ref: REF, service: 'Advisor', booking: CAL })
+
+    expect(track.mock.calls.map(([event]) => event)).not.toContain('purchase')
+  })
+})
+
+describe('Deposit return page: a ref with no purchase yet', () => {
+  /* The webhook is server-to-server and the redirect regularly beats it,
+     so this is the ordinary first few seconds after paying. */
+  it('says it is confirming the deposit, that there is no need to pay again if it went through, and checks again', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /confirming your deposit/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).toMatch(/do not need to pay again/i)
+    expect(container.textContent).toMatch(/checks again automatically/i)
+    expect(container.textContent).not.toMatch(FAILED)
+  })
+
+  /* Trusting ?status=success while the webhook is late is the tempting
+     shortcut -- the redirect often beats the webhook, and a success flag
+     on the URL looks like the answer. Anyone can write it, so only a paid
+     row may say the start is reserved. */
+  it('keeps confirming for ?status=success with a valid ref and no row, never calling it reserved', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      status: 'success',
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /confirming your deposit/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).toMatch(/checks again automatically/i)
+    expect(container.textContent).not.toMatch(/your start is reserved/i)
+    expect(container.textContent).not.toMatch(/reserved/i)
+    expect(
+      screen.queryByRole('button', { name: /book the intro call/i })
+    ).toBeNull()
+  })
+
+  /* The popup no longer depends on the URL -- the paid state reads the
+     booking link off the service -- so the retry carries the service name
+     and never the URL's booking link, Cal.com or not. */
+  it('keeps the service on the automatic retry, and leaves the URL’s booking link behind', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const element = await page({
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+      attempt: '2',
+    })
+    vi.useFakeTimers()
+    render(element)
+
+    const url = retryUrl()
+    expect(url.pathname).toBe('/checkout/deposit')
+    expect(url.searchParams.get('ref')).toBe(REF)
+    expect(url.searchParams.get('attempt')).toBe('3')
+    expect(url.searchParams.get('service')).toBe('Advisor')
+    expect(url.searchParams.get('booking')).toBeNull()
+  })
+
+  it('stops checking once the attempts run out, and offers a refresh that keeps the service', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+      attempt: '6',
+    })
+
+    expect(container.textContent).not.toMatch(/checks again automatically/i)
+    expect(container.textContent).toMatch(/do not need to pay again/i)
+    const refresh = new URL(
+      screen
+        .getByRole('link', { name: /refresh the page/i })
+        .getAttribute('href'),
+      'https://amware.dev'
+    )
+    expect(refresh.pathname).toBe('/checkout/deposit')
+    expect(refresh.searchParams.get('ref')).toBe(REF)
+    expect(refresh.searchParams.get('service')).toBe('Advisor')
+    expect(refresh.searchParams.get('booking')).toBeNull()
+    expect(refresh.searchParams.get('attempt')).toBeNull()
+    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
+      'href',
+      '/contact'
+    )
+  })
+})
+
+/* Under Whop Elements a declined or abandoned off-site step -- 3DS, a bank
+   page -- returns the client to this same URL with no failure signal, and
+   no row ever arrives. So a ref with no row is either a deposit the webhook
+   has not recorded yet or a payment that never happened, and every sentence
+   in this state has to be true for both. */
+describe('Deposit return page: a ref with no row could be either outcome', () => {
+  const IF_PAID =
+    'If your payment went through, you do not need to pay again — it can take a minute to show here.'
+  const IF_NOT_FINISHED =
+    'If your bank or card step did not finish, nothing was taken.'
+
+  it('while it checks again, says not to pay again only if the payment went through', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({ ref: REF, service: 'Advisor' })
+    const text = container.textContent
+
+    expect(text).toMatch(/checks again automatically/i)
+    expect(text).toContain(IF_PAID)
+    // That conditional sentence is the only reassurance on the page.
+    expect(text.match(/do not need to pay again/gi)).toHaveLength(1)
+    expect(text).not.toMatch(/safe either way|deposit is safe/i)
+    expect(text).not.toMatch(/on its way/i)
+    // A payment that never happened has no email to point at.
+    expect(text).not.toMatch(/email|receipt/i)
+    // The webhook may just be late: nothing nudges a second payment yet.
+    expect(screen.queryByRole('link', { name: /try again/i })).toBeNull()
+  })
+
+  it('once the checks run out, says plainly an unfinished bank or card step took nothing, and offers another try', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      attempt: '6',
+    })
+    const text = container.textContent
+
+    expect(text).not.toMatch(/checks again automatically/i)
+    expect(text).toContain(IF_NOT_FINISHED)
+    expect(text).toContain(IF_PAID)
+    expect(text.match(/do not need to pay again/gi)).toHaveLength(1)
+    expect(text).not.toMatch(/safe either way|deposit is safe/i)
+    expect(text).not.toMatch(/on its way/i)
+    expect(text).not.toMatch(/email|receipt/i)
+    expect(text).not.toMatch(FAILED)
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      '/services'
+    )
+    expect(
+      screen.getByRole('link', { name: /refresh the page/i })
+    ).toHaveAttribute('href', expect.stringContaining(`ref=${REF}`))
+    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
+      'href',
+      '/contact'
+    )
+  })
+})
+
+describe('Deposit return page: nothing to confirm', () => {
+  /* A refunded deposit still resolves by its ref, so the page itself has
+     to refuse to call it reserved. It can never turn paid by waiting, so it
+     does not wait. */
+  it('points at the email when the purchase is no longer paid', async () => {
+    find.mockResolvedValue({ docs: [deposit({ status: 'refunded' })] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /check your email/i })
+    ).toBeInTheDocument()
+    const text = container.textContent
+    expect(text).not.toMatch(/reserved/i)
+    expect(text).not.toMatch(FAILED)
+    expect(text).not.toMatch(/checks again automatically/i)
+    expect(
+      screen.queryByRole('button', { name: /book the intro call/i })
+    ).toBeNull()
+    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
+      'href',
+      '/contact'
+    )
+  })
+
+  /* Only a paid service is a deposit. The ref is browser-set, so a paid $0
+     Lite order could carry one its buyer chose -- and the URL a booking
+     link of their choosing. Without this check that URL would read "Your
+     start is reserved" on amware.dev, with a popup to any cal.com event.
+     Like a refund, it can never turn into a deposit by waiting. */
+  it.each([
+    ['a kit', liteKit],
+    [
+      'a plan no service claims',
+      () => deposit({ itemType: undefined, item: undefined }),
+    ],
+  ])(
+    'never calls %s reserved, or turns the URL’s booking link into a popup',
+    async (_, row) => {
+      find.mockResolvedValue({ docs: [row()] })
+      const { container } = await renderPage({
+        ref: REF,
+        service: 'Advisor',
+        booking: 'https://cal.com/someone-else/other-event',
+      })
+
+      expect(
+        screen.getByRole('heading', { name: /check your email/i })
+      ).toBeInTheDocument()
+      const text = container.textContent
+      expect(text).not.toMatch(/reserved/i)
+      expect(text).not.toMatch(FAILED)
+      expect(text).not.toMatch(/checks again automatically/i)
+      expect(
+        screen.queryByRole('button', { name: /book the intro call/i })
+      ).toBeNull()
+      expect(container.innerHTML).not.toContain('someone-else')
+    }
+  )
+
+  /* Arriving here proves nothing either way. The old embed's ?status=success
+     is not proof of payment, and its absence is not proof of failure -- a
+     client who has just paid $1,500 must never read that it failed. */
+  it.each([
+    ['a bare visit', {}],
+    [
+      'the old embed’s ?status=success',
+      { status: 'success', service: 'Advisor', booking: CAL },
+    ],
+    ['a ref that is not a UUID', { ref: 'not-a-uuid', booking: CAL }],
+  ])(
+    'shows the neutral email state, never the failure message, for %s',
+    async (_, params) => {
+      const { container } = await renderPage(params)
+
+      expect(
+        screen.getByRole('heading', { name: /check your email/i })
+      ).toBeInTheDocument()
+      const text = container.textContent
+      expect(text).not.toMatch(FAILED)
+      expect(text).not.toMatch(/reserved/i)
+      expect(text).not.toMatch(/checks again automatically/i)
+      expect(text).not.toContain('not-a-uuid')
+      expect(
+        screen.getByRole('link', { name: /get in touch/i })
+      ).toHaveAttribute('href', '/contact')
+      // Without a valid ref the lookup can never succeed, so none is made.
+      expect(find).not.toHaveBeenCalled()
+    }
+  )
+
+  /* A public page degrades, never throws. Until the whop_checkout_ref
+     column exists in the database, this is the path every Elements deposit
+     takes -- so it must be the neutral state, not the failure message. */
+  it('shows the neutral email state, never the failure message, when the lookup fails', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    find.mockRejectedValue(
+      new Error('column "whop_checkout_ref" does not exist')
+    )
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      booking: CAL,
+    })
+
+    expect(
+      screen.getByRole('heading', { name: /check your email/i })
+    ).toBeInTheDocument()
+    const text = container.textContent
+    expect(text).not.toMatch(FAILED)
+    expect(text).not.toMatch(/reserved/i)
+    expect(text).not.toMatch(/checks again automatically/i)
+    expect(logged).toHaveBeenCalled()
+    logged.mockRestore()
+  })
+})

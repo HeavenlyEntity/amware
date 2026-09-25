@@ -30,6 +30,14 @@ const WEBHOOK_URL =
    testing, and a sandbox plan must never reach a real customer. */
 const PLAN_FIELD = ENV === 'sandbox' ? 'whopSandboxPlanId' : 'whopPlanId'
 const DEFAULT_DEPOSIT = 1500
+/* Every event the route acts on. membership.deactivated is what repository
+   revocation listens for: a hook without it never delivers one, so the
+   handler cannot fire at all -- not even in log-only mode. */
+const WEBHOOK_EVENTS = [
+  'payment.succeeded',
+  'payment.failed',
+  'membership.deactivated',
+]
 
 const list = async (path) => (await whopRequest(path)).data ?? []
 
@@ -140,7 +148,7 @@ describe('Whop engagements', () => {
         method: 'POST',
         body: {
           url: WEBHOOK_URL,
-          events: ['payment.succeeded', 'payment.failed'],
+          events: WEBHOOK_EVENTS,
           /* New webhooks are always v1 envelopes; the dated pin fixes the
              payload shape (this date carries `account_id`, older ones
              `company_id`) so a Whop change cannot silently reshape events. */
@@ -160,7 +168,21 @@ describe('Whop engagements', () => {
       console.log(`WHOP WEBHOOK CREATED ${hook.id}; secret written to ${out}`)
     } else {
       console.log(`webhook exists ${hook.id} -> ${hook.url}`)
+      /* An existing hook keeps the events it was created with, and one made
+         before revocation existed never sends membership.deactivated. The
+         missing events are added and nothing is taken away: `events` on the
+         update is the whole list, so the hook's current ones go with them. */
+      const current = Array.isArray(hook.events) ? hook.events : []
+      const missing = WEBHOOK_EVENTS.filter((e) => !current.includes(e))
+      if (missing.length) {
+        hook = await whopRequest(`/webhooks/${hook.id}`, {
+          method: 'PATCH',
+          body: { events: [...current, ...missing] },
+        })
+        console.log(`webhook ${hook.id} now also sends ${missing.join(', ')}`)
+      }
     }
     expect(hook.id).toMatch(/^hook_|^wh_|^web_/)
+    expect(hook.events).toEqual(expect.arrayContaining(WEBHOOK_EVENTS))
   })
 })

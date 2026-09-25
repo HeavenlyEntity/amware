@@ -24,9 +24,9 @@ export function isWhopSandbox(): boolean {
   return whopEnvironment() === 'sandbox'
 }
 
-/** The deposit plan a service should charge against in this environment. */
-export function depositPlanId(
-  service:
+/** The plan an item is bought through in this environment. */
+export function planId(
+  item:
     | {
         whopPlanId?: string | null
         whopSandboxPlanId?: string | null
@@ -35,7 +35,13 @@ export function depositPlanId(
     | undefined,
   env: WhopEnvironment = whopEnvironment()
 ): string | null {
-  if (!service) return null
-  const id = env === 'sandbox' ? service.whopSandboxPlanId : service.whopPlanId
+  if (!item) return null
+  const id = env === 'sandbox' ? item.whopSandboxPlanId : item.whopPlanId
   return id || null
 }
+
+/* Kept as its own name rather than folded into planId at the call sites.
+   The deposit flow is the one part of commerce already carrying real
+   traffic, and renaming its helper would put a diff through code this
+   migration is supposed to leave alone. */
+export const depositPlanId = planId

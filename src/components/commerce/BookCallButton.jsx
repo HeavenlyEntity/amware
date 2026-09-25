@@ -28,6 +28,7 @@ export function BookCallButton({
   calLink,
   namespace,
   serviceName,
+  notes,
   className,
   onClick,
   children,
@@ -72,7 +73,10 @@ export function BookCallButton({
       type="button"
       data-cal-namespace={namespace}
       data-cal-link={calLink}
-      data-cal-config='{"layout":"month_view"}'
+      data-cal-config={JSON.stringify({
+        layout: 'month_view',
+        ...(notes ? { notes } : {}),
+      })}
       className={className}
       onClick={onClick}
     >

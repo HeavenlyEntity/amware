@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 /* Relative imports and a mocked Resend: this module reaches no `@/` alias, so
    it runs in the engine project without one. */
@@ -11,13 +11,52 @@ vi.mock('resend', () => ({
   },
 }))
 
-import { sendBoilerplateConfirmationEmail } from '../fulfillment'
+import {
+  sendBoilerplateConfirmationEmail,
+  notifyManualFulfilment,
+} from '../fulfillment'
 
 const body = () => send.mock.calls.at(-1)[0].text
 
 beforeEach(() => {
   send.mockClear()
   process.env.NEXT_PUBLIC_SITE_URL = 'https://example.com'
+})
+
+describe('manual fulfilment alert', () => {
+  const sale = {
+    email: 'buyer@example.com',
+    itemName: 'Quick key rotation guide',
+    amount: 1200,
+    currency: 'usd',
+    paymentId: 'pay_guide',
+  }
+
+  afterEach(() => {
+    delete process.env.CONTACT_NOTIFY_TO
+  })
+
+  it('tells the owner what was bought, by whom, and that it is theirs to deliver', async () => {
+    process.env.CONTACT_NOTIFY_TO = 'owner@example.com'
+    await notifyManualFulfilment(sale)
+
+    expect(send).toHaveBeenCalledTimes(1)
+    const mail = send.mock.calls[0][0]
+    expect(mail.to).toBe('owner@example.com')
+    expect(mail.replyTo).toBe('buyer@example.com')
+    expect(mail.subject).toContain('Quick key rotation guide')
+    // It is a sale to deliver, not a client arriving.
+    expect(mail.subject).not.toMatch(/deposit/i)
+    expect(mail.text).toContain('$12')
+    expect(mail.text).toContain('buyer@example.com')
+    expect(mail.text).toContain('pay_guide')
+    expect(mail.text).not.toMatch(/deposit/i)
+  })
+
+  it('is silent when no owner address is configured', async () => {
+    await notifyManualFulfilment(sale)
+    expect(send).not.toHaveBeenCalled()
+  })
 })
 
 describe('boilerplate confirmation email', () => {
@@ -139,5 +178,62 @@ describe('boilerplate confirmation email', () => {
     expect(text).not.toContain('@undefined')
     expect(text).toMatch(/gave at checkout/i)
     expect(text).toMatch(/reply to this email/i)
+  })
+})
+
+/* The onboarding page tells the buyer the full key and the way back are in
+   this email. These make that true. */
+describe('the setup link and the licence key', () => {
+  const SETUP = 'https://www.amware.dev/checkout/onboarding?payment_id=pay_1'
+  const KEY = 'WHOPKEY-4F2A-99C1-WXYZ'
+
+  const branches = {
+    'the invitation was sent': {
+      inviteUrl: 'https://github.com/amwaredotdev/warekit/invitations',
+    },
+    'the buyer already had access': { alreadyHadAccess: true },
+    'the invitation has to be sent by hand': { inviteUrl: null },
+  }
+
+  for (const [when, extra] of Object.entries(branches)) {
+    it(`puts the setup link on its own line when ${when}`, async () => {
+      await sendBoilerplateConfirmationEmail({
+        to: 'buyer@example.com',
+        itemName: 'WareKit Next NetSuite (Pro)',
+        githubUsername: 'octocat',
+        repo: 'amwaredotdev/warekit-next-netsuite',
+        setupUrl: SETUP,
+        ...extra,
+      })
+      const text = body()
+      expect(text.split('\n')).toContain(SETUP)
+      /* Not the onboardingUrl branch, which rewrites the email to ask for a
+         GitHub account -- Whop already collected it at checkout. */
+      expect(text).not.toMatch(/which GitHub account should receive/i)
+    })
+  }
+
+  it('gives the full licence key, since it goes to the buyer’s own address', async () => {
+    await sendBoilerplateConfirmationEmail({
+      to: 'buyer@example.com',
+      itemName: 'WareKit Next NetSuite (Pro)',
+      githubUsername: 'octocat',
+      inviteUrl: 'https://github.com/o/r/invitations',
+      licenseKey: KEY,
+      setupUrl: SETUP,
+    })
+    expect(body().split('\n')).toContain(KEY)
+  })
+
+  it('mentions neither when neither exists', async () => {
+    await sendBoilerplateConfirmationEmail({
+      to: 'buyer@example.com',
+      itemName: 'WareKit',
+      githubUsername: 'octocat',
+      inviteUrl: 'https://github.com/o/r/invitations',
+    })
+    const text = body()
+    expect(text).not.toMatch(/licence key/i)
+    expect(text).not.toMatch(/setup page/i)
   })
 })

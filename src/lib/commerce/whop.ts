@@ -2,14 +2,15 @@ import { unwrapWebhook } from '@whop/sdk/helpers'
 import { whopEnvironment } from './whopEnv'
 
 /*
- * Whop, for the engagements.
+ * Whop, for everything the site sells.
  *
- * Whop takes the deposit that starts a retainer; Creem keeps the kits and
- * downloads. The two never meet: a service carries a `whopPlanId`, the
- * checkout embed mounts from that plan id alone, and Whop tells us about
+ * Whop takes the deposit that starts an engagement and the kits alike, and
+ * any other product or course with a plan. A service, product or course
+ * carries a `whopPlanId`, the site's one Whop Elements checkout
+ * (WhopCheckout) mounts from that plan id alone, and Whop tells us about
  * the sale on its webhook. There is no server call before checkout and no
  * session to create -- the plan is the product, and the plan id in the
- * payment payload is how a sale finds its service again.
+ * payment payload is how a sale finds its item again.
  *
  * `whopRequest` is only used by the setup simulation (creating the product,
  * the plans and the webhook) and by nothing at request time, so a missing
@@ -84,7 +85,11 @@ export type WhopPayment = {
     name?: string | null
     username?: string | null
   } | null
-  membership?: { id?: string | null } | null
+  membership?: { id?: string | null; license_key?: string | null } | null
+  /* The shape @whop/sdk@1.1.4's Payment actually has: the membership as a
+     flat id. Read alongside the nested one above, which older payloads
+     carry, because revocation finds a purchase by this id. */
+  membership_id?: string | null
   metadata?: Record<string, unknown> | null
   checkout_configuration_id?: string | null
 }
@@ -115,4 +120,69 @@ export function verifyWhopWebhook(
   } catch {
     return null
   }
+}
+
+/* One custom-field answer off a payment.
+ *
+ * Whop's own example names the field "Discord username", so a plain text
+ * field holding a handle is the documented use, not a trick. What is not
+ * documented is the exact path the answers arrive on, which is why
+ * docs/whop-custom-fields.md holds a captured payload.
+ *
+ * This reads every shape that capture could plausibly take rather than
+ * betting the kit's whole delivery path on one of them. The cost of
+ * looking in four places is nothing; the cost of guessing wrong is a
+ * buyer who paid and got no repository.
+ *
+ * Matching is case-insensitive and trimmed because the field name is
+ * typed into a dashboard by a human, and "Github username" on the plan
+ * must not silently mean no invitation.
+ */
+export function customFieldAnswer(
+  payment: Record<string, any> | null | undefined,
+  name: string
+): string | null {
+  if (!payment) return null
+  const wanted = name.trim().toLowerCase()
+  const pools = [
+    payment.custom_field_responses,
+    payment.custom_fields,
+    payment.metadata?.custom_fields,
+    payment.checkout_configuration?.custom_field_responses,
+  ]
+  for (const pool of pools) {
+    if (!Array.isArray(pool)) continue
+    const hit = pool.find(
+      (f) =>
+        typeof f?.name === 'string' && f.name.trim().toLowerCase() === wanted
+    )
+    const value = hit?.value ?? hit?.answer ?? hit?.response
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return null
+}
+
+/* The reference our checkout component minted and handed to Whop as order
+ * metadata. It is how a return page finds the purchase without trusting
+ * anything Whop puts in the URL. Client-minted, so it proves nothing on
+ * its own: it is a lookup handle, never an authorisation. Anything that is
+ * not a UUID is dropped rather than stored. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function checkoutRefFrom(
+  payment: { metadata?: Record<string, unknown> | null } | null | undefined
+): string | null {
+  const ref = payment?.metadata?.checkout_ref
+  return typeof ref === 'string' && UUID.test(ref) ? ref.toLowerCase() : null
+}
+
+/* The same reference, read back off the URL a buyer's browser returns with
+ * rather than off payment metadata. Client-minted, so it is validated just
+ * as strictly and by the same pattern -- canonical UUID only, lower-cased --
+ * and anything else is null, exactly like an absent one, rather than ever
+ * reaching a query. */
+export function validCheckoutRef(value: unknown): string | null {
+  return typeof value === 'string' && UUID.test(value)
+    ? value.toLowerCase()
+    : null
 }
