@@ -6,10 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useRootTheme } from '@/hooks/use-client-value'
-import {
-  MotionToggle,
-  useReducedMotion,
-} from '@/components/AccessibilityProvider'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { ArrowUpRight, ChevronRight } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -271,7 +268,6 @@ function MenuActions({ onNavigate }) {
         </span>
       </Link>
       <ModeToggle className="md:hidden" />
-      <MotionToggle />
     </motion.div>
   )
 }
