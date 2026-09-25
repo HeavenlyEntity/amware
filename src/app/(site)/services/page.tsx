@@ -8,6 +8,8 @@ import {
   StoreEmpty,
   ServiceCard,
 } from '@/components/commerce/storefront'
+import { TestimonialsWithCarousel } from '@/components/ui/testimonials-with-carousel'
+import { testimonials } from '@/content/site/testimonials'
 
 export const revalidate = 60
 
@@ -64,6 +66,15 @@ export default async function ServicesPage() {
             ))}
           </ul>
         )}
+
+        {/* Right under the offers, where the objection forms: what the
+            people on the other side of the work said about it. */}
+        <TestimonialsWithCarousel
+          className="mt-24 sm:mt-32"
+          eyebrow="// AMWARE · TESTIMONIALS"
+          title="From the people on the other side of the work."
+          items={testimonials}
+        />
       </div>
     </Container>
   )
