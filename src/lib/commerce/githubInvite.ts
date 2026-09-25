@@ -1,11 +1,12 @@
 /*
  * Sends the repository invitation a boilerplate buyer paid for.
  *
- * `PUT /repos/{owner}/{repo}/collaborators/{username}` is the whole API. It
- * answers 201 with an invitation object when it creates one, and 204 with no
- * body when the person is already a collaborator -- which is not a failure
- * and must not be reported as one, because it is exactly what a second
- * webhook delivery for the same order looks like.
+ * Inviting is one call, `PUT /repos/{owner}/{repo}/collaborators/{username}`;
+ * `removeFromRepo` below undoes it. The PUT answers 201 with an invitation
+ * object when it creates one, and 204 with no body when the person is
+ * already a collaborator -- which is not a failure and must not be reported
+ * as one, because it is exactly what a second webhook delivery for the same
+ * order looks like.
  *
  * Access is `pull`. A buyer needs to clone and fork the kit, never to push to
  * the product itself, and `push` is the default the API would otherwise pick
@@ -21,7 +22,7 @@
  * (write) on the kit repositories; classic PATs need `repo`.
  *
  * Nothing here throws. This runs inside a payment webhook, where an exception
- * means Creem retries an order that was already captured, and where GitHub
+ * means Whop retries an order that was already captured, and where GitHub
  * being unreachable says nothing about whether the sale was good. Every
  * failure comes back as a value so the caller can record the order, fall back
  * to the manual path, and tell the buyer the truth.
