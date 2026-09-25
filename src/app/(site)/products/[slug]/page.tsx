@@ -7,6 +7,7 @@ import { RichText } from '@/components/site/RichText'
 import { inlineCode } from '@/components/site/inline-code'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { BuyButton } from '@/components/commerce/BuyButton'
+import { planId } from '@/lib/commerce/whopEnv'
 import { ClaimFreeKit } from '@/components/commerce/ClaimFreeKit'
 import { StackLogos } from '@/components/commerce/StackChips'
 import { seatLine } from '@/lib/commerce/pricingTable'
@@ -225,6 +226,7 @@ export default async function ProductPage({
                 <ClaimFreeKit slug={product.slug} />
               ) : product.creemProductId ? (
                 <BuyButton
+                  planId={planId(product)}
                   itemType="product"
                   slug={product.slug}
                   price={
@@ -233,11 +235,6 @@ export default async function ProductPage({
                       : undefined
                   }
                   name={product.name}
-                  label={
-                    typeof product.price === 'number'
-                      ? 'Buy this kit'
-                      : 'Buy now'
-                  }
                 />
               ) : (
                 /* The same dashed panel the pricing table uses, rather than a

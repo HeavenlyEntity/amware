@@ -45,8 +45,8 @@ export const Services: CollectionConfig = {
       type: 'text',
       admin: {
         description:
-          'Cal.com link. Present ⇒ the card asks for an intro call instead ' +
-          'of a quote, which is how a retainer actually starts.',
+          'Cal.com event URL. Opens booking and its configured payment in ' +
+          'one widget, taking priority over a standalone Whop deposit plan.',
       },
     },
     {

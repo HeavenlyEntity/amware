@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 
-/* The two funnel moments that live inside commerce components. Each is
-   exercised the way a person triggers it -- a submitted form -- and the only
-   thing checked is what reached window.whop. The server actions behind them
-   are mocked: what they do is their own tests' business. */
+/* The one funnel moment that lives inside commerce components on this page.
+   It is exercised the way a person triggers it -- a submitted form -- and
+   the only thing checked is what reached window.whop. The server action
+   behind it is mocked: what it does is its own tests' business.
 
-vi.mock('@/lib/commerce/checkout', () => ({ createCheckout: vi.fn() }))
+   BuyButton's begin_checkout coverage used to live here too, fired from a
+   submitted form into createCheckout. Both are gone now that checkout is
+   the site's one Whop Elements checkout, WhopCheckout: there is no form and
+   no server action to submit into, so that coverage moved to
+   buy-button.test.jsx, which checks the Elements checkout mounts for the
+   plan, that begin_checkout reports the price, and that a missing plan id
+   renders the "not on sale" status instead of a dead checkout. */
+
 vi.mock('@/lib/commerce/claim', () => ({ claimFreeKit: vi.fn() }))
 vi.mock('@/components/commerce/GithubAccountField', () => ({
   GithubAccountField: ({ inputRef }) => (
@@ -14,9 +21,7 @@ vi.mock('@/components/commerce/GithubAccountField', () => ({
   ),
 }))
 
-import { createCheckout } from '@/lib/commerce/checkout'
 import { claimFreeKit } from '@/lib/commerce/claim'
-import { BuyButton } from '@/components/commerce/BuyButton'
 import { ClaimFreeKit } from '@/components/commerce/ClaimFreeKit'
 
 let track
@@ -24,63 +29,11 @@ let track
 beforeEach(() => {
   track = vi.fn()
   window.whop = { track }
-  createCheckout.mockReset()
   claimFreeKit.mockReset()
 })
 
 afterEach(() => {
   delete window.whop
-})
-
-describe('BuyButton', () => {
-  it('reports begin_checkout with the price the moment the form is sent', async () => {
-    createCheckout.mockResolvedValue({ error: null })
-    render(
-      <BuyButton
-        itemType="product"
-        slug="pro-kit"
-        price={499}
-        name="Pro kit"
-        label="Buy this kit"
-      />
-    )
-
-    fireEvent.submit(
-      screen.getByRole('button', { name: 'Buy this kit' }).closest('form')
-    )
-
-    expect(track).toHaveBeenCalledTimes(1)
-    expect(track).toHaveBeenCalledWith('begin_checkout', {
-      value: 499,
-      currency: 'USD',
-      content_type: 'product',
-      content_id: 'pro-kit',
-      content_name: 'Pro kit',
-    })
-    await waitFor(() => expect(createCheckout).toHaveBeenCalled())
-  })
-
-  it('still reports the attempt when no price is known', () => {
-    createCheckout.mockResolvedValue({ error: null })
-    render(<BuyButton itemType="service" slug="advisor" name="Advisor" />)
-    fireEvent.submit(screen.getByRole('button').closest('form'))
-    const [event, data] = track.mock.calls[0]
-    expect(event).toBe('begin_checkout')
-    expect(data).not.toHaveProperty('value')
-  })
-
-  it('reports before the action runs, so a redirect cannot lose it', async () => {
-    const order = []
-    createCheckout.mockImplementation(async () => {
-      order.push('action')
-      return { error: null }
-    })
-    track.mockImplementation(() => order.push('track'))
-    render(<BuyButton itemType="product" slug="pro-kit" price={499} />)
-    fireEvent.submit(screen.getByRole('button').closest('form'))
-    await waitFor(() => expect(order).toContain('action'))
-    expect(order[0]).toBe('track')
-  })
 })
 
 describe('ClaimFreeKit', () => {

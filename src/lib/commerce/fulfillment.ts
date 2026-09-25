@@ -61,6 +61,13 @@ export async function sendBoilerplateConfirmationEmail(args: {
   seats?: number
   /** Signed link back to the setup page, for a buyer who closed the tab. */
   onboardingUrl?: string | null
+  /**
+   * The Whop setup page for this purchase. Appended as its own line to
+   * whichever branch applies -- unlike `onboardingUrl`, it asks nothing.
+   */
+  setupUrl?: string | null
+  /** The full licence key. This email goes only to the buyer's own address. */
+  licenseKey?: string | null
 }): Promise<void> {
   const target = args.githubUsername
     ? `@${args.githubUsername}`
@@ -123,6 +130,29 @@ Your licence covers ${args.seats} GitHub accounts. Add the rest of your team her
 ${args.seatsUrl}
 
 Keep that link — it is how you add someone later, and it does not need an account.`
+  }
+
+  /* The setup page shows the key masked and says the full one is here; this
+     is what makes that true. Safe in full because this email only ever goes
+     to the buyer's own address. */
+  if (args.licenseKey) {
+    body += `
+
+Your licence key:
+${args.licenseKey}`
+  }
+
+  /* Appended to every branch, like the seats, and never by way of the
+     onboardingUrl branch above: that one rewrites the email to ask for a
+     GitHub account, which Whop already collected at checkout. This is only
+     the way back to the page, which tells buyers it is in this email. */
+  if (args.setupUrl) {
+    body += `
+
+Your setup page, with the repository and what to do next:
+${args.setupUrl}
+
+Keep that link — it is how you get back to the page.`
   }
 
   await getResend().emails.send({
@@ -205,5 +235,33 @@ export async function notifyDepositReceived(args: {
     }\nFrom: ${args.email}\nWhop payment: ${
       args.paymentId
     }\n\nReply to this email to reach them.`,
+  })
+}
+
+/* The owner's heads-up for a Whop sale nothing here delivers: a product that
+   is not a kit, or a course. The purchase is recorded as pending, Whop sends
+   the buyer its own receipt, and this email is the only signal that someone
+   has paid and is waiting -- so it says what to deliver, not that a client
+   arrived. Silent when no address is configured, like notifyDepositReceived.
+   Amount is in cents. */
+export async function notifyManualFulfilment(args: {
+  email: string
+  itemName: string
+  amount: number
+  currency: string
+  paymentId: string
+}): Promise<void> {
+  const to = process.env.CONTACT_NOTIFY_TO
+  if (!to) return
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    replyTo: args.email,
+    subject: `To deliver by hand: ${args.itemName} for ${args.email}`,
+    text: `${money(args.amount, args.currency)} for ${args.itemName}\nFrom: ${
+      args.email
+    }\nWhop payment: ${
+      args.paymentId
+    }\n\nNothing delivers this automatically. The purchase is recorded as pending: send it to them, then mark it sent.\n\nReply to this email to reach them.`,
   })
 }

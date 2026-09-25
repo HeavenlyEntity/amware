@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 
 vi.mock('@/components/commerce/BuyButton', () => ({
   BuyButton: ({ label }) => <button type="button">{label}</button>,
@@ -118,7 +118,7 @@ describe('catalog cards', () => {
     expect(screen.getByText(/20 to 25 hrs/)).toBeInTheDocument()
   })
 
-  it('service card leads with the reservation when the tier has a deposit plan', () => {
+  it('service card opens Cal.com before any standalone deposit checkout', () => {
     render(
       <ul>
         <ServiceCard
@@ -134,10 +134,11 @@ describe('catalog cards', () => {
         />
       </ul>
     )
-    // The deposit is the one ask; the intro call now lives inside its
-    // received state, so the card no longer asks for the call beside it.
+    // Cal.com collects payment as part of the booking, even with a legacy plan.
     expect(
-      screen.getByRole('button', { name: /reserve your start · \$1,500/i })
+      screen.getByRole('button', {
+        name: /book your strategy call · \$1,500 deposit/i,
+      })
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /book an intro call/i })
@@ -156,6 +157,16 @@ describe('catalog cards', () => {
       'Free tool included: CTO Systems Audit Prompt'
     )
     const reserve = screen.getByRole('button')
+    expect(reserve).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
+    expect(reserve).toHaveAttribute(
+      'data-cal-namespace',
+      'on-demand-outcome-cto'
+    )
+    expect(JSON.parse(reserve.getAttribute('data-cal-config')).notes).toBe(
+      'Engagement: Fractional CTO'
+    )
+    fireEvent.click(reserve)
+    expect(screen.queryByRole('dialog')).toBeNull()
     const refund = screen.getByText('Full refund if we don’t work together.')
     expect(guarantee.compareDocumentPosition(reserve)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
@@ -186,7 +197,10 @@ describe('catalog cards', () => {
     // visitor away to a page that cannot report back.
     const button = screen.getByRole('button', { name: /book an intro call/i })
     expect(button).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
-    expect(button).toHaveAttribute('data-cal-namespace', 'on-demand-outcome')
+    expect(button).toHaveAttribute(
+      'data-cal-namespace',
+      'on-demand-outcome-cto'
+    )
     expect(
       screen.queryByRole('link', { name: /book an intro call/i })
     ).toBeNull()

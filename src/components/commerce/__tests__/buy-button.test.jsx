@@ -1,194 +1,75 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
 
-/* The action lives in src/lib but is tested from here on purpose: vitest's
-   engine project has no `@/` alias, and checkout.ts imports through it, so a
-   test placed beside the action would fail to resolve its own subject. */
-vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
-vi.mock('@/lib/commerce/creem', async (importOriginal) => ({
-  ...(await importOriginal()),
-  createCheckoutSession: vi.fn(),
-}))
-vi.mock('next/navigation', () => ({
-  redirect: vi.fn(() => {
-    throw new Error('NEXT_REDIRECT')
-  }),
+let checkoutProps
+vi.mock('../WhopCheckout', () => ({
+  WhopCheckout: (props) => {
+    checkoutProps = props
+    return <div data-testid="checkout" data-plan={props.planId} />
+  },
 }))
 
-import { getPayloadClient } from '@/lib/getPayloadClient'
-import { CreemError, createCheckoutSession } from '@/lib/commerce/creem'
-import { createCheckout } from '@/lib/commerce/checkout'
-import { verifyOnboardingLink } from '@/lib/commerce/onboardingLink'
-import { BuyButton } from '@/components/commerce/BuyButton'
+vi.mock('@/lib/analytics/whop', () => ({
+  WHOP_EVENT: { beginCheckout: 'begin_checkout' },
+  whopTrack: vi.fn(),
+}))
 
-const boilerplate = {
-  id: 7,
-  slug: 'saas-kit',
-  type: 'boilerplate',
-  creemProductId: 'prod_1',
-}
-
-const form = (fields) => {
-  const fd = new FormData()
-  for (const [k, v] of Object.entries(fields)) fd.set(k, v)
-  return fd
-}
-
-const withItem = (item) =>
-  getPayloadClient.mockResolvedValue({
-    find: vi.fn().mockResolvedValue({ docs: item ? [item] : [] }),
-  })
-
-const buy = (over = {}) =>
-  createCheckout(
-    { error: null },
-    form({ itemType: 'product', slug: 'saas-kit', ...over })
-  )
+import { whopTrack, WHOP_EVENT } from '@/lib/analytics/whop'
+import { BuyButton } from '../BuyButton'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  process.env.NEXT_PUBLIC_SITE_URL = 'https://example.com'
-  process.env.ACCESS_LINK_SECRET = 'checkout-test-secret'
-  createCheckoutSession.mockResolvedValue({ checkoutUrl: 'https://creem/x' })
-})
-
-describe('createCheckout', () => {
-  it('treats a product Creem does not know as not on sale, not as a crash', async () => {
-    /* A test-mode product id against a live key (or the reverse) is how the
-       store's one product 500'd in production. The buyer should see the
-       same "not on sale yet" as a product with no Creem id at all; nothing
-       was charged, and the page they were on is still theirs. */
-    withItem({ ...boilerplate, type: 'digital' })
-    createCheckoutSession.mockRejectedValue(
-      new CreemError('Creem checkout failed (404)', 404)
-    )
-    const state = await buy()
-    expect(state.error?.message).toMatch(/not on sale yet/)
-    expect(state.error?.message).toMatch(/Nothing has been charged/)
-  })
-
-  it('still surfaces any other Creem failure as a fault', async () => {
-    withItem({ ...boilerplate, type: 'digital' })
-    createCheckoutSession.mockRejectedValue(
-      new CreemError('Creem checkout failed (500)', 500)
-    )
-    await expect(buy()).rejects.toThrow(/Creem checkout failed \(500\)/)
-  })
-
-  it('no longer asks for a GitHub username to take payment', async () => {
-    withItem(boilerplate)
-    /* It used to refuse a boilerplate without one. The username is collected
-       after payment now, so a checkout with nothing but the item must go
-       straight through -- a field between someone and a purchase they have
-       already decided on is a field that costs sales. */
-    await expect(buy()).rejects.toThrow(/NEXT_REDIRECT/)
-    expect(createCheckoutSession).toHaveBeenCalled()
-  })
-
-  it('sends no username to Creem even if one is posted', async () => {
-    withItem(boilerplate)
-    await expect(buy({ githubUsername: 'octocat' })).rejects.toThrow()
-    const { metadata } = createCheckoutSession.mock.calls[0][0]
-    // Nothing downstream reads it any more, and carrying it would leave two
-    // sources of truth for which account the kit goes to.
-    expect(metadata).not.toHaveProperty('githubUsername')
-    expect(metadata).toMatchObject({ itemType: 'product', slug: 'saas-kit' })
-  })
-
-  it('returns a form error when the item is not purchasable yet', async () => {
-    withItem({ ...boilerplate, creemProductId: undefined })
-    const state = await buy()
-    expect(state.error?.message).toMatch(/not on sale yet/i)
-    // The buyer never reaches Creem, so nothing was charged or reserved.
-    expect(createCheckoutSession).not.toHaveBeenCalled()
-  })
-
-  it('signs the return URL so onboarding can recognise the buyer', async () => {
-    withItem(boilerplate)
-    await expect(buy()).rejects.toThrow()
-    const { successUrl, requestId } = createCheckoutSession.mock.calls[0][0]
-    const url = new URL(successUrl)
-    expect(url.pathname).toBe('/checkout/onboarding')
-    // The id Creem echoes back on the webhook is the thread between the
-    // redirect and the purchase row.
-    expect(url.searchParams.get('r')).toBe(requestId)
-    expect(
-      verifyOnboardingLink(url.searchParams.get('r'), url.searchParams.get('s'))
-    ).toBe(true)
-  })
-
-  it('refuses to sell a KIT it cannot hand over afterwards', async () => {
-    withItem(boilerplate)
-    delete process.env.ACCESS_LINK_SECRET
-    delete process.env.ACCESS_TOKEN_SECRET
-    /* Without a signing secret the return URL cannot be proven later, so the
-       buyer would pay and land on a page unable to recognise them. Better to
-       fail before the money than after it. */
-    await expect(buy()).rejects.toThrow(/ACCESS_LINK_SECRET/)
-    expect(createCheckoutSession).not.toHaveBeenCalled()
-  })
-
-  it('sends a digital download to the plain success page, not onboarding', async () => {
-    /* A guide has no repository and its buyer has no GitHub username to
-       give. Sending them to a page that demands one would ask for something
-       they do not have, for a product that cannot use it. */
-    withItem({ ...boilerplate, type: 'digital' })
-    await expect(buy()).rejects.toThrow(/NEXT_REDIRECT/)
-    const { successUrl, requestId } = createCheckoutSession.mock.calls[0][0]
-    const url = new URL(successUrl)
-    expect(url.pathname).toBe('/checkout/success')
-    /* Unsigned, and meant to be: the page only reports the sale to the ads
-       pixel, so the id needs no proof -- unlike onboarding, which grants. */
-    expect(url.searchParams.get('r')).toBe(requestId)
-    expect(url.searchParams.has('s')).toBe(false)
-  })
-
-  it('does not make the signing secret a condition of selling a guide', async () => {
-    withItem({ ...boilerplate, type: 'digital' })
-    delete process.env.ACCESS_LINK_SECRET
-    delete process.env.ACCESS_TOKEN_SECRET
-    // The $12 guide is the one product currently on sale. Requiring a secret
-    // it never uses would have taken it down on deploy.
-    await expect(buy()).rejects.toThrow(/NEXT_REDIRECT/)
-    expect(createCheckoutSession).toHaveBeenCalled()
-  })
-
-  it('still throws for a genuine fault rather than a polite message', async () => {
-    withItem(boilerplate)
-    delete process.env.NEXT_PUBLIC_SITE_URL
-    await expect(buy()).rejects.toThrow(/NEXT_PUBLIC_SITE_URL/)
-  })
+  checkoutProps = undefined
 })
 
 describe('BuyButton', () => {
-  it('is just the button now', () => {
+  it('renders the Whop Elements checkout for the plan, returning to onboarding', () => {
     render(
-      <BuyButton itemType="product" slug="saas-kit" label="Buy this kit" />
+      <BuyButton
+        planId="plan_pro"
+        itemType="product"
+        slug="pro"
+        name="Pro"
+        price={499}
+      />
     )
-    expect(screen.queryByLabelText(/github username/i)).toBeNull()
-    expect(screen.queryByRole('alert')).toBeNull()
-    expect(
-      screen.getByRole('button', { name: 'Buy this kit' })
-    ).toBeInTheDocument()
+    expect(screen.getByTestId('checkout')).toHaveAttribute(
+      'data-plan',
+      'plan_pro'
+    )
+    expect(checkoutProps.planId).toBe('plan_pro')
+    expect(checkoutProps.returnPath).toBe('/checkout/onboarding')
   })
 
-  it('shows a form error and moves focus to it', async () => {
-    withItem({ ...boilerplate, creemProductId: undefined })
-    render(<BuyButton itemType="product" slug="saas-kit" />)
-    fireEvent.submit(screen.getByRole('button').closest('form'))
+  it('reports begin_checkout with the price, and omits value when price is unknown', () => {
+    const { unmount } = render(
+      <BuyButton
+        planId="plan_pro"
+        itemType="product"
+        slug="pro"
+        name="Pro"
+        price={499}
+      />
+    )
+    const [event, data] = whopTrack.mock.calls[0]
+    expect(event).toBe(WHOP_EVENT.beginCheckout)
+    expect(data.value).toBe(499)
+    expect(data.currency).toBe('USD')
+    expect(data.content_type).toBe('product')
+    expect(data.content_id).toBe('pro')
+    expect(data.content_name).toBe('Pro')
+    unmount()
 
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/not on sale yet/i)
-    /* Focused, not merely announced: it is the only thing that changed, and
-       it sits below the button that was just pressed. */
-    await waitFor(() => expect(document.activeElement).toBe(alert))
+    whopTrack.mockClear()
+    render(
+      <BuyButton planId="plan_pro" itemType="product" slug="pro" name="Pro" />
+    )
+    expect(whopTrack.mock.calls[0][1].value).toBeUndefined()
   })
 
-  it('carries the item through hidden fields', () => {
-    const { container } = render(
-      <BuyButton itemType="product" slug="saas-kit" />
-    )
-    expect(container.querySelector('[name="itemType"]')).toHaveValue('product')
-    expect(container.querySelector('[name="slug"]')).toHaveValue('saas-kit')
+  it('says the item is not on sale rather than rendering a dead checkout', () => {
+    render(<BuyButton planId={null} itemType="product" slug="pro" name="Pro" />)
+    expect(screen.getByRole('status')).toHaveTextContent(/not on sale yet/i)
+    expect(screen.queryByTestId('checkout')).toBeNull()
   })
 })

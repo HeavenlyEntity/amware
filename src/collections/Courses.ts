@@ -33,6 +33,25 @@ export const Courses: CollectionConfig = {
       ],
     },
     creemProductField(),
+    {
+      name: 'whopPlanId',
+      type: 'text',
+      admin: {
+        description:
+          'The Whop plan a buyer checks out against in production. The plan ' +
+          'is the product: the embed mounts from this id alone, and the id ' +
+          'on the payment is how a sale finds its way back here.',
+      },
+    },
+    {
+      name: 'whopSandboxPlanId',
+      type: 'text',
+      admin: {
+        description:
+          "The same product's plan in Whop's sandbox, which is a separate " +
+          'account with its own ids. Chosen when WHOP_ENV=sandbox.',
+      },
+    },
     { name: 'price', type: 'number' },
     { name: 'featured', type: 'checkbox', defaultValue: false },
     { name: 'order', type: 'number', defaultValue: 0 },

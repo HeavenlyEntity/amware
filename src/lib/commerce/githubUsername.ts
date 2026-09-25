@@ -40,3 +40,28 @@ export function usernameMessage(problem: UsernameProblem): string | null {
       return null
   }
 }
+
+/* A profile URL, optionally with its scheme, `www.`, a trailing slash, or a
+   query or fragment. One path segment only: a repository URL names a
+   repository, not the account to invite. */
+const PROFILE_URL =
+  /^(?:https?:\/\/)?(?:www\.)?github\.com\/([^/?#\s]+)\/?(?:[?#].*)?$/i
+
+/*
+ * The login in what a buyer typed into Whop's "GitHub username" field.
+ *
+ * Our own form rejects these shapes with checkGithubUsername, but Whop's
+ * custom field is free text with nothing of ours in front of it. Two habits
+ * are common enough to undo rather than send to a human: the leading @ of a
+ * mention, and a pasted profile URL. Anything else is left as typed --
+ * guessing further risks inviting the wrong account, while a malformed name
+ * simply fails the invitation and lands in the manual queue.
+ */
+export function githubLoginFromAnswer(
+  answer: string | null | undefined
+): string | null {
+  if (typeof answer !== 'string') return null
+  const typed = answer.trim().replace(/^@/, '')
+  const login = PROFILE_URL.exec(typed)?.[1] ?? typed
+  return login || null
+}
