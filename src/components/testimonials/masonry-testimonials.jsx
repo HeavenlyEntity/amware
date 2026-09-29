@@ -30,7 +30,7 @@ export function MasonryTestimonials({ items }) {
               <figcaption className="mt-4 flex shrink-0 items-center gap-3 pt-1">
                 <Avatar
                   person={t}
-                  className="size-11 ring-1 ring-black/10"
+                  className="size-11 ring-[var(--amw-line)] ring-1"
                   size={44}
                 />
                 <div className="flex min-w-0 flex-col items-start space-y-0.5">

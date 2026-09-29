@@ -20,7 +20,7 @@ export function Avatar({ person, className = '', size = 44, tone = 'light' }) {
     return (
       <span
         aria-hidden="true"
-        className={`relative shrink-0 overflow-hidden rounded-full ${className}`}
+        className={`relative block shrink-0 overflow-hidden rounded-full ${className}`}
       >
         <Image
           src={person.image}
