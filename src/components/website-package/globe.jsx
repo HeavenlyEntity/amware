@@ -1,10 +1,11 @@
-/* Ported unchanged from the studio template's components/services/globe.tsx
-   (types stripped). Used only through ./globe-card, which lazy-loads it,
+/* Ported from the studio template's components/services/globe.tsx with types
+   stripped, city markers removed, and texture setup moved into useTexture's
+   onLoad callback. Used only through ./globe-card, which lazy-loads it,
    passes no markers, and stops the rotation under reduced motion. */
 
 'use client'
-import React, { useRef, useMemo, useState, useCallback, Suspense } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import React, { useRef, useMemo, Suspense } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, Html, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { cn } from '@/lib/utils'
@@ -16,132 +17,24 @@ const DEFAULT_EARTH_TEXTURE =
 const DEFAULT_BUMP_TEXTURE =
   'https://unpkg.com/three-globe@2.31.0/example/img/earth-topology.png'
 // ============================================================================
-// Utility Functions
+// RotatingGlobe Component
 // ============================================================================
-/**
- * Convert latitude/longitude to 3D cartesian coordinates
- */
-function latLngToVector3(lat, lng, radius) {
-  const phi = (90 - lat) * (Math.PI / 180)
-  const theta = (lng + 180) * (Math.PI / 180)
-  const x = -(radius * Math.sin(phi) * Math.cos(theta))
-  const z = radius * Math.sin(phi) * Math.sin(theta)
-  const y = radius * Math.cos(phi)
-  return new THREE.Vector3(x, y, z)
-}
-// ============================================================================
-// Marker Component (static - rotation handled by parent group)
-// ============================================================================
-/** Legacy pin CSS size used with `distanceFactor` 10 before high-res pins */
-const LEGACY_PIN_CSS_PX = 8
-const HTML_DISTANCE_FACTOR_BASE = 10
-function Marker({ marker, radius, markerPixelSize, onClick, onHover }) {
-  const [hovered, setHovered] = useState(false)
-  const [isVisible, setIsVisible] = useState(true)
+function RotatingGlobe({ config }) {
   const groupRef = useRef(null)
-  const imageGroupRef = useRef(null)
-  const { camera, gl } = useThree()
-  const pinPx = Math.max(16, marker.size ?? markerPixelSize)
-  const htmlDistanceFactor = useMemo(
-    () => HTML_DISTANCE_FACTOR_BASE * (LEGACY_PIN_CSS_PX / pinPx),
-    [pinPx]
-  )
-  const pr = Math.min(gl.getPixelRatio(), 2)
-  const rasterPx = Math.round(pinPx * pr)
-  // Avatar sits just above the surface (no vertical pin)
-  const avatarPosition = useMemo(() => {
-    return latLngToVector3(marker.lat, marker.lng, radius * 1.01)
-  }, [marker.lat, marker.lng, radius])
-  // Check if marker is facing the camera
-  useFrame(() => {
-    if (!imageGroupRef.current) return
-    // Get the world position of the image (the positioned element)
-    const worldPos = new THREE.Vector3()
-    imageGroupRef.current.getWorldPosition(worldPos)
-    // Direction from globe center (0,0,0) to marker
-    const markerDirection = worldPos.clone().normalize()
-    // Direction from globe center to camera
-    const cameraDirection = camera.position.clone().normalize()
-    // Dot product: positive means facing camera, negative means behind
-    const dot = markerDirection.dot(cameraDirection)
-    // Show marker only if it's facing the camera (stricter threshold)
-    setIsVisible(dot > 0.1)
-  })
-  const handlePointerEnter = useCallback(() => {
-    setHovered(true)
-    onHover?.(marker)
-  }, [marker, onHover])
-  const handlePointerLeave = useCallback(() => {
-    setHovered(false)
-    onHover?.(null)
-  }, [onHover])
-  const handleClick = useCallback(() => {
-    onClick?.(marker)
-  }, [marker, onClick])
-  return (
-    <group ref={groupRef} visible={isVisible}>
-      {/* Circular avatar sitting on the globe surface */}
-      <group ref={imageGroupRef} position={avatarPosition}>
-        <Html
-          transform
-          center
-          sprite
-          distanceFactor={htmlDistanceFactor}
-          style={{
-            pointerEvents: isVisible ? 'auto' : 'none',
-            opacity: isVisible ? 1 : 0,
-            transition: 'opacity 0.15s ease-out',
-          }}
-        >
-          <div
-            className={cn(
-              'relative cursor-pointer overflow-hidden rounded-full bg-neutral-900 shadow-lg transition-transform duration-200',
-              hovered && 'scale-125 shadow-xl ring-1 ring-white/50'
-            )}
-            style={{
-              width: pinPx,
-              height: pinPx,
-            }}
-            onMouseEnter={handlePointerEnter}
-            onMouseLeave={handlePointerLeave}
-            onClick={handleClick}
-          >
-            <img
-              src={marker.src}
-              alt={marker.label || 'Marker'}
-              width={rasterPx}
-              height={rasterPx}
-              className="absolute left-1/2 top-1/2 max-w-none object-cover"
-              style={{
-                width: rasterPx,
-                height: rasterPx,
-                transform: `translate(-50%, -50%) scale(${pinPx / rasterPx})`,
-              }}
-              draggable={false}
-            />
-          </div>
-        </Html>
-      </group>
-    </group>
-  )
-}
-function RotatingGlobe({ config, markers, onMarkerClick, onMarkerHover }) {
-  const groupRef = useRef(null)
-  // Load Earth textures
-  const [earthTexture, bumpTexture] = useTexture([
-    config.textureUrl,
-    config.bumpMapUrl,
-  ])
-  // Configure textures
-  useMemo(() => {
-    if (earthTexture) {
-      earthTexture.colorSpace = THREE.SRGBColorSpace
-      earthTexture.anisotropy = 16
+  // Load Earth textures and configure them in the onLoad callback
+  const [earthTexture, bumpTexture] = useTexture(
+    [config.textureUrl, config.bumpMapUrl],
+    (loaded) => {
+      const [earth, bump] = Array.isArray(loaded) ? loaded : [loaded, null]
+      if (earth) {
+        earth.colorSpace = THREE.SRGBColorSpace
+        earth.anisotropy = 16
+      }
+      if (bump) {
+        bump.anisotropy = 8
+      }
     }
-    if (bumpTexture) {
-      bumpTexture.anisotropy = 8
-    }
-  }, [earthTexture, bumpTexture])
+  )
   // Create geometries
   const geometry = useMemo(() => {
     return new THREE.SphereGeometry(config.radius, 64, 64)
@@ -179,18 +72,6 @@ function RotatingGlobe({ config, markers, onMarkerClick, onMarkerHover }) {
           />
         </mesh>
       )}
-
-      {/* Markers - now inside the rotating group */}
-      {markers.map((marker, index) => (
-        <Marker
-          key={`marker-${index}-${marker.lat}-${marker.lng}`}
-          marker={marker}
-          radius={config.radius}
-          markerPixelSize={config.markerPixelSize}
-          onClick={onMarkerClick}
-          onHover={onMarkerHover}
-        />
-      ))}
     </group>
   )
 }
@@ -237,9 +118,9 @@ function Atmosphere({ radius, color, intensity, blur }) {
     </mesh>
   )
 }
-function Scene({ markers, config, onMarkerClick, onMarkerHover }) {
+function Scene({ config }) {
   const { camera } = useThree()
-  // Set initial camera position (pulled back to accommodate markers)
+  // Set initial camera position
   React.useEffect(() => {
     camera.position.set(0, 0, config.radius * 3.5)
     camera.lookAt(0, 0, 0)
@@ -261,13 +142,8 @@ function Scene({ markers, config, onMarkerClick, onMarkerHover }) {
       {/* Hemisphere light fills shadows so the dark side stays readable */}
       <hemisphereLight args={['#ffffff', '#1a1a2e', 0.8]} />
 
-      {/* Rotating Globe with Markers */}
-      <RotatingGlobe
-        config={config}
-        markers={markers}
-        onMarkerClick={onMarkerClick}
-        onMarkerHover={onMarkerHover}
-      />
+      {/* Rotating Globe */}
+      <RotatingGlobe config={config} />
 
       {/* Atmosphere (static) */}
       {config.showAtmosphere && (
@@ -328,21 +204,13 @@ const defaultConfig = {
   minDistance: 5,
   maxDistance: 15,
   initialRotation: { x: 0.15, y: 1.8 },
-  markerSize: 0.06,
-  markerPixelSize: 48,
   showWireframe: false,
   wireframeColor: '#4a9eff',
   ambientIntensity: 1.2,
   pointLightIntensity: 2.2,
   backgroundColor: null,
 }
-export function Globe3D({
-  markers = [],
-  config = {},
-  className,
-  onMarkerClick,
-  onMarkerHover,
-}) {
+export function Globe3D({ config = {}, className }) {
   const mergedConfig = useMemo(
     () => ({ ...defaultConfig, ...config }),
     [config]
@@ -367,12 +235,7 @@ export function Globe3D({
         }}
       >
         <Suspense fallback={<LoadingFallback />}>
-          <Scene
-            markers={markers}
-            config={mergedConfig}
-            onMarkerClick={onMarkerClick}
-            onMarkerHover={onMarkerHover}
-          />
+          <Scene config={mergedConfig} />
         </Suspense>
       </Canvas>
     </div>
