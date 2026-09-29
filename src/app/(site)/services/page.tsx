@@ -10,6 +10,8 @@ import {
 } from '@/components/commerce/storefront'
 import { TestimonialsWithCarousel } from '@/components/ui/testimonials-with-carousel'
 import { testimonials } from '@/content/site/testimonials'
+import { groupServices } from '@/lib/services/tracks'
+import { ServiceTracks } from '@/components/services/service-tracks'
 
 export const revalidate = 60
 
@@ -32,6 +34,22 @@ export default async function ServicesPage() {
     limit: 100,
   })
 
+  const { consulting, technical } = groupServices(docs)
+  const cards = (list: typeof docs) => (
+    <ul className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 md:gap-8">
+      {list.map((service, i) => (
+        <ServiceCard
+          key={service.id}
+          service={service}
+          index={i}
+          description={
+            <RichText data={service.description} className="prose-sm" />
+          }
+        />
+      ))}
+    </ul>
+  )
+
   return (
     <Container className="mt-16 sm:mt-32">
       <TrackView type="services" id="services" name="Services" />
@@ -50,22 +68,16 @@ export default async function ServicesPage() {
           }
         />
 
-        {docs.length === 0 ? (
-          <StoreEmpty label="services" />
-        ) : (
-          <ul className="mt-10 grid grid-cols-1 items-start gap-6 sm:mt-12 md:grid-cols-2 md:gap-8">
-            {docs.map((service, i) => (
-              <ServiceCard
-                key={service.id}
-                service={service}
-                index={i}
-                description={
-                  <RichText data={service.description} className="prose-sm" />
-                }
-              />
-            ))}
-          </ul>
-        )}
+        <ServiceTracks
+          panels={{
+            consulting: consulting.length ? (
+              cards(consulting)
+            ) : (
+              <StoreEmpty label="consulting engagements" />
+            ),
+            technical: technical.length ? cards(technical) : null,
+          }}
+        />
 
         {/* Right under the offers, where the objection forms: what the
             people on the other side of the work said about it. */}
