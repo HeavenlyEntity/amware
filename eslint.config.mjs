@@ -35,6 +35,10 @@ const config = [
       ...jsxA11y.configs.recommended.rules,
       // Explicit lists preserve VoiceOver semantics when CSS removes markers.
       'jsx-a11y/no-redundant-roles': ['error', { ul: ['list'], ol: ['list'] }],
+      // The APG expects a tabpanel to carry tabIndex 0 even when nothing
+      // inside it is focusable. tabpanel is a structure role, not a widget
+      // role, so the rule's own interactive-role check misses it.
+      'jsx-a11y/no-noninteractive-tabindex': ['error', { roles: ['tabpanel'] }],
     },
   },
   {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useSyncExternalStore } from 'react'
+import { useId, useState, useSyncExternalStore } from 'react'
 import { OfferTabs, offerPanelProps } from '@/components/landing/offer-tabs'
 import { SERVICE_TRACKS, trackFromHash } from '@/lib/services/tracks'
 
@@ -30,7 +30,10 @@ const serverHash = () => ''
 export function ServiceTracks({ panels }) {
   const id = useId()
   const hash = useSyncExternalStore(subscribe, readHash, serverHash)
-  const tab = trackFromHash(hash) ?? SERVICE_TRACKS[0].id
+  const hashTrack = trackFromHash(hash)
+  const [kept, setKept] = useState(null)
+  if (hashTrack && hashTrack !== kept) setKept(hashTrack)
+  const tab = hashTrack ?? kept ?? SERVICE_TRACKS[0].id
 
   const choose = (next) => {
     const track = SERVICE_TRACKS.find((t) => t.id === next)
@@ -53,7 +56,12 @@ export function ServiceTracks({ panels }) {
         <div
           key={track.id}
           {...offerPanelProps(id, track.id)}
+          // Restated so ESLint can see it through the spread: APG
+          // tabpanels take tabIndex 0, and jsx-a11y needs a literal role
+          // to allow it.
+          role="tabpanel"
           hidden={tab !== track.id}
+          tabIndex={0}
           className="mt-10 sm:mt-12"
         >
           {panels[track.id]}

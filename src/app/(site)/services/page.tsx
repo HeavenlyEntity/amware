@@ -79,7 +79,7 @@ export default async function ServicesPage() {
             consulting: consulting.length ? (
               cards(consulting)
             ) : (
-              <StoreEmpty label="consulting engagements" />
+              <StoreEmpty label="consulting track" />
             ),
             technical: (
               <>

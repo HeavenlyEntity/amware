@@ -44,4 +44,26 @@ describe('ServiceTracks', () => {
       screen.getByRole('tab', { name: 'Build & support' })
     ).toHaveAttribute('aria-selected', 'true')
   })
+
+  it('keeps the last recognised track when the hash changes to something unrelated', () => {
+    window.history.replaceState(null, '', '/#build-support')
+    render(<ServiceTracks panels={panels} />)
+    expect(
+      screen.getByRole('tab', { name: 'Build & support' })
+    ).toHaveAttribute('aria-selected', 'true')
+
+    window.history.replaceState(null, '', '/#main-content')
+    fireEvent(window, new Event('hashchange'))
+
+    expect(
+      screen.getByRole('tab', { name: 'Build & support' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(panelOf('Website build section')).not.toHaveAttribute('hidden')
+  })
+
+  it('gives every tab panel a tabIndex so it is focusable', () => {
+    render(<ServiceTracks panels={panels} />)
+    expect(panelOf('Retainer cards')).toHaveAttribute('tabindex', '0')
+    expect(panelOf('Website build section')).toHaveAttribute('tabindex', '0')
+  })
 })
