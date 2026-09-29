@@ -73,7 +73,12 @@ export default async function HomePage() {
       }),
       payload.find({
         collection: 'services',
-        where: { status: { equals: 'published' } },
+        /* The homepage's retainer offers are the Consulting track only; a
+           Build & support service belongs on /services' other tab. */
+        where: {
+          status: { equals: 'published' },
+          category: { equals: 'consulting' },
+        },
         sort: 'order',
         depth: 0,
         limit: 6,

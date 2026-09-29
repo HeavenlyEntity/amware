@@ -6,7 +6,14 @@ export const Services: CollectionConfig = {
   slug: 'services',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'startingPrice', 'priceLabel', 'status', 'order'],
+    defaultColumns: [
+      'name',
+      'startingPrice',
+      'priceLabel',
+      'status',
+      'category',
+      'order',
+    ],
   },
   access: {
     read: ({ req: { user } }) => {
@@ -113,6 +120,20 @@ export const Services: CollectionConfig = {
       ],
       defaultValue: 'draft',
       admin: { position: 'sidebar' },
+    },
+    {
+      name: 'category',
+      type: 'select',
+      required: true,
+      defaultValue: 'consulting',
+      options: [
+        { label: 'Consulting', value: 'consulting' },
+        { label: 'Build & support', value: 'technical' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description: 'Which /services tab this engagement sits under.',
+      },
     },
   ],
 }
