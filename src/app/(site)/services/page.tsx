@@ -8,10 +8,11 @@ import {
   StoreEmpty,
   ServiceCard,
 } from '@/components/commerce/storefront'
-import { TestimonialsWithCarousel } from '@/components/ui/testimonials-with-carousel'
-import { testimonials } from '@/content/site/testimonials'
 import { groupServices } from '@/lib/services/tracks'
 import { ServiceTracks } from '@/components/services/service-tracks'
+import { BigTestimonial } from '@/components/testimonials/big-testimonial'
+import { MasonryTestimonials } from '@/components/testimonials/masonry-testimonials'
+import { servicesTestimonials } from '@/lib/testimonials/services-testimonials'
 
 export const revalidate = 60
 
@@ -35,6 +36,10 @@ export default async function ServicesPage() {
   })
 
   const { consulting, technical } = groupServices(docs)
+  const proof = servicesTestimonials({
+    nodeEnv: process.env.NODE_ENV,
+    vercelEnv: process.env.VERCEL_ENV,
+  })
   const cards = (list: typeof docs) => (
     <ul className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 md:gap-8">
       {list.map((service, i) => (
@@ -79,14 +84,15 @@ export default async function ServicesPage() {
           }}
         />
 
-        {/* Right under the offers, where the objection forms: what the
-            people on the other side of the work said about it. */}
-        <TestimonialsWithCarousel
-          className="mt-24 sm:mt-32"
-          eyebrow="// AMWARE · TESTIMONIALS"
-          title="From the people on the other side of the work."
-          items={testimonials}
-        />
+        {/* Below both tracks, where the objection forms: what the people
+            on the other side of the work said. */}
+        <div className="mt-24 sm:mt-32">
+          <BigTestimonial
+            featured={proof.featured}
+            supporting={proof.supporting}
+          />
+          <MasonryTestimonials items={proof.wall} />
+        </div>
       </div>
     </Container>
   )

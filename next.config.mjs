@@ -16,6 +16,14 @@ const nextConfig = {
         hostname: 'avatars.githubusercontent.com',
         pathname: '/u/**',
       },
+      {
+        // The studio template's placeholder testimonial avatars. They only
+        // ever render in local dev and on Vercel previews, never in
+        // production (src/lib/testimonials/services-testimonials.js).
+        protocol: 'https',
+        hostname: 'assets.aceternity.com',
+        pathname: '/avatars/**',
+      },
     ],
   },
   async rewrites() {
