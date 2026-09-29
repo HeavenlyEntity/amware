@@ -1,5 +1,4 @@
 'use client'
-import React from 'react'
 import { cn } from '@/lib/utils'
 const sizeStyles = {
   sm: '[transform:scale(0.75)] origin-center',

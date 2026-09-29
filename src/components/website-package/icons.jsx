@@ -158,14 +158,14 @@ export const WebsiteDevelopment = (props) => {
       />
       <path
         d="M7 7H7.01M10 7H10.01M13 7H13.01"
-        stroke="var(--color-primary)"
+        stroke="var(--amw-accent)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M21 10L3 10"
-        stroke="var(--color-primary)"
+        stroke="var(--amw-accent)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -193,14 +193,14 @@ export const MobileResponsive = (props) => {
       />
       <path
         d="M12.6936 2H4.4C3.55992 2 3.13988 2 2.81901 2.16349C2.53677 2.3073 2.3073 2.53677 2.16349 2.81901C2 3.13988 2 3.55992 2 4.4V14.6C2 15.4401 2 15.8601 2.16349 16.181C2.3073 16.4632 2.53677 16.6927 2.81901 16.8365C3.13988 17 3.55992 17 4.4 17H19.6C20.4401 17 20.8601 17 21.181 16.8365C21.4632 16.6927 21.6927 16.4632 21.8365 16.181C22 15.8601 22 15.4401 22 14.6V7.51556"
-        stroke="var(--color-primary)"
+        stroke="var(--amw-accent)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M16 4.2587L18.0362 6.2927C19.0155 4.5802 20.3709 3.1125 22 2"
-        stroke="var(--color-primary)"
+        stroke="var(--amw-accent)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -228,7 +228,7 @@ export const DarkAndLightMode = (props) => {
       />
       <path
         d="M8.28733 14.9333C8.15829 14.3871 8.10988 13.7973 8.15136 13.2222M8.15136 13.2222C6.19428 13.431 4.66992 15.0875 4.66992 17.1C4.66992 19.2539 6.41601 21 8.56992 21H17.2366C19.8691 21 22.0033 18.8659 22.0033 16.2333C22.0033 14.268 20.8138 12.5805 19.1156 11.8513C18.3699 9.61346 16.2583 8 13.7699 8C13.4912 8 13.2172 8.02024 12.9494 8.05933C10.36 8.4372 8.34218 10.5766 8.15136 13.2222Z"
-        stroke="var(--color-primary)"
+        stroke="var(--amw-accent)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -264,7 +264,7 @@ export const TechStack = (props) => {
       </g>
       <path
         d="M3 6.2C3 5.07989 3 4.51984 3.21799 4.09202C3.40973 3.71569 3.71569 3.40973 4.09202 3.21799C4.51984 3 5.0799 3 6.2 3H6.8C7.9201 3 8.48016 3 8.90798 3.21799C9.28431 3.40973 9.59027 3.71569 9.78201 4.09202C10 4.51984 10 5.0799 10 6.2V17.8C10 18.9201 10 19.4802 9.78201 19.908C9.59027 20.2843 9.28431 20.5903 8.90798 20.782C8.48016 21 7.9201 21 6.8 21H6.2C5.0799 21 4.51984 21 4.09202 20.782C3.71569 20.5903 3.40973 20.2843 3.21799 19.908C3 19.4802 3 18.9201 3 17.8V6.2Z"
-        stroke="var(--color-primary)"
+        stroke="var(--amw-accent)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -292,14 +292,14 @@ export const Communication = (props) => {
       />
       <path
         d="M7 8H17"
-        stroke="var(--color-primary)"
+        stroke="var(--amw-accent)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M7 12H14"
-        stroke="var(--color-primary)"
+        stroke="var(--amw-accent)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -327,7 +327,7 @@ export const FutureUpdates = (props) => {
       />
       <path
         d="M21.9998 8.94434C21.9998 3.50678 15.1623 0.661714 11.9998 5.42747L9.18993 8.98739C8.50802 9.85133 8.58158 11.0891 9.36102 11.8662C10.2483 12.7508 11.6986 12.7015 12.5236 11.7585L14.4998 9.50006C15.7787 11.7381 17.9451 13.3756 20.4399 14.0237C21.3766 12.5063 21.9998 10.7949 21.9998 8.94434Z"
-        stroke="var(--color-primary)"
+        stroke="var(--amw-accent)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"

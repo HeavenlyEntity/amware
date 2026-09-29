@@ -107,7 +107,7 @@ const HeroContentMini = ({ className }) => (
     </div>
   </div>
 )
-/** Mainline browser tab: full chrome, grid lines, hero + testimonials. */
+/** Site browser tab: full chrome, grid lines, hero + testimonials. */
 const SitePageMini = () => {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-white">

@@ -1,6 +1,5 @@
 'use client'
 import Image from 'next/image'
-import React from 'react'
 import { IconMicrophone, IconPhoneOff, IconVideo } from '@tabler/icons-react'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'

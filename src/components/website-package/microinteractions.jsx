@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BatteryIcon, CelularIcon, WifiIcon } from './icons'
 import { motion } from 'motion/react'
 import Image from 'next/image'
@@ -46,23 +46,8 @@ export const Microinteractions = () => {
     </div>
   )
 }
-export function IPhoneIllustration({ content }) {
+export function IPhoneIllustration() {
   const [isHovered, setIsHovered] = useState(false)
-  const screenContentVariants = {
-    initial: {
-      opacity: 0,
-      filter: 'blur(8px)',
-    },
-    animate: {
-      opacity: 1,
-      filter: 'blur(0px)',
-    },
-  }
-  const CONTENT_TRANSITION = {
-    duration: 0.3,
-    ease: 'easeOut',
-    delay: 0.2,
-  }
   return (
     <motion.div
       whileHover="animate"
@@ -113,11 +98,7 @@ export function IPhoneIllustration({ content }) {
               />
             </div>
             {/* Screen content (status bar, clock, notifications — not clipped to screen) */}
-            <motion.div
-              //   variants={screenContentVariants}
-              //   transition={CONTENT_TRANSITION}
-              className="absolute inset-0 z-10 overflow-visible"
-            >
+            <motion.div className="absolute inset-0 z-10 overflow-visible">
               <ScreenContent isHovered={isHovered} />
             </motion.div>
           </div>
