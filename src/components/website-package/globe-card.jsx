@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useRef } from 'react'
+import { Component, useRef } from 'react'
 import { useInView } from 'motion/react'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
 
@@ -17,9 +17,22 @@ const Globe3D = dynamic(() => import('./globe').then((m) => m.Globe3D), {
 })
 
 const GLOBE_CONFIG = {
-  atmosphereColor: '#4da6ff',
-  atmosphereIntensity: 20,
   bumpScale: 5,
+}
+
+/* A failed texture load makes drei throw, and R3F rethrows into the page;
+   there is no error.* file under src/app, so an uncaught throw here would
+   blank all of /services. Mirrors CrownBoundary
+   (components/brand/amware-creed.jsx): the globe is decoration, so on
+   error it renders nothing instead of taking the page down with it. */
+class GlobeBoundary extends Component {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  render() {
+    return this.state.failed ? null : this.props.children
+  }
 }
 
 export function GlobeCard({ className }) {
@@ -29,10 +42,12 @@ export function GlobeCard({ className }) {
   return (
     <div ref={ref} aria-hidden="true" className={className}>
       {near && (
-        <Globe3D
-          className="h-full w-full"
-          config={{ ...GLOBE_CONFIG, autoRotateSpeed: reduce ? 0 : 0.3 }}
-        />
+        <GlobeBoundary>
+          <Globe3D
+            className="h-full w-full"
+            config={{ ...GLOBE_CONFIG, autoRotateSpeed: reduce ? 0 : 0.3 }}
+          />
+        </GlobeBoundary>
       )}
     </div>
   )

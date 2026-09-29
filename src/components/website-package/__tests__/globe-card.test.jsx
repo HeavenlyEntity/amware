@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 
 const reduced = vi.hoisted(() => ({ current: false }))
 const globeProps = vi.hoisted(() => ({ current: null }))
+const shouldThrow = vi.hoisted(() => ({ current: false }))
 
 vi.mock('@/components/AccessibilityProvider', () => ({
   useReducedMotion: () => reduced.current,
@@ -10,6 +11,9 @@ vi.mock('@/components/AccessibilityProvider', () => ({
 vi.mock('next/dynamic', () => ({
   default: () =>
     function GlobeStub(props) {
+      if (shouldThrow.current) {
+        throw new Error('texture load failed')
+      }
       globeProps.current = props
       return <div data-testid="globe" />
     },
@@ -36,5 +40,17 @@ describe('GlobeCard', () => {
     render(<GlobeCard />)
     await screen.findByTestId('globe')
     expect(globeProps.current.config.autoRotateSpeed).toBe(0)
+  })
+
+  it('renders without the globe when the texture load throws', async () => {
+    reduced.current = false
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    shouldThrow.current = true
+    const { container } = render(<GlobeCard />)
+    await waitFor(() => expect(errorSpy).toHaveBeenCalled())
+    expect(screen.queryByTestId('globe')).not.toBeInTheDocument()
+    expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true')
+    shouldThrow.current = false
+    errorSpy.mockRestore()
   })
 })

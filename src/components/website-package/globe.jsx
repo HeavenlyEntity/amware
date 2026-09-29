@@ -4,7 +4,7 @@
    passes no markers, and stops the rotation under reduced motion. */
 
 'use client'
-import React, { useRef, useMemo, Suspense } from 'react'
+import React, { useMemo, Suspense } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, Html, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
@@ -20,7 +20,6 @@ const DEFAULT_BUMP_TEXTURE =
 // RotatingGlobe Component
 // ============================================================================
 function RotatingGlobe({ config }) {
-  const groupRef = useRef(null)
   // Load Earth textures and configure them in the onLoad callback
   const [earthTexture, bumpTexture] = useTexture(
     [config.textureUrl, config.bumpMapUrl],
@@ -43,10 +42,7 @@ function RotatingGlobe({ config }) {
     return new THREE.SphereGeometry(config.radius * 1.002, 32, 16)
   }, [config.radius])
   return (
-    <group
-      ref={groupRef}
-      rotation={[config.initialRotation.x, config.initialRotation.y, 0]}
-    >
+    <group rotation={[config.initialRotation.x, config.initialRotation.y, 0]}>
       {/* Main globe mesh with Earth texture */}
       <mesh geometry={geometry}>
         <meshStandardMaterial
@@ -230,8 +226,10 @@ export function Globe3D({ config = {}, className }) {
           far: 1000,
           position: [0, 0, mergedConfig.radius * 3.5],
         }}
+        frameloop={mergedConfig.autoRotateSpeed > 0 ? 'always' : 'demand'}
         style={{
           background: mergedConfig.backgroundColor || 'transparent',
+          pointerEvents: 'none',
         }}
       >
         <Suspense fallback={<LoadingFallback />}>
