@@ -13,6 +13,7 @@ import { ServiceTracks } from '@/components/services/service-tracks'
 import { BigTestimonial } from '@/components/testimonials/big-testimonial'
 import { MasonryTestimonials } from '@/components/testimonials/masonry-testimonials'
 import { servicesTestimonials } from '@/lib/testimonials/services-testimonials'
+import { WebsitePackage } from '@/components/website-package'
 
 export const revalidate = 60
 
@@ -80,7 +81,12 @@ export default async function ServicesPage() {
             ) : (
               <StoreEmpty label="consulting engagements" />
             ),
-            technical: technical.length ? cards(technical) : null,
+            technical: (
+              <>
+                {technical.length > 0 && cards(technical)}
+                <WebsitePackage />
+              </>
+            ),
           }}
         />
 
