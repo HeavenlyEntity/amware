@@ -90,8 +90,7 @@ const HeroContentMini = ({ className }) => (
     <p className="text-balance max-w-[40ch] text-[9px] font-semibold leading-snug tracking-tight text-neutral-700 sm:text-[10px] md:text-[11px]">
       Design-led websites that
       <br />
-      <span className="text-[var(--amw-accent-ink)]">earn trust</span> in the
-      first scroll
+      <span className="text-teal-700">earn trust</span> in the first scroll
     </p>
     <p className="text-pretty mt-0.5 max-w-[56ch] text-[6px] leading-relaxed text-neutral-500 sm:text-[7px] md:text-[8px]">
       Custom sites with clear hierarchy, intentional motion, and performance
@@ -145,7 +144,7 @@ const SitePageMini = () => {
     </div>
   )
 }
-/** Figma sidebar — aligned with `process/designing.tsx` (pages, file tree), scaled for the mock. */
+/** Figma sidebar — pages and file tree, scaled for the mock. */
 const FIGMA_PAGES = ['Blog', 'Home', 'About', 'Contact', 'Services']
 const FigmaSidebarMini = () => (
   <aside
@@ -237,6 +236,7 @@ export const DesigningSkeleton = () => {
     <div
       className="mask-b-from-90% h-full w-full overflow-hidden px-8 pt-8"
       aria-hidden="true"
+      data-nosnippet
     >
       <div className="relative z-20 flex h-full w-full flex-col overflow-hidden rounded-t-xl bg-neutral-50 shadow-[0_24px_40px_-20px_rgba(38,38,43,0.30),0_10px_24px_0_rgba(38,38,43,0.06),0_1px_1px_0_rgba(38,38,43,0.16),0_0_0_1px_rgba(38,38,43,0.05),0_8px_14px_-10px_rgba(38,38,43,0.40)]">
         <div className="border-black/6 flex h-6 shrink-0 items-center gap-2 overflow-hidden border-b px-3 pb-0 pt-2">

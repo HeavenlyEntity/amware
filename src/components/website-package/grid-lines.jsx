@@ -11,7 +11,7 @@ export const GridLineHorizontal = ({ className, offset }) => {
         maskComposite: 'exclude',
       }}
       className={cn(
-        '[--color:var(--amw-line)]',
+        '[--color:rgba(24,24,27,0.1)]',
         'absolute left-[calc(var(--offset)/2*-1)] h-[var(--height)] w-[calc(100%+var(--offset))]',
         'bg-[linear-gradient(to_right,var(--color),var(--color)_50%,transparent_0,transparent)]',
         '[background-size:var(--width)_var(--height)]',
@@ -35,7 +35,7 @@ export const GridLineVertical = ({ className, offset }) => {
         maskComposite: 'exclude',
       }}
       className={cn(
-        '[--color:var(--amw-line)]',
+        '[--color:rgba(24,24,27,0.1)]',
         'absolute top-[calc(var(--offset)/2*-1)] h-[calc(100%+var(--offset))] w-[var(--width)]',
         'bg-[linear-gradient(to_bottom,var(--color),var(--color)_50%,transparent_0,transparent)]',
         '[background-size:var(--width)_var(--height)]',

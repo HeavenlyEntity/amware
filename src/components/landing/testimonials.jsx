@@ -11,7 +11,7 @@ import { testimonials } from '@/content/site/testimonials'
    edge fade that dissolves as the rail reaches its end.
 
    The quotes, and the provenance that governs them, live in
-   content/site/testimonials.js, shared with the /services carousel. */
+   content/site/testimonials.js, shared with the /services testimonials. */
 
 const easeOut = [0.16, 1, 0.3, 1]
 

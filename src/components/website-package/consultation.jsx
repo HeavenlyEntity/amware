@@ -48,7 +48,7 @@ function MiniCtaWireframe() {
       <p className="text-[10px] font-semibold leading-tight tracking-tight text-neutral-900">
         Ready to start?
       </p>
-      <p className="text-[var(--amw-accent-ink)] mt-0.5 text-[10px] font-semibold leading-tight tracking-tight">
+      <p className="mt-0.5 text-[10px] font-semibold leading-tight tracking-tight text-teal-700">
         Book a strategy call.
       </p>
 
@@ -63,36 +63,12 @@ function MiniCtaWireframe() {
     </div>
   )
 }
-function DummyLanding() {
-  return (
-    <div className="flex h-full min-h-0 flex-col bg-white text-neutral-800">
-      <div className="flex shrink-0 items-center justify-between border-b border-neutral-200/90 px-3 py-2">
-        <div className="h-2 w-14 rounded-sm bg-neutral-400/50" />
-        <div className="flex gap-1.5">
-          <div className="h-2 w-7 rounded-sm bg-neutral-200" />
-          <div className="h-2 w-7 rounded-sm bg-neutral-200" />
-        </div>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
-        <div className="bg-neutral-400/45 h-2 w-[78%] rounded-sm" />
-        <div className="bg-neutral-400/35 h-2 w-[52%] rounded-sm" />
-        <div className="mt-1 flex gap-2">
-          <div className="h-7 min-h-0 flex-1 rounded-sm bg-neutral-400/70" />
-          <div className="h-7 min-h-0 flex-1 rounded-sm bg-neutral-200" />
-        </div>
-        <div className="mt-auto grid min-h-0 grid-cols-2 gap-2 pt-2">
-          <div className="aspect-video rounded-sm bg-neutral-100" />
-          <div className="aspect-video rounded-sm bg-neutral-100" />
-        </div>
-      </div>
-    </div>
-  )
-}
 export const Consultation = () => {
   return (
     <div
       className="mask-b-from-90% relative flex h-full w-full flex-row items-stretch gap-2 overflow-hidden p-1"
       aria-hidden="true"
+      data-nosnippet
     >
       <div className="relative z-10 h-full min-h-0 min-w-0 flex-1">
         <motion.div
@@ -196,11 +172,6 @@ export const Consultation = () => {
             />
           </motion.div>
         </div>
-      </div>
-      <div
-        className={`${shadow} pointer-events-none min-h-0 w-0 min-w-0 flex-[0_0_0%] overflow-hidden rounded-2xl bg-neutral-50 opacity-0`}
-      >
-        <DummyLanding />
       </div>
     </div>
   )

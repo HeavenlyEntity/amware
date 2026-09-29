@@ -54,6 +54,7 @@ export const Copywriting = () => {
     <div
       className="mask-b-from-90% relative flex h-full min-h-0 w-full flex-col items-center justify-center px-6 pt-6 pb-4"
       aria-hidden="true"
+      data-nosnippet
     >
       <KeyboardIllustration className="scale-120 pointer-events-none absolute inset-x-0 -bottom-10 z-10" />
 

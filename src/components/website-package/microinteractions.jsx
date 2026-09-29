@@ -5,6 +5,7 @@ import { motion } from 'motion/react'
 import Image from 'next/image'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { useMounted } from '@/hooks/use-client-value'
+import atTheDesk from '@/images/photos/at-the-desk.jpg'
 function formatLockScreenDate(d) {
   const weekday = d.toLocaleDateString('en-US', { weekday: 'short' })
   const day = d.getDate()
@@ -18,13 +19,8 @@ function formatLockScreenTime(d) {
     hour12: true,
   })
 }
-const SPRING_OPTIONS = {
-  type: 'spring',
-  stiffness: 591.79,
-  damping: 48.82,
-  mass: 2.89,
-}
-/** Tween (not spring): width + layout reflow fights spring overshoot → jitter. */
+/** Heavily damped spring: the width/position change on hover settles
+    without the overshoot that would otherwise jitter the layout. */
 const NOTIFICATION_TRANSITION = {
   type: 'spring',
   stiffness: 591.79,
@@ -41,6 +37,7 @@ export const Microinteractions = () => {
     <div
       className="mask-b-from-90% flex h-full min-h-0 w-full flex-col items-center justify-center px-6 pt-6 pb-4"
       aria-hidden="true"
+      data-nosnippet
     >
       <IPhoneIllustration />
     </div>
@@ -171,7 +168,7 @@ function StackedNotifications({ isHovered }) {
       transition={NOTIFICATION_TRANSITION}
       style={{ transformOrigin: 'bottom center' }}
     >
-      {/* Slack — front (Manu + Slack mark) */}
+      {/* Slack — front, with the Slack mark */}
       <motion.div
         className={`relative z-20 w-full rounded-xl ${notificationGlass}`}
       >
@@ -182,10 +179,9 @@ function StackedNotifications({ isHovered }) {
                 2
               </span>
               <Image
-                src="https://api.dicebear.com/9.x/notionists/png?seed=Alec"
+                src={atTheDesk}
                 alt=""
-                width={32}
-                height={32}
+                sizes="32px"
                 className="size-8 rounded-full object-cover ring-1 ring-white/25"
               />
               <div className="size-[14px] ring-black/15 absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full bg-white/95 shadow-md ring-1">
@@ -247,8 +243,16 @@ const ScreenContent = ({ isHovered }) => {
 
   useEffect(() => {
     if (reduce) return
-    const id = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(id)
+    let intervalId
+    const msToNextMinute = 60000 - (Date.now() % 60000)
+    const timeoutId = setTimeout(() => {
+      setNow(new Date())
+      intervalId = setInterval(() => setNow(new Date()), 60000)
+    }, msToNextMinute)
+    return () => {
+      clearTimeout(timeoutId)
+      clearInterval(intervalId)
+    }
   }, [reduce])
   const iconClass =
     'size-2 shrink-0 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]'

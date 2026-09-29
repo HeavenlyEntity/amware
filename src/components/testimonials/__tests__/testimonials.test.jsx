@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 const reduced = vi.hoisted(() => ({ current: false }))
@@ -19,6 +19,10 @@ const live = servicesTestimonials({
 const preview = servicesTestimonials({
   nodeEnv: 'production',
   vercelEnv: 'preview',
+})
+
+afterEach(() => {
+  reduced.current = false
 })
 
 describe('BigTestimonial with the real four', () => {
@@ -49,9 +53,11 @@ describe('BigTestimonial with the real four', () => {
 
   it('renders the featured quote as plain text under reduced motion', () => {
     reduced.current = true
-    render(<BigTestimonial {...live} />)
-    expect(screen.getAllByText(live.featured.quote)).toHaveLength(1)
-    reduced.current = false
+    const { container } = render(<BigTestimonial {...live} />)
+    const matches = screen.getAllByText(live.featured.quote)
+    expect(matches).toHaveLength(1)
+    expect(matches[0].tagName).toBe('P')
+    expect(container.querySelector('.sr-only')).toBeNull()
   })
 })
 

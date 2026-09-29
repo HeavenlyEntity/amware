@@ -1,7 +1,8 @@
 /* One list for every testimonial on the site: the homepage rail
-   (components/landing/testimonials.jsx) and the /services carousel
-   (components/ui/testimonials-with-carousel.jsx) both read it, so a change
-   of wording from any of these people lands everywhere at once.
+   (components/landing/testimonials.jsx) reads it directly, and /services
+   reads it through lib/testimonials/services-testimonials.js into
+   components/testimonials/big-testimonial.jsx and masonry-testimonials.jsx.
+   A change of wording from any of these people lands everywhere at once.
 
    PROVENANCE, and it matters more than anything else in this file. These are
    testimonials DRAFTED FOR CLIENTS TO APPROVE, not quotes captured verbatim
