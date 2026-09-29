@@ -48,9 +48,10 @@ export const Microinteractions = () => {
 }
 export function IPhoneIllustration() {
   const [isHovered, setIsHovered] = useState(false)
+  const reduce = useReducedMotion()
   return (
     <motion.div
-      whileHover="animate"
+      whileHover={reduce ? undefined : 'animate'}
       initial="initial"
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
@@ -99,7 +100,7 @@ export function IPhoneIllustration() {
             </div>
             {/* Screen content (status bar, clock, notifications — not clipped to screen) */}
             <motion.div className="absolute inset-0 z-10 overflow-visible">
-              <ScreenContent isHovered={isHovered} />
+              <ScreenContent isHovered={isHovered && !reduce} />
             </motion.div>
           </div>
         </div>

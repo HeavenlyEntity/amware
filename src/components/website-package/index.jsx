@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { motion } from 'motion/react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { Pattern } from '@/components/ui/pattern'
 import { WEBSITE_PACKAGE } from '@/content/site/website-package'
 import { DesigningSkeleton } from './designing'
@@ -20,9 +21,10 @@ import * as Icons from './icons'
    card carries the call to action instead. */
 
 function Card({ children, className = '' }) {
+  const reduce = useReducedMotion()
   return (
     <motion.div
-      whileHover="animate"
+      whileHover={reduce ? undefined : 'animate'}
       initial="initial"
       className={`bg-[var(--amw-muted)] relative rounded-2xl ${className}`}
     >
