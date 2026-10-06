@@ -1,0 +1,141 @@
+'use client'
+import { cn } from '@/lib/utils'
+const sizeStyles = {
+  sm: '[transform:scale(0.75)] origin-center',
+  md: '[transform:scale(1)] origin-center',
+  lg: '[transform:scale(1.5)] origin-center',
+  xl: '[transform:scale(2)] origin-center',
+}
+export function KeyboardIllustration({ className, size = 'xl' }) {
+  return (
+    <div className={cn('mx-auto w-fit', sizeStyles[size], className)}>
+      <div className="rounded-xl bg-neutral-200 p-[3px] shadow-sm ">
+        {/* Function Row */}
+        <Row>
+          <Key className="w-5 rounded-tl-lg">esc</Key>
+          <Key>F1</Key>
+          <Key>F2</Key>
+          <Key>F3</Key>
+          <Key>F4</Key>
+          <Key>F5</Key>
+          <Key>F6</Key>
+          <Key>F7</Key>
+          <Key>F8</Key>
+          <Key>F9</Key>
+          <Key>F10</Key>
+          <Key>F11</Key>
+          <Key>F12</Key>
+          <Key className="rounded-tr-lg">
+            <div className="size-1.5 bg-linear-to-b rounded-full from-neutral-300 via-neutral-200 to-neutral-300 p-px">
+              <div className="size-full rounded-full bg-neutral-100" />
+            </div>
+          </Key>
+        </Row>
+
+        {/* Number Row */}
+        <Row>
+          <Key>~</Key>
+          <Key>1</Key>
+          <Key>2</Key>
+          <Key>3</Key>
+          <Key>4</Key>
+          <Key>5</Key>
+          <Key>6</Key>
+          <Key>7</Key>
+          <Key>8</Key>
+          <Key>9</Key>
+          <Key>0</Key>
+          <Key>-</Key>
+          <Key>=</Key>
+          <Key className="w-5">delete</Key>
+        </Row>
+
+        {/* QWERTY Row */}
+        <Row>
+          <Key className="w-5">tab</Key>
+          <Key>Q</Key>
+          <Key>W</Key>
+          <Key>E</Key>
+          <Key>R</Key>
+          <Key>T</Key>
+          <Key>Y</Key>
+          <Key>U</Key>
+          <Key>I</Key>
+          <Key>O</Key>
+          <Key>P</Key>
+          <Key>[</Key>
+          <Key>]</Key>
+          <Key>\</Key>
+        </Row>
+
+        {/* Home Row */}
+        <Row>
+          <Key className="w-[22px]">caps</Key>
+          <Key>A</Key>
+          <Key>S</Key>
+          <Key>D</Key>
+          <Key>F</Key>
+          <Key>G</Key>
+          <Key>H</Key>
+          <Key>J</Key>
+          <Key>K</Key>
+          <Key>L</Key>
+          <Key>;</Key>
+          <Key>&apos;</Key>
+          <Key className="w-[23px]">return</Key>
+        </Row>
+
+        {/* Shift Row */}
+        <Row>
+          <Key className="w-[29px]">shift</Key>
+          <Key>Z</Key>
+          <Key>X</Key>
+          <Key>C</Key>
+          <Key>V</Key>
+          <Key>B</Key>
+          <Key>N</Key>
+          <Key>M</Key>
+          <Key>,</Key>
+          <Key>.</Key>
+          <Key>/</Key>
+          <Key className="w-[29px]">shift</Key>
+        </Row>
+
+        {/* Bottom Row */}
+        <Row>
+          <Key className="rounded-bl-lg">fn</Key>
+          <Key>ctrl</Key>
+          <Key>opt</Key>
+          <Key className="w-4">cmd</Key>
+          <Key className="w-[66px]" />
+          <Key className="w-4">cmd</Key>
+          <Key>opt</Key>
+          {/* Arrow Keys */}
+          <div className="flex h-3 items-center gap-px rounded-[2px]">
+            <Key className="h-3 w-3">←</Key>
+            <div className="flex flex-col gap-px">
+              <Key className="h-[5.5px] w-3">↑</Key>
+              <Key className="h-[5.5px] w-3">↓</Key>
+            </div>
+            <Key className="h-3 w-3 rounded-br-lg">→</Key>
+          </div>
+        </Row>
+      </div>
+    </div>
+  )
+}
+function Row({ children }) {
+  return <div className="mb-px flex gap-px">{children}</div>
+}
+function Key({ children, className }) {
+  return (
+    <div
+      className={cn(
+        'flex h-3 w-3 cursor-default items-center justify-center rounded-[2px] bg-neutral-100 text-[3px] font-medium text-neutral-700 shadow-[0_0.5px_0.5px_0_rgba(0,0,0,0.1),inset_0_0.5px_0_0_rgba(255,255,255,1)] transition-shadow duration-150 hover:shadow-[0_0_6px_0_rgba(59,130,246,0.4),0_0.5px_0.5px_0_rgba(0,0,0,0.1),inset_0_0.5px_0_0_rgba(255,255,255,1)]',
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}

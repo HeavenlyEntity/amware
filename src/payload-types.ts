@@ -487,6 +487,10 @@ export interface Service {
   depositAmount?: number | null
   order?: number | null
   status?: ('draft' | 'published') | null
+  /**
+   * Which /services tab this engagement sits under.
+   */
+  category: 'consulting' | 'technical'
   updatedAt: string
   createdAt: string
 }
@@ -921,6 +925,7 @@ export interface ServicesSelect<T extends boolean = true> {
   depositAmount?: T
   order?: T
   status?: T
+  category?: T
   updatedAt?: T
   createdAt?: T
 }

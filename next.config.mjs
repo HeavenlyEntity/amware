@@ -16,6 +16,27 @@ const nextConfig = {
         hostname: 'avatars.githubusercontent.com',
         pathname: '/u/**',
       },
+      {
+        // The studio template's placeholder testimonial avatars. They only
+        // ever render in local dev and on Vercel previews, never in
+        // production (src/lib/testimonials/services-testimonials.js).
+        protocol: 'https',
+        hostname: 'assets.aceternity.com',
+        pathname: '/avatars/**',
+      },
+      {
+        // Illustrated DiceBear "notionists" avatars inside the website-build
+        // illustrations: drawings, not photographs of anyone.
+        protocol: 'https',
+        hostname: 'api.dicebear.com',
+        pathname: '/9.x/notionists/**',
+      },
+      {
+        // The phone wallpaper in the micro-interactions illustration.
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/photo-1540206395-68808572332f',
+      },
     ],
   },
   async rewrites() {
