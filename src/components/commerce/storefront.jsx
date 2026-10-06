@@ -3,6 +3,8 @@ export {
   CourseCard,
   ProductCard,
   ServiceCard,
+  ServiceGrid,
+  ServiceStrip,
 } from '@/components/commerce/catalog-cards'
 
 /* Store chrome shared by the catalog pages: the datasheet hero and the

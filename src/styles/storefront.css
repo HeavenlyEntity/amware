@@ -596,6 +596,13 @@
   list-style: none;
   padding-left: 0;
 }
+/* Payload's rich-text wrapper arrives with a 40px top margin, and the
+   first block inside it keeps prose's own; on a service card they stacked
+   into a gap three times the template's between the price and the list. */
+.amw-service-body .prose .payload-richtext,
+.amw-service-body .prose .payload-richtext > :first-child {
+  margin-top: 0;
+}
 .amw-check,
 .amw-service-body :where(ul > li) {
   position: relative;
@@ -624,6 +631,72 @@
   border: solid var(--amw-accent);
   border-width: 0 1.6px 1.6px 0;
   transform: rotate(45deg);
+}
+
+/* ---- popular service card (deep teal) ------------------------------------ */
+/* The studio template's featured pricing card, recoloured: a deep-teal
+   gradient with white text. It re-points the tokens the card's parts read
+   (check marks, kickers, rules, the hatch) and the prose colours, which
+   .prose declares on the rich-text element itself, so those are set on
+   `.amw-on-teal .prose` rather than inherited. White and 90% white both
+   clear 4.5:1 on #0b756c, the lighter end of the gradient. */
+.amw-on-teal {
+  --amw-accent: #ffffff;
+  --amw-accent-ink: #ffffff;
+  --amw-accent-soft: rgba(255, 255, 255, 0.16);
+  --amw-mut: rgba(255, 255, 255, 0.9);
+  --amw-line: rgba(255, 255, 255, 0.22);
+  --pattern-fg: rgba(255, 255, 255, 0.14);
+  background-image: linear-gradient(to bottom, #0b756c, #064e48);
+  color: #ffffff;
+}
+.amw-on-teal .prose {
+  --tw-prose-body: rgba(255, 255, 255, 0.9);
+  --tw-prose-headings: #ffffff;
+  --tw-prose-bold: #ffffff;
+  --tw-prose-links: #ffffff;
+  --tw-prose-code: #ffffff;
+  --tw-prose-quotes: #ffffff;
+  --tw-prose-quote-borders: rgba(255, 255, 255, 0.4);
+  --tw-prose-hr: rgba(255, 255, 255, 0.22);
+  --tw-prose-captions: rgba(255, 255, 255, 0.9);
+  --tw-prose-bullets: rgba(255, 255, 255, 0.7);
+  --tw-prose-counters: rgba(255, 255, 255, 0.9);
+  --tw-prose-invert-body: rgba(255, 255, 255, 0.9);
+  --tw-prose-invert-headings: #ffffff;
+  --tw-prose-invert-bold: #ffffff;
+  --tw-prose-invert-links: #ffffff;
+  --tw-prose-invert-code: #ffffff;
+  --tw-prose-invert-quotes: #ffffff;
+  --tw-prose-invert-quote-borders: rgba(255, 255, 255, 0.4);
+  --tw-prose-invert-hr: rgba(255, 255, 255, 0.22);
+  --tw-prose-invert-captions: rgba(255, 255, 255, 0.9);
+  --tw-prose-invert-bullets: rgba(255, 255, 255, 0.7);
+  --tw-prose-invert-counters: rgba(255, 255, 255, 0.9);
+}
+/* accessibility.css colours `.prose a` and `.dark .prose a` directly, so
+   the prose link variable never reaches them; one class more wins in both
+   themes without depending on which file loads last. */
+.amw-on-teal .prose a,
+.dark .amw-on-teal .prose a {
+  color: #ffffff;
+}
+/* The site-wide focus ring is the gradient's own teal, so on this card it
+   turns white, with a deep-teal gap that keeps it apart from the white
+   button. One class more than accessibility.css's rule outranks its
+   !important. */
+.amw-on-teal
+  :where(
+    a,
+    button,
+    input,
+    textarea,
+    select,
+    summary,
+    [tabindex]
+  ):focus-visible {
+  outline-color: #ffffff !important;
+  box-shadow: 0 0 0 3px #064e48 !important;
 }
 
 /* ---- creed decode -------------------------------------------------------- */

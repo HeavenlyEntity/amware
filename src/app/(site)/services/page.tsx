@@ -7,8 +7,12 @@ import {
   StoreHero,
   StoreEmpty,
   ServiceCard,
+  ServiceGrid,
+  ServiceStrip,
 } from '@/components/commerce/storefront'
 import { groupServices } from '@/lib/services/tracks'
+import { pricedGridClass, splitByPrice } from '@/lib/services/layout'
+import { cn } from '@/lib/utils'
 import { ServiceTracks } from '@/components/services/service-tracks'
 import { BigTestimonial } from '@/components/testimonials/big-testimonial'
 import { MasonryTestimonials } from '@/components/testimonials/masonry-testimonials'
@@ -41,20 +45,48 @@ export default async function ServicesPage() {
     nodeEnv: process.env.NODE_ENV,
     vercelEnv: process.env.VERCEL_ENV,
   })
-  const cards = (list: typeof docs) => (
-    <ul className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 md:gap-8">
-      {list.map((service, i) => (
-        <ServiceCard
-          key={service.id}
-          service={service}
-          index={i}
-          description={
-            <RichText data={service.description} className="prose-sm" />
-          }
-        />
-      ))}
-    </ul>
+  const body = (service: (typeof docs)[number]) => (
+    <RichText data={service.description} className="prose-sm" />
   )
+  /* The studio template's pricing section: priced services side by side at
+     equal height, joined by 1px seams in one frame, then anything without a
+     price as a wide strip underneath. */
+  const cards = (list: typeof docs) => {
+    const { priced, unpriced } = splitByPrice(list)
+    return (
+      <>
+        {priced.length > 0 && (
+          <ServiceGrid
+            className={cn(
+              'bg-[var(--amw-line)] ring-[var(--amw-line)] grid grid-cols-1 gap-px overflow-hidden rounded-2xl ring-1',
+              pricedGridClass(priced.length)
+            )}
+          >
+            {priced.map((service) => (
+              <ServiceCard
+                key={service.id}
+                service={service}
+                description={body(service)}
+              />
+            ))}
+          </ServiceGrid>
+        )}
+        {unpriced.length > 0 && (
+          <ul
+            className={cn('flex flex-col gap-4', priced.length > 0 && 'mt-6')}
+          >
+            {unpriced.map((service) => (
+              <ServiceStrip
+                key={service.id}
+                service={service}
+                description={body(service)}
+              />
+            ))}
+          </ul>
+        )}
+      </>
+    )
+  }
 
   return (
     <Container className="mt-16 sm:mt-32">

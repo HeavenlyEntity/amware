@@ -14,6 +14,7 @@ import {
   CourseCard,
   ProductCard,
   ServiceCard,
+  ServiceStrip,
 } from '@/components/commerce/catalog-cards'
 
 const product = {
@@ -233,6 +234,90 @@ describe('catalog cards', () => {
       </ul>
     )
     expect(screen.getByText('$1,250.5')).toBeInTheDocument()
+  })
+
+  it('tags a service the CMS marks popular', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{
+            slug: 'company-site',
+            name: 'Company Site',
+            startingPrice: 4500,
+            popular: true,
+          }}
+        />
+      </ul>
+    )
+    expect(screen.getByText('Most popular')).toBeInTheDocument()
+  })
+
+  it('leaves the tag off a service the CMS does not mark popular', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{
+            slug: 'one-pager',
+            name: 'One Pager',
+            startingPrice: 2500,
+          }}
+        />
+      </ul>
+    )
+    expect(screen.queryByText('Most popular')).toBeNull()
+  })
+
+  it('keeps the deposit terms around the button on a popular card', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{
+            slug: 'cto',
+            name: 'Fractional CTO',
+            startingPrice: 7500,
+            popular: true,
+            bookingUrl: 'https://cal.com/amware/on-demand-outcome',
+            whopPlanId: 'plan_live',
+            depositAmount: 1500,
+          }}
+        />
+      </ul>
+    )
+    expect(screen.getByText('Most popular')).toBeInTheDocument()
+    const note = screen.getByRole('note', {
+      name: /first call value and refund terms/i,
+    })
+    const button = screen.getByRole('button', {
+      name: 'Book your strategy call · $1,500',
+    })
+    const refund = screen.getByText('Full refund if we don’t work together.')
+    expect(note.compareDocumentPosition(button)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(button.compareDocumentPosition(refund)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+  })
+
+  it('lays an unpriced service out as a strip with its summary and the quote link', () => {
+    render(
+      <ul>
+        <ServiceStrip
+          service={{
+            slug: 'custom-work',
+            name: 'Custom work',
+            summary: 'If you have specific requirements, let’s talk.',
+          }}
+        />
+      </ul>
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Custom work' })
+    ).toBeInTheDocument()
+    expect(screen.getByText(/specific requirements/)).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /request a quote/i })
+    ).toHaveAttribute('href', '/contact')
   })
 
   it('service card with a product id renders the purchase button instead', () => {
