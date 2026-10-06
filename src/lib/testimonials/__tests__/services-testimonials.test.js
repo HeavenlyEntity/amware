@@ -32,23 +32,29 @@ describe('servicesTestimonials in production', () => {
     expect(all.every((x) => x.image === null)).toBe(true)
   })
 
-  it("features Mark's website-build quote, in full, with no partner pill", () => {
+  it('fills every bento slot, so a renamed person cannot drop out of it', () => {
+    expect(t.featured).not.toBeNull()
+    expect(Object.values(t.supporting).every(Boolean)).toBe(true)
+  })
+
+  it("features Mark's LinkedIn recommendation, with no partner pill", () => {
     expect(t.featured.name).toBe('Mark Schilling')
-    expect(t.featured.quote).toMatch(/^I came in with a clear vision/)
-    expect(t.featured.quote).toMatch(/not a website\.$/)
+    expect(t.featured.quote).toMatch(/^From the very first conversation/)
+    expect(t.featured.quote).toMatch(/nothing short of transformative\.$/)
     expect(t.featured.partner).toBeNull()
   })
 
-  it("keeps Dewayne's employment reference last", () => {
+  it('fills the rest of the bento with clients', () => {
     expect(t.supporting.topLeft.name).toBe('Grace L.')
     expect(t.supporting.bottomLeft.name).toBe('Mike Pryke')
-    expect(t.supporting.topRight).toBeNull()
-    expect(t.supporting.bottomRight.name).toBe('Dewayne K.')
-    expect(t.supporting.bottomRight.designation).toMatch(/Former supervisor/)
+    expect(t.supporting.topRight.name).toBe('Brian Meece')
+    expect(t.supporting.bottomRight.name).toBe('John Boese')
   })
 
-  it('leaves the wall empty until there are more than four', () => {
-    expect(t.wall).toEqual([])
+  it('puts the employment references on the wall, Dewayne last', () => {
+    expect(t.wall.map((x) => x.name)).toEqual(['Rebecca Sunda', 'Dewayne K.'])
+    expect(t.wall[0].designation).toMatch(/^Former manager/)
+    expect(t.wall[1].designation).toMatch(/^Former supervisor/)
   })
 })
 

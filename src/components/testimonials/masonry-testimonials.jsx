@@ -4,8 +4,8 @@ import { masonryGridColsClass } from './masonry-grid'
 /* Ported from the studio template's MasonryTestimonials: every
    testimonial not already in the bento, as a wall of quote cards whose
    column count never strands one card alone on the last row. It renders
-   nothing when nothing is left over, which in production is the case
-   until there are more than four real testimonials. */
+   nothing when nothing is left over. In production it holds the
+   employment references, which stay out of the bento. */
 
 export function MasonryTestimonials({ items }) {
   if (!items?.length) return null

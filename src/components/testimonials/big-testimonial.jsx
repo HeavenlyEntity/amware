@@ -16,7 +16,7 @@ import { Avatar } from './avatar'
    the text colour and turns near-white in dark mode. The glow is the
    brand accent. It renders what it is handed
    (lib/testimonials/services-testimonials.js): placeholders in dev and on
-   previews, the real four in production. */
+   previews, the real clients in production. */
 
 function RevealWord({ word, index, total, scrollYProgress }) {
   const t = Math.max(total, 1)

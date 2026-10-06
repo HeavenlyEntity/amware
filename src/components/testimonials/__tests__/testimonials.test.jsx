@@ -25,23 +25,23 @@ afterEach(() => {
   reduced.current = false
 })
 
-describe('BigTestimonial with the real four', () => {
-  it('features Mark in full and keeps the reference last', () => {
+describe('BigTestimonial with the real testimonials', () => {
+  it('features Mark in full and keeps the references out of the bento', () => {
     const { container } = render(<BigTestimonial {...live} />)
     expect(
       screen.getByRole('region', { name: 'Testimonials' })
     ).toBeInTheDocument()
     expect(container.textContent).toContain(live.featured.quote)
-    const names = ['Grace L.', 'Mike Pryke', 'Dewayne K.'].map((n) =>
-      screen.getByText(n)
-    )
-    expect(
-      names[2].compareDocumentPosition(names[0]) &
-        Node.DOCUMENT_POSITION_PRECEDING
-    ).toBeTruthy()
-    expect(
-      screen.getByText('Former supervisor, RL Canning (Honeywell)')
-    ).toBeInTheDocument()
+    for (const name of [
+      'Grace L.',
+      'Mike Pryke',
+      'Brian Meece',
+      'John Boese',
+    ]) {
+      expect(screen.getByText(name)).toBeInTheDocument()
+    }
+    expect(screen.queryByText('Rebecca Sunda')).toBeNull()
+    expect(screen.queryByText('Dewayne K.')).toBeNull()
   })
 
   it('shows initials, never photos, and no partner pill', () => {
@@ -73,8 +73,22 @@ describe('BigTestimonial with placeholders (dev and preview)', () => {
 
 describe('MasonryTestimonials', () => {
   it('renders nothing when the wall is empty', () => {
-    const { container } = render(<MasonryTestimonials items={live.wall} />)
+    const { container } = render(<MasonryTestimonials items={[]} />)
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('shows the employment references as references, Dewayne last', () => {
+    render(<MasonryTestimonials items={live.wall} />)
+    const figures = screen.getAllByRole('figure')
+    expect(figures).toHaveLength(2)
+    expect(figures[0]).toHaveTextContent('Rebecca Sunda')
+    expect(figures[1]).toHaveTextContent('Dewayne K.')
+    expect(
+      screen.getByText('Former manager, IT asset management')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Former supervisor, RL Canning (Honeywell)')
+    ).toBeInTheDocument()
   })
 
   it('lays the leftovers out without a lone card on the last row', () => {

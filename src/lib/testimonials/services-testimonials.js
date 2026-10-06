@@ -15,9 +15,11 @@ export function showPlaceholders({ nodeEnv, vercelEnv } = {}) {
   return nodeEnv === 'development' || vercelEnv === 'preview'
 }
 
-/* Real testimonials in the template's card shape. Quotes run in full:
-   trimming someone's words would put different words in their mouth. No
-   image, so the card shows initials. */
+/* Real testimonials in the template's card shape. Quotes run exactly as the
+   content file stores them, never trimmed here: cutting someone's words would
+   put different words in their mouth. Where a source runs long, the content
+   file keeps one unbroken passage of it. No image, so the card shows
+   initials. */
 function fromReal(t) {
   return {
     id: t.name,
@@ -34,15 +36,17 @@ function byName(name) {
   return t ? fromReal(t) : null
 }
 
-/* Mark's is the website-build quote, so it leads. Dewayne's is an
-   employment reference, not a client endorsement, so it sits last. */
+/* Mark's is the website-build quote, so it leads, and clients fill the rest
+   of the bento. The employment references are not client endorsements, so
+   they fall through to the wall, in the content file's order. Slots match by
+   exact name: rename someone there and rename them here too. */
 function realSelection() {
   const featured = byName('Mark Schilling')
   const supporting = {
     topLeft: byName('Grace L.'),
     bottomLeft: byName('Mike Pryke'),
-    topRight: null,
-    bottomRight: byName('Dewayne K.'),
+    topRight: byName('Brian Meece'),
+    bottomRight: byName('John Boese'),
   }
   const used = new Set(
     [featured, ...Object.values(supporting)].filter(Boolean).map((t) => t.id)
