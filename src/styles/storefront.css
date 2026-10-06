@@ -596,6 +596,13 @@
   list-style: none;
   padding-left: 0;
 }
+/* Payload's rich-text wrapper arrives with a 40px top margin, and the
+   first block inside it keeps prose's own; on a service card they stacked
+   into a gap three times the template's between the price and the list. */
+.amw-service-body .prose .payload-richtext,
+.amw-service-body .prose .payload-richtext > :first-child {
+  margin-top: 0;
+}
 .amw-check,
 .amw-service-body :where(ul > li) {
   position: relative;

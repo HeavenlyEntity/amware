@@ -460,7 +460,7 @@ export function ServiceCard({ service, description = null }) {
         </div>
 
         {description && (
-          <div className={cn('amw-service-body mt-8 text-sm', t.body)}>
+          <div className={cn('amw-service-body mt-6 text-sm', t.body)}>
             {description}
           </div>
         )}
