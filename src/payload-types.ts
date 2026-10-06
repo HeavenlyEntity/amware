@@ -491,6 +491,10 @@ export interface Service {
    * Which /services tab this engagement sits under.
    */
   category: 'consulting' | 'technical'
+  /**
+   * Gives this card the featured deep-teal look and a "Most popular" tag on /services. Applies to priced services.
+   */
+  popular?: boolean | null
   updatedAt: string
   createdAt: string
 }
@@ -926,6 +930,7 @@ export interface ServicesSelect<T extends boolean = true> {
   order?: T
   status?: T
   category?: T
+  popular?: T
   updatedAt?: T
   createdAt?: T
 }

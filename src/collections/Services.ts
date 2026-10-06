@@ -135,5 +135,16 @@ export const Services: CollectionConfig = {
         description: 'Which /services tab this engagement sits under.',
       },
     },
+    {
+      name: 'popular',
+      type: 'checkbox',
+      label: 'Popular',
+      defaultValue: false,
+      admin: {
+        position: 'sidebar',
+        description:
+          'Gives this card the featured deep-teal look and a "Most popular" tag on /services. Applies to priced services.',
+      },
+    },
   ],
 }
