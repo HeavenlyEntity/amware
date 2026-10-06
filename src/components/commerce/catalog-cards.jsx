@@ -364,11 +364,18 @@ const CARD_TONE = {
 
 /* The priced services' frame. It fades in as one piece because its own
    background is what draws the 1px seams: cards fading in one by one would
-   show that background as a grey slab until each arrived. */
+   show that background as a grey slab until each arrived. It starts as soon
+   as any of it is on screen: stacked on a phone the grid is several screens
+   tall, so the cards' "30% visible" rule would never be met and the whole
+   grid would stay invisible. */
 export function ServiceGrid({ className, children }) {
   const { reduce: _reduce, ...reveal } = useReveal(0)
   return (
-    <motion.ul className={className} {...reveal}>
+    <motion.ul
+      className={className}
+      {...reveal}
+      viewport={{ once: true, amount: 'some' }}
+    >
       {children}
     </motion.ul>
   )
