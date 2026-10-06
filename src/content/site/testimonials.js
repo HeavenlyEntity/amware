@@ -21,7 +21,10 @@
    that Mike, Brian and John had given him a free hand with their cards, and
    said what he did for the two new names: software for Brian at Green Light
    Go, fractional CTO advice for John. Their cards claim nothing beyond that
-   work and what working with him was like.
+   work and what working with him was like. Brian is also Alec's mentor
+   (Alec confirmed both on 2026-10-05; the site's metadata names him as
+   one), and his role line discloses it on the card itself: a reader should
+   know of a close tie before weighing an endorsement.
 
    Rebecca's and Dewayne's are EMPLOYMENT REFERENCES, not client
    testimonials, and their role lines say so. Employer history must not be
@@ -91,7 +94,7 @@ export const testimonials = [
       'Alec is genuinely fun to build with. I could explain what Green Light Go needed in my own messy way, and he would turn it into software without burying me in jargon. I love working with someone who makes the technical side feel easy.',
     verbatim: true,
     name: 'Brian Meece',
-    role: 'Founder of Green Light Go',
+    role: 'Founder of Green Light Go · mentor and client',
   },
   {
     title: 'The Whole Picture First',
