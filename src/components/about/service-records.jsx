@@ -160,11 +160,18 @@ export function EducationRecord() {
   return (
     <RecordPanel label="Education">
       <ul className="flex flex-col gap-2">
-        {/* TODO: add the MBA school name when confirmed. */}
+        {/* School confirmed by Alec 2026-10-06. Both rows are mirrored in
+            the Person JSON-LD (lib/seo/schema.js), which may only mark up
+            what this panel shows. */}
         <RecordRow
           title="MBA, Business Administration"
-          subtitle="Bridging the boardroom and the codebase"
+          subtitle="Woolf University"
           meta="completed feb 2026"
+        />
+        <RecordRow
+          title="Certified Full-Stack Software Developer"
+          subtitle="Woz U"
+          meta="issued feb 2019"
         />
       </ul>
     </RecordPanel>

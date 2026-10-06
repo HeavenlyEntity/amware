@@ -17,6 +17,8 @@ import '@/styles/storefront.css'
 import 'focus-visible'
 import '@/styles/accessibility.css'
 import { AccessibilityProvider } from '@/components/AccessibilityProvider'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { siteGraph } from '@/lib/seo/schema'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -118,6 +120,8 @@ export default function SiteLayout({
             </div>
           </div>
         </AccessibilityProvider>
+        {/* Organization, Person and WebSite: who runs this site, on every page. */}
+        <JsonLd data={siteGraph()} />
         <Analytics />
         <SpeedInsights />
         <StagewiseInit />

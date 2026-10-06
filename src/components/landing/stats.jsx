@@ -80,17 +80,15 @@ function AnimatedNumber({ value, suffix, decimals = 0 }) {
     return () => unsubscribe()
   }, [display, suffix])
 
+  /* One text node, not an sr-only copy beside an aria-hidden copy. Crawlers
+     and AI readers ignore aria and concatenate both, so the old markup
+     shipped "22 Companies Founded" and "40+40+" in the raw HTML. The server
+     renders the final figure; the animation only rewrites it client-side. */
   return (
-    <>
-      <span className="sr-only">
-        {value.toFixed(decimals)}
-        {suffix}
-      </span>
-      <span ref={ref} aria-hidden="true" className="amw-price">
-        {value.toFixed(decimals)}
-        {suffix}
-      </span>
-    </>
+    <span ref={ref} className="amw-price">
+      {value.toFixed(decimals)}
+      {suffix}
+    </span>
   )
 }
 

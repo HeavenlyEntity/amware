@@ -5,7 +5,8 @@ export const metadata = withSocialImage(
   {
     title: 'About',
     description:
-      'I’m Alec Mingione. I live in Phoenix Arizona, where I engineer the future.',
+      'Alec Mingione: fractional CTO and founder of AMWARE Technologies LLC. Honeywell automation, Charles Schwab, Senior Lead at NewGen, MBA from Woolf University.',
+    alternates: { canonical: '/about' },
   },
   'about'
 )

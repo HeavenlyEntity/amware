@@ -1,8 +1,7 @@
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm-modern'
 import { topics } from '@/lib/ai/documents'
-import { identity } from '@/content/site/identity'
-import { siteOrigin } from '@/lib/site-origin'
+import { personSchema } from '@/lib/seo/schema'
 
 function MachineTable({ node, children }) {
   const text = (n) =>
@@ -112,13 +111,10 @@ export function MachineDocument({ doc }) {
         ...(doc.published ? { datePublished: doc.published } : {}),
       }
     : {
+        /* The same Person node the human site publishes, so both
+           layers describe one entity under one @id. */
         '@context': 'https://schema.org',
-        '@type': 'Person',
-        '@id': siteOrigin + '/about#alec',
-        name: identity.name,
-        url: siteOrigin + '/about',
-        jobTitle: identity.role,
-        sameAs: [identity.linkedin, identity.github],
+        ...personSchema(),
       }
   return (
     <>

@@ -2,50 +2,43 @@ import { withSocialImage } from '@/lib/social/metadata'
 import HomeContent from './HomeContent'
 import { getAllArticles } from '@/lib/getAllArticles'
 import { getPayloadClient } from '@/lib/getPayloadClient'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { faqSchema } from '@/lib/seo/schema'
+import { faqs } from '@/content/site/faq'
 
 export const revalidate = 60
 
 export const metadata = withSocialImage(
   {
     title: {
-      absolute: 'Alec Mingione - Fractional CTO, Software Engineer & Founder',
+      absolute: 'Alec Mingione | Fractional CTO & AI Systems Consultant',
     },
+    /* Meta keywords are ignored by search engines and were the only place
+       some unverifiable claims lived, so they are gone. Credentials appear
+       on /about in the exact form Alec can document: Woz U certificate
+       (2019), MBA from Woolf University (Feb 2026). */
     description:
-      "I'm Alec Mingione, a fractional CTO and software engineer based in Phoenix, Arizona. I bridge the gap between business strategy and technical execution — from whiteboard architecture to investor-ready unit economics.",
-    keywords: [
-      'Alec Mingione',
-      'fractional CTO',
-      'software engineer',
-      'AI expert',
-      'technology founder',
-      'Phoenix Arizona',
-      'technical strategy',
-      'software architecture',
-      'Steve Wozniak certified full-stack engineer',
-      'Brian Meece mentorship',
-      'Rocket Hub',
-      'Green Light Go',
-    ],
-    authors: [{ name: 'Alec Mingione', url: '/' }],
+      'Phoenix-based fractional CTO and AI systems consultant. Alec Mingione gives founders senior ownership of architecture, AI and Next.js engineering.',
+    authors: [{ name: 'Alec Mingione', url: '/about' }],
     creator: 'Alec Mingione',
-    publisher: 'Amware',
+    publisher: 'AMWARE Technologies LLC',
     alternates: { canonical: '/' },
     openGraph: {
       type: 'website',
       locale: 'en_US',
       url: '/',
-      siteName: 'Amware',
-      title: 'Alec Mingione - Fractional CTO, Software Engineer & Founder',
+      siteName: 'AMWARE',
+      title: 'Alec Mingione | Fractional CTO & AI Systems Consultant',
       description:
-        'Alec Mingione is a fractional CTO, founder, and full-stack engineer certified by Apple co-founder Steve Wozniak and mentored by Rocket Hub and Green Light Go founder Brian Meece.',
+        'Fractional CTO and AI systems consultant for founders and growing companies. Architecture, AI and Next.js engineering, remote-first from Phoenix, Arizona.',
     },
     twitter: {
       card: 'summary_large_image',
       site: '@AmwareDotDev',
       creator: '@AmwareDotDev',
-      title: 'Alec Mingione - Fractional CTO, Software Engineer & Founder',
+      title: 'Alec Mingione | Fractional CTO & AI Systems Consultant',
       description:
-        'Fractional CTO, founder, and full-stack engineer certified by Apple co-founder Steve Wozniak and mentored by Brian Meece.',
+        'Fractional CTO and AI systems consultant for founders and growing companies. Remote-first from Phoenix, Arizona.',
     },
   },
   'home'
@@ -97,12 +90,16 @@ export default async function HomePage() {
   }
 
   return (
-    <HomeContent
-      articles={articles}
-      products={products}
-      services={services}
-      kits={kits}
-      catalogError={catalogError}
-    />
+    <>
+      {/* The same list the FAQ accordion renders on this page. */}
+      <JsonLd data={faqSchema(faqs)} />
+      <HomeContent
+        articles={articles}
+        products={products}
+        services={services}
+        kits={kits}
+        catalogError={catalogError}
+      />
+    </>
   )
 }
