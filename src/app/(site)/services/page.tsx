@@ -18,14 +18,17 @@ import { BigTestimonial } from '@/components/testimonials/big-testimonial'
 import { MasonryTestimonials } from '@/components/testimonials/masonry-testimonials'
 import { servicesTestimonials } from '@/lib/testimonials/services-testimonials'
 import { WebsitePackage } from '@/components/website-package'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { servicesSchema } from '@/lib/seo/schema'
 
 export const revalidate = 60
 
 export const metadata = withSocialImage(
   {
-    title: 'Services',
+    title: { absolute: 'Fractional CTO Services & Pricing | AMWARE' },
     description:
-      'Fractional CTO leadership and focused engineering engagements — scoped, senior, outcome-driven.',
+      'Advisor, Fractional CTO and Embedded CTO engagements for founders, from pre-seed to Series A and M&A prep. Published monthly pricing, remote-first.',
+    alternates: { canonical: '/services' },
   },
   'services'
 )
@@ -90,6 +93,8 @@ export default async function ServicesPage() {
 
   return (
     <Container className="mt-16 sm:mt-32">
+      {/* Built from the same Payload rows as the cards below. */}
+      <JsonLd data={servicesSchema(docs)} />
       <TrackView type="services" id="services" name="Services" />
       <div className="amw">
         <StoreHero

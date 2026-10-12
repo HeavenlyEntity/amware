@@ -14,9 +14,13 @@ import { SectionEyebrow } from './section-eyebrow'
 /* Ported from the "minimal" landing template (components/stats.tsx):
    spring-driven counters that run once when scrolled into view.
 
-   TODO(alec): the first two figures are verifiable (shipping since 2017,
-   two companies founded); the last two are placeholders. Replace with
-   real counts before publishing. */
+   Every figure has a source Alec gave. Years and companies come from the
+   About record. The Honeywell figure is his before-and-after count: on a
+   36-laptop day the old process finished 12 and his tool's finished 26,
+   which is 26 / 12 = 2.2x (2026-10-11). "People led" is the 20+ across
+   four departments he leads as EdenKode's CTO, from his resume. The old
+   "40+ projects" and "12+ engineers mentored" were placeholders and are
+   gone; do not add a figure here without a source. */
 
 const easeOut = [0.16, 1, 0.3, 1]
 
@@ -32,14 +36,15 @@ const stats = [
     label: 'Companies Founded',
   },
   {
-    value: 40,
-    suffix: '+',
-    label: 'Projects Delivered',
+    value: 2.2,
+    decimals: 1,
+    suffix: 'x',
+    label: 'Daily Laptop Setups at Honeywell',
   },
   {
-    value: 12,
+    value: 20,
     suffix: '+',
-    label: 'Engineers Mentored',
+    label: 'People Led as CTO',
   },
 ]
 
@@ -80,17 +85,15 @@ function AnimatedNumber({ value, suffix, decimals = 0 }) {
     return () => unsubscribe()
   }, [display, suffix])
 
+  /* One text node, not an sr-only copy beside an aria-hidden copy. Crawlers
+     and AI readers ignore aria and concatenate both, so the old markup
+     shipped "22 Companies Founded" and "40+40+" in the raw HTML. The server
+     renders the final figure; the animation only rewrites it client-side. */
   return (
-    <>
-      <span className="sr-only">
-        {value.toFixed(decimals)}
-        {suffix}
-      </span>
-      <span ref={ref} aria-hidden="true" className="amw-price">
-        {value.toFixed(decimals)}
-        {suffix}
-      </span>
-    </>
+    <span ref={ref} className="amw-price">
+      {value.toFixed(decimals)}
+      {suffix}
+    </span>
   )
 }
 

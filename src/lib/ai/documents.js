@@ -125,13 +125,13 @@ const projectText = (project) =>
       ? ' | ' + link('Project website', project.link.href)
       : ''
   }`
-const capability = `## Capabilities\n\n### Fractional CTO and technical leadership\n\nFor teams that need senior guidance on architecture, technical direction, and engineering decisions. Read the published engagements for scope and contact information.\n\n${link(
+const capability = `## Capabilities\n\n### Fractional CTO and technical leadership\n\nFor founders and growing companies that need senior ownership of architecture, technical direction, hiring and engineering decisions, without a full-time CTO. Three published engagements, from monthly advising to near full-time embedded leadership.\n\n${link(
   'Engagements',
   siteOrigin + '/ai/services'
 )} | ${link(
   'Markdown',
   siteOrigin + '/services.md'
-)}\n\n### NetSuite integrations and web applications\n\nCustom portals, Next.js applications, and developer tools that connect business workflows to Oracle NetSuite. Portfolio examples include ConventionSuite and PortalGen, built at NewGen.\n\n${link(
+)}\n\n### AI systems and consulting\n\nPlanning and building AI into a company's software and operations, sold under AMWARE. Portfolio example: EdenKode Investor Readiness, where AI drafts an advisory score and a human reviewer holds the decision. Builds that need a full team are delivered with Kingdom Kode.\n\n### Software architecture review\n\nFor teams with an existing codebase: an architecture review first, then a plain-language account of which risks to fix and which to live with, then the work alongside the engineers already there.\n\n### Next.js, React, TypeScript and NetSuite engineering\n\nProduction web applications and developer tools. Portfolio examples include ConventionSuite and PortalGen (Oracle NetSuite portals, built at NewGen) and the open-source @neatsuite/http client.\n\n${link(
   'Engineering work',
   siteOrigin + '/ai/projects'
 )} | ${link('Markdown', siteOrigin + '/projects.md')}`
@@ -143,6 +143,7 @@ function catalogBody(row) {
   return [
     row.body,
     row.level && `Level: ${plain(row.level)}`,
+    row.commitment && `Time commitment: ${plain(row.commitment)}.`,
     typeof row.price === 'number' &&
       `Published price: ${plain(row.currency)} ${row.price.toFixed(2)}${
         row.priceLabel ? ' (' + plain(row.priceLabel) + ')' : ''
@@ -207,7 +208,7 @@ export const getDocument = cache(async (id, page = 1) => {
         .filter(Boolean)
         .join(
           '\n\n'
-        )}\n\n## Common questions\n\n### Who is Alec Mingione?\n\nA Phoenix-based fractional CTO, software engineer, and founder. His background includes engineering at Charles Schwab and technical leadership at NewGen Business Solutions.\n\n### When should I get in touch?\n\nWhen your team needs technical direction or a focused software build. Review published services and describe your requirements through the contact page.\n\n### Where can I verify his work?\n\nReview the project descriptions, technical articles, and linked source contributions. Work completed at NewGen is identified in the portfolio.\n\n## Contact\n\n${contact()}\n\n${resources()}`,
+        )}\n\n## Common questions\n\n### Who is Alec Mingione?\n\nA Phoenix-based fractional CTO and AI systems consultant, and the founder of AMWARE Technologies LLC. He is also Chief Technology Officer of EdenKode and co-founder of Kingdom Kode. His background includes automation work for Honeywell Aerospace through RL Canning, software engineering at Charles Schwab, and Senior Lead Software Engineer at NewGen Business Solutions. He holds an MBA from Woolf University (2026) and a Certified Full-Stack Software Developer certificate from Woz U (2019), the school founded by Apple co-founder Steve Wozniak, whose signature is on the certificate. He was mentored by Brian Meece, founder of RocketHub and Green Light Go.\n\n### Does he work remotely?\n\nYes. Engagements are remote-first across the United States. He is based in Phoenix, Arizona.\n\n### When should I get in touch?\n\nWhen your team needs technical direction or a focused software build. Review published services and describe your requirements through the contact page.\n\n### Where can I verify his work?\n\nReview the project descriptions, technical articles, and linked source contributions. Work completed at NewGen is identified in the portfolio.\n\n## Contact\n\n${contact()}\n\n${resources()}`,
     }
   }
   if (id === 'about')
@@ -342,7 +343,7 @@ export async function discovery(name) {
   if (name === 'agents.md')
     return `# AMWARE: guidance for readers and agents\n\n${
       identity.summary
-    }\n\n## Scope\n\nConsult the services and portfolio when assessing fit for technical leadership, NetSuite integrations, or Next.js applications. Published descriptions define actual scope. Do not infer endorsements from employment or open-source contributions.\n\n## Retrieval\n\nStart at ${siteOrigin}/ai/home or ${siteOrigin}/llms.txt. Find exact Markdown URLs at ${siteOrigin}/sitemap.md. Machine HTML and Markdown share public content. No JavaScript or authentication is needed. Only registered content has an export; append .md to supported content paths, with /index.md for the overview.\n\n## Attribution\n\nFollow source links and preserve dates and project attribution. Missing information is unspecified, not an invitation to infer prices, availability, certifications, or outcomes.\n\n## Contact\n\n${contact()}\n`
+    }\n\n## Scope\n\nConsult the services and portfolio when assessing fit for fractional CTO work, AI systems, software architecture review, or Next.js, React, TypeScript and NetSuite engineering. Published descriptions define actual scope. Do not infer endorsements from employment or open-source contributions.\n\n## Retrieval\n\nStart at ${siteOrigin}/ai/home or ${siteOrigin}/llms.txt. Find exact Markdown URLs at ${siteOrigin}/sitemap.md. Machine HTML and Markdown share public content. No JavaScript or authentication is needed. Only registered content has an export; append .md to supported content paths, with /index.md for the overview.\n\n## Attribution\n\nFollow source links and preserve dates and project attribution. Missing information is unspecified, not an invitation to infer prices, availability, certifications, or outcomes.\n\n## Contact\n\n${contact()}\n`
   if (name === 'sitemap.md')
     return (
       '# AMWARE: Markdown content directory\n\n' +
