@@ -66,5 +66,7 @@ describe('server HTML that crawlers read', () => {
     const { container } = render(<Stats />)
     expect(container.textContent).not.toMatch(/22 ?Companies|40\+40\+/)
     expect(container.textContent).toContain('2Companies Founded')
+    expect(container.textContent).toContain('2.2xDaily Laptop Setups')
+    expect(container.textContent).not.toMatch(/40\+|Engineers Mentored/)
   })
 })

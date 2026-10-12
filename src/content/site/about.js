@@ -12,7 +12,7 @@ export const chapters = [
   {
     number: '03',
     title: 'From factory floors to Schwab',
-    copy: 'That curiosity became a career. I started as an automation programmer at Honeywell, writing the scripts that kept industrial systems humming, moved into web engineering as a junior developer, then joined Charles Schwab and shipped production code for one of the largest brokerages in the world. Every role deepened the same instinct: figure out how the machine works, then make it work better.',
+    copy: 'That curiosity became a career. I started as an automation programmer at Honeywell Aerospace headquarters, where 10 to 30 laptops reached IT every day and each one had to be imaged and set up the same day. On a 36-laptop day, the old process finished 12. I built a tool that automated the imaging and setup, and the team finished 26: more than twice the output. From there I moved into web engineering as a junior developer, then joined Charles Schwab and shipped production code for one of the largest brokerages in the world. Every role deepened the same instinct: figure out how the machine works, then make it work better.',
   },
   {
     number: '04',
