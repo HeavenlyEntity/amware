@@ -22,11 +22,17 @@ describe('site JSON-LD', () => {
     expect(org.legalName).toBe('AMWARE Technologies LLC')
   })
 
-  it('states only documented credentials', () => {
+  it('states credentials as they appear on /about', () => {
     const json = JSON.stringify(personSchema())
-    expect(json).toContain('Woolf University')
-    expect(json).toContain('Woz U')
-    expect(json).not.toMatch(/Wozniak|Review|AggregateRating/)
+    for (const name of [
+      'Woolf University',
+      'Glendale Community College',
+      'Woz U',
+      'Steve Wozniak',
+      'Anthropic',
+    ])
+      expect(json).toContain(name)
+    expect(json).not.toMatch(/Review|AggregateRating/)
   })
 
   it('mirrors the visible FAQ exactly', () => {

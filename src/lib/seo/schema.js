@@ -42,6 +42,7 @@ export function personSchema() {
         name: 'Kingdom Kode',
         url: 'https://www.kingdomkode.com',
       },
+      { '@type': 'Organization', name: 'EdenKode', url: 'https://edenkode.io' },
     ],
     homeLocation: {
       '@type': 'Place',
@@ -52,10 +53,11 @@ export function personSchema() {
         addressCountry: 'US',
       },
     },
-    alumniOf: {
-      '@type': 'CollegeOrUniversity',
-      name: identity.education.institution,
-    },
+    alumniOf: [
+      { '@type': 'CollegeOrUniversity', name: identity.education.institution },
+      { '@type': 'CollegeOrUniversity', name: 'Glendale Community College' },
+    ],
+    /* Mirrors the Education panel on /about row for row. */
     hasCredential: [
       {
         '@type': 'EducationalOccupationalCredential',
@@ -71,8 +73,29 @@ export function personSchema() {
         '@type': 'EducationalOccupationalCredential',
         name: 'Certified Full-Stack Software Developer',
         credentialCategory: 'certificate',
-        recognizedBy: { '@type': 'EducationalOrganization', name: 'Woz U' },
+        recognizedBy: {
+          '@type': 'EducationalOrganization',
+          name: 'Woz U',
+          founder: { '@type': 'Person', name: 'Steve Wozniak' },
+        },
         dateCreated: '2019-02',
+      },
+      {
+        '@type': 'EducationalOccupationalCredential',
+        name: 'Associate of Science, Computer Science',
+        credentialCategory: 'degree',
+        recognizedBy: {
+          '@type': 'CollegeOrUniversity',
+          name: 'Glendale Community College',
+        },
+        dateCreated: '2020',
+      },
+      {
+        '@type': 'EducationalOccupationalCredential',
+        name: 'AI Fluency for Small Businesses',
+        credentialCategory: 'certificate',
+        recognizedBy: { '@type': 'Organization', name: 'Anthropic' },
+        dateCreated: '2026',
       },
     ],
     knowsAbout,

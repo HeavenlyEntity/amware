@@ -13,10 +13,10 @@ export const metadata = withSocialImage(
     title: {
       absolute: 'Alec Mingione | Fractional CTO & AI Systems Consultant',
     },
-    /* Meta keywords are ignored by search engines and were the only place
-       some unverifiable claims lived, so they are gone. Credentials appear
-       on /about in the exact form Alec can document: Woz U certificate
-       (2019), MBA from Woolf University (Feb 2026). */
+    /* Meta keywords are ignored by search engines, so the credentials live
+       in the visible copy and descriptions instead, worded exactly as they
+       appear on /about: a Woz U certificate signed by Steve Wozniak, who
+       founded the school, and Brian Meece's mentorship. */
     description:
       'Phoenix-based fractional CTO and AI systems consultant. Alec Mingione gives founders senior ownership of architecture, AI and Next.js engineering.',
     authors: [{ name: 'Alec Mingione', url: '/about' }],
@@ -30,7 +30,7 @@ export const metadata = withSocialImage(
       siteName: 'AMWARE',
       title: 'Alec Mingione | Fractional CTO & AI Systems Consultant',
       description:
-        'Fractional CTO and AI systems consultant for founders and growing companies. Architecture, AI and Next.js engineering, remote-first from Phoenix, Arizona.',
+        'Fractional CTO and AI systems consultant. Woz U certified, with a certificate signed by Apple co-founder Steve Wozniak, and mentored by Brian Meece, founder of RocketHub and Green Light Go.',
     },
     twitter: {
       card: 'summary_large_image',
@@ -38,7 +38,7 @@ export const metadata = withSocialImage(
       creator: '@AmwareDotDev',
       title: 'Alec Mingione | Fractional CTO & AI Systems Consultant',
       description:
-        'Fractional CTO and AI systems consultant for founders and growing companies. Remote-first from Phoenix, Arizona.',
+        'Fractional CTO and AI systems consultant. Woz U certificate signed by Steve Wozniak; mentored by Brian Meece of RocketHub and Green Light Go.',
     },
   },
   'home'

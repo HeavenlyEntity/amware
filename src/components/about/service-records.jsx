@@ -18,7 +18,22 @@ import logoRlcanning from '@/images/logos/rlcanning-logo.png'
    different, so they are deliberately unmarked. The hero's proof strip reads
    from this, which means a rename here cannot leave the first viewport
    claiming an employer the record below no longer lists. */
+/* AMWARE and EdenKode added 2026-10-11 from Alec's current resume. Two
+   facts here still disagree with that resume and are left as they were
+   until he confirms which is right: MiPi's start year (2022 here, 2020 on
+   the resume) and the RL Canning dates (2017-2020 here, Jan-May 2019 on
+   the resume). */
 const EXPERIENCE = [
+  {
+    company: 'AMWARE Technologies LLC',
+    role: 'Founder & Fractional CTO',
+    period: '2026 - present',
+  },
+  {
+    company: 'EdenKode',
+    role: 'Chief Technology Officer',
+    period: '2024 - present',
+  },
   {
     company: 'Kingdom Kode',
     role: 'Co-Founder & CEO',
@@ -160,18 +175,47 @@ export function EducationRecord() {
   return (
     <RecordPanel label="Education">
       <ul className="flex flex-col gap-2">
-        {/* School confirmed by Alec 2026-10-06. Both rows are mirrored in
-            the Person JSON-LD (lib/seo/schema.js), which may only mark up
-            what this panel shows. */}
+        {/* From Alec's resume, confirmed 2026-10-11. Every row is mirrored
+            in the Person JSON-LD (lib/seo/schema.js), which may only mark
+            up what this panel shows. Woz U is the school Steve Wozniak
+            founded in 2017; Alec's certificate carries his signature. Say
+            exactly that, so a reader who checks finds what the page says. */}
         <RecordRow
           title="MBA, Business Administration"
           subtitle="Woolf University"
-          meta="completed feb 2026"
+          meta="2026"
         />
         <RecordRow
           title="Certified Full-Stack Software Developer"
-          subtitle="Woz U"
-          meta="issued feb 2019"
+          subtitle="Woz U, founded by Apple co-founder Steve Wozniak. Certificate signed by Wozniak."
+          meta="2019"
+        />
+        <RecordRow
+          title="Associate of Science, Computer Science"
+          subtitle="Glendale Community College"
+          meta="2020"
+        />
+        <RecordRow
+          title="AI Fluency for Small Businesses"
+          subtitle="Anthropic"
+          meta="2026"
+        />
+      </ul>
+    </RecordPanel>
+  )
+}
+
+/* Stated by Alec 2026-10-11. Brian is also a client, which his testimonial
+   card discloses; this row is the mentorship itself, said once, in plain
+   view, instead of only in metadata. */
+export function MentorshipRecord() {
+  return (
+    <RecordPanel label="Mentorship">
+      <ul className="flex flex-col gap-2">
+        <RecordRow
+          title="Brian Meece"
+          subtitle="Founder of RocketHub and Green Light Go"
+          meta="mentor"
         />
       </ul>
     </RecordPanel>

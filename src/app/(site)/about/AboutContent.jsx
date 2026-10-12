@@ -19,6 +19,7 @@ import PhotoStrip from '@/components/about/photo-strip'
 import {
   ExperienceRecord,
   EducationRecord,
+  MentorshipRecord,
   SkillsRecord,
   PRIOR_EMPLOYERS,
 } from '@/components/about/service-records'
@@ -275,6 +276,7 @@ export default function AboutContent() {
             <motion.div className="flex flex-col gap-10" {...fadeInUp}>
               <ExperienceRecord />
               <EducationRecord />
+              <MentorshipRecord />
             </motion.div>
             <motion.div
               className="flex flex-col gap-10"

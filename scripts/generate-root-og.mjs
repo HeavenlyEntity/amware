@@ -15,9 +15,9 @@ const escapeXml = (value) =>
 const title = escapeXml('ALEC MINGIONE')
 const role = escapeXml('FRACTIONAL CTO · AI SYSTEMS · ARCHITECTURE')
 const certification = escapeXml('CERTIFIED FULL-STACK SOFTWARE DEVELOPER')
-const certifier = escapeXml('WOZ U · 2019')
-const mentorship = escapeXml('MBA · WOOLF UNIVERSITY')
-const mentorCompanies = escapeXml('COMPLETED FEB 2026')
+const certifier = escapeXml('WOZ U · SIGNED BY STEVE WOZNIAK')
+const mentorship = escapeXml('MENTORED BY BRIAN MEECE')
+const mentorCompanies = escapeXml('FOUNDER · ROCKETHUB + GREEN LIGHT GO')
 
 const background = Buffer.from(`
   <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
