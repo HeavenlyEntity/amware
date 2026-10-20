@@ -123,8 +123,8 @@ function FooterCard() {
               Build.
             </h2>
             <p className="text-zinc-950/70 mt-4 text-sm">
-              &copy; {new Date().getFullYear()} Alec Mingione. All rights
-              reserved.
+              &copy; {new Date().getFullYear()} AMWARE Technologies LLC. All
+              rights reserved.
             </p>
           </motion.div>
 
