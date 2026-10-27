@@ -14,7 +14,13 @@ import logoMotion from '@/images/logos/motion.png'
    chips fall into a matter-js world and can be grabbed and thrown.
    The engine loads lazily, the rAF loop writes transforms straight to
    the DOM (no React state per frame), and reduced motion gets a static
-   pill wall instead of the simulation. */
+   pill wall instead of the simulation.
+
+   The drop waits until a quarter of the panel has scrolled into view, so
+   the visitor sees the chips fall rather than arriving to a settled pile.
+   Every run removes the listeners matter's Mouse put on the container, so
+   pressing reset does not stack a second set on top of the first. Touch
+   keeps vertical panning, so a swipe across the panel still scrolls. */
 
 const CHIPS = [
   { label: 'Next.js', slug: 'nextdotjs', bg: '#1f1f1f', fg: '#ffffff' },
@@ -44,10 +50,12 @@ const ICON_RADIUS = 10
 const WALL_PAD = 16
 
 export function StackRecord() {
+  const panelRef = useRef(null)
   const containerRef = useRef(null)
   const measureRef = useRef(null)
   const chipRefs = useRef([])
   const [resetKey, setResetKey] = useState(0)
+  const [seen, setSeen] = useState(false)
   const reduce = useReducedMotion()
   /* Below md the simulation is not a flourish, it is a failure. Eighteen chips
      fall into roughly 343x210 on a phone: ten stack off the top edge, eight are
@@ -63,7 +71,24 @@ export function StackRecord() {
   const showStatic = reduce || isNarrow
 
   useEffect(() => {
-    if (showStatic) return
+    if (showStatic || seen) return
+    const panel = panelRef.current
+    if (!panel) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setSeen(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.25 }
+    )
+    observer.observe(panel)
+    return () => observer.disconnect()
+  }, [showStatic, seen])
+
+  useEffect(() => {
+    if (showStatic || !seen) return
     const container = containerRef.current
     const measure = measureRef.current
     if (!container || !measure) return
@@ -190,6 +215,19 @@ export function StackRecord() {
       }
       raf = requestAnimationFrame(tick)
 
+      /* Scrolled away, the world and the DOM writes both stop; back in
+         view, they pick up where the pile was. */
+      const visibility = new IntersectionObserver((entries) => {
+        const onScreen = entries.some((entry) => entry.isIntersecting)
+        runner.enabled = onScreen
+        if (onScreen && !raf) raf = requestAnimationFrame(tick)
+        if (!onScreen && raf) {
+          cancelAnimationFrame(raf)
+          raf = 0
+        }
+      })
+      visibility.observe(container)
+
       const onResize = () => {
         const newW = container.clientWidth
         const newH = container.clientHeight
@@ -215,6 +253,18 @@ export function StackRecord() {
       cleanup = () => {
         cancelAnimationFrame(raf)
         ro.disconnect()
+        visibility.disconnect()
+        for (const type of [
+          'mousemove',
+          'mousedown',
+          'mouseup',
+          'touchmove',
+          'touchstart',
+          'touchend',
+        ]) {
+          if (mouse[type]) container.removeEventListener(type, mouse[type])
+        }
+        container.style.cursor = ''
         Runner.stop(runner)
         World.clear(world, false)
         Engine.clear(engine)
@@ -225,32 +275,33 @@ export function StackRecord() {
       cancelled = true
       cleanup?.()
     }
-  }, [resetKey, showStatic])
+  }, [resetKey, showStatic, seen])
 
   return (
-    <div className="flex flex-col gap-3">
-      <h3 className="amw-kicker">Stack</h3>
+    <div>
+      <h3 className="amw-kicker mb-3">Stack</h3>
 
       {showStatic ? (
-        <div className="border-[var(--amw-line)] bg-[color-mix(in_srgb,var(--amw-card-2)_70%,transparent)] rounded-2xl border p-3">
-          {/* Every chip readable, in the same pill language as the "What I do"
-              row directly above. Eighteen vendor brand colours next to each
-              other is a logo soup, and the system budgets one accent. */}
-          <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-            {CHIPS.map((chip) => (
-              <li key={chip.label}>
-                <StaticChip chip={chip} />
-              </li>
-            ))}
-          </ul>
-        </div>
+        /* Every chip readable, in the same pill language as the "What I do"
+           row directly above. Eighteen vendor brand colours next to each
+           other is a logo soup, and the system budgets one accent. */
+        <ul className="bg-[var(--amw-muted)] m-0 flex list-none flex-wrap gap-2 rounded-2xl p-3">
+          {CHIPS.map((chip) => (
+            <li key={chip.label}>
+              <StaticChip chip={chip} />
+            </li>
+          ))}
+        </ul>
       ) : (
-        <div className="border-[var(--amw-line)] bg-[color-mix(in_srgb,var(--amw-card-2)_70%,transparent)] relative h-40 overflow-hidden rounded-2xl border sm:h-64">
+        <div
+          ref={panelRef}
+          className="bg-[var(--amw-muted)] ring-[var(--amw-line)] relative h-64 overflow-hidden rounded-2xl ring-1 ring-inset"
+        >
           <button
             type="button"
             onClick={() => setResetKey((k) => k + 1)}
-            aria-label="Reset stack"
-            className="border-[var(--amw-line-strong)] bg-[var(--amw-card)] hover:text-[var(--amw-accent-ink)] absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-lg border text-zinc-600 transition-colors dark:text-zinc-300"
+            aria-label="Drop the stack again"
+            className="bg-[var(--amw-card)] ring-[var(--amw-line-strong)] hover:text-[var(--amw-accent-ink)] focus-visible:outline-[var(--amw-accent)] absolute right-2.5 top-2.5 z-20 inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-zinc-600 ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300"
           >
             <RotateCcw
               className="h-4 w-4"
@@ -258,6 +309,13 @@ export function StackRecord() {
               aria-hidden="true"
             />
           </button>
+
+          {/* The simulation is decoration; this is the content. */}
+          <ul className="sr-only">
+            {CHIPS.map((chip) => (
+              <li key={chip.label}>{chip.label}</li>
+            ))}
+          </ul>
 
           <div
             ref={measureRef}
@@ -271,8 +329,9 @@ export function StackRecord() {
 
           <div
             ref={containerRef}
+            aria-hidden="true"
             className="absolute inset-0 cursor-grab select-none"
-            style={{ touchAction: 'none' }}
+            style={{ touchAction: 'pan-y' }}
           >
             {CHIPS.map((chip, i) => (
               <div
@@ -294,14 +353,14 @@ export function StackRecord() {
 }
 
 /* The readable form. Same pill language as `SkillsRecord` directly above it:
-   card surface, hairline, zinc label. The vendor mark stays as identification,
-   on a neutral tile, so the row reads as a list of tools rather than a wall of
-   competing brand colours. */
+   card surface, hairline, zinc label. The vendor mark stays as identification
+   on a white disc in both themes: dark marks like Next.js and Vercel vanished
+   on the old dark tile. */
 function StaticChip({ chip }) {
   return (
-    <span className="border-[var(--amw-line)] bg-[var(--amw-card)] inline-flex items-center gap-2 rounded-full border py-1.5 pl-1.5 pr-3.5 text-sm text-zinc-700 dark:text-zinc-300">
+    <span className="bg-[var(--amw-card)] ring-[var(--amw-line)] inline-flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 text-sm text-zinc-700 ring-1 ring-inset dark:text-zinc-300">
       <span
-        className="bg-[var(--amw-card-2)] border-[var(--amw-line)] inline-flex h-6 w-6 items-center justify-center rounded-full border"
+        className="ring-[var(--amw-line)] inline-flex h-6 w-6 items-center justify-center rounded-full bg-white ring-1 dark:ring-0"
         aria-hidden="true"
       >
         {chip.image ? (
@@ -335,7 +394,7 @@ function StaticChip({ chip }) {
 function ChipPill({ chip }) {
   return (
     <div
-      className="dark:ring-white/15 inline-flex items-center gap-2 p-1 pr-2 text-sm font-medium tracking-tight dark:ring-1 sm:text-[15px]"
+      className="ring-white/15 inline-flex items-center gap-2 py-1 pl-1 pr-2.5 text-[15px] font-medium tracking-[-0.01em] ring-1 ring-inset"
       style={{
         backgroundColor: chip.bg,
         color: chip.fg,

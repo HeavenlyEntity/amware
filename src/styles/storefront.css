@@ -1073,3 +1073,97 @@
 .amw-print-only {
   display: none;
 }
+
+/* ---- about page (the book) ----------------------------------------------- */
+/* Entrance: header, then the profile column, then the book, each rising
+   16px. The delay is set inline. Reduced motion is handled globally in
+   accessibility.css, which turns every animation off. */
+@keyframes amw-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.amw-rise {
+  animation: amw-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* Hero photo fan. `--r` is each card's tilt, set inline with its delay. */
+@keyframes amw-polaroid-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-80px) rotate(var(--r));
+    filter: blur(14px);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(var(--r));
+    filter: blur(0);
+  }
+}
+.amw-polaroid {
+  transform: rotate(var(--r));
+  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: amw-polaroid-drop 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.amw-polaroid:hover {
+  transform: rotate(0deg) translateY(-8px) scale(1.06);
+}
+
+/* Page size of the story book: 360x530, 320 wide once the row tightens,
+   and a phone-width notepad below md. */
+.amw-book {
+  --book-w: 360px;
+  --book-h: 530px;
+}
+@media (max-width: 1151px) {
+  .amw-book {
+    --book-w: 320px;
+  }
+}
+@media (max-width: 767px) {
+  .amw-book {
+    --book-w: min(360px, calc(100vw - 48px));
+    --book-h: 540px;
+  }
+}
+
+/* ProfileCard `theme="auto"`: the react-bits card's light and dark frame
+   sets, switched by the site's `dark` class rather than by JS, so the
+   server HTML already matches. Keep in step with THEMES in profile-card.jsx. */
+.pc-theme-auto {
+  --pc-frame: rgba(240, 240, 243, 0.8);
+  --pc-frame-edge: rgba(24, 24, 27, 0.07);
+  --pc-frame-highlight: rgba(255, 255, 255, 0.95);
+  --pc-frame-shadow: 0 22px 44px -22px rgba(24, 24, 27, 0.3),
+    0 6px 16px -10px rgba(24, 24, 27, 0.16);
+  --pc-tile: linear-gradient(180deg, #ffffff 0%, #f6f6f8 100%);
+  --pc-tile-edge: rgba(24, 24, 27, 0.08);
+  --pc-tile-highlight: rgba(255, 255, 255, 1);
+  --pc-tile-shadow: 0 4px 10px -5px rgba(24, 24, 27, 0.25);
+  --pc-ink: #27272a;
+  --pc-muted: rgba(39, 39, 42, 0.6);
+  --pc-hover: brightness(0.97);
+  --pc-press: brightness(0.92);
+  --pc-shade: rgba(24, 24, 27, 0.14);
+}
+:where(.dark) .pc-theme-auto {
+  --pc-frame: rgba(24, 24, 27, 0.66);
+  --pc-frame-edge: rgba(255, 255, 255, 0.08);
+  --pc-frame-highlight: rgba(255, 255, 255, 0.07);
+  --pc-frame-shadow: 0 22px 44px -20px rgba(0, 0, 0, 0.8),
+    0 6px 16px -8px rgba(0, 0, 0, 0.5);
+  --pc-tile: linear-gradient(180deg, #27272a 0%, #18181b 100%);
+  --pc-tile-edge: rgba(255, 255, 255, 0.07);
+  --pc-tile-highlight: rgba(255, 255, 255, 0.12);
+  --pc-tile-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.7);
+  --pc-ink: #f4f4f5;
+  --pc-muted: rgba(244, 244, 245, 0.6);
+  --pc-hover: brightness(1.12);
+  --pc-press: brightness(0.8);
+  --pc-shade: rgba(0, 0, 0, 0.4);
+}

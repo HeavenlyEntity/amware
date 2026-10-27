@@ -2,6 +2,11 @@
 
 import Image from 'next/image'
 import KingdomKodeMark from '@/components/brand/kingdom-kode-mark'
+import logoAmware from '@/images/logos/amware-crown-mark.webp'
+import logoEdenKode from '@/images/logos/edenkode-mark.png'
+import logoWoolf from '@/images/logos/woolf-university.webp'
+import logoAnthropic from '@/images/logos/anthropic.svg'
+import logoWozU from '@/images/logos/woz-u.webp'
 import logoMipi from '@/images/logos/mipi.svg'
 import logoNewgen from '@/images/logos/newgen.png'
 import logoSchwab from '@/images/logos/charles-schwab.png'
@@ -11,7 +16,10 @@ import logoRlcanning from '@/images/logos/rlcanning-logo.png'
 /* Record-block format ported from the RBP portfolio template's About page
    (github.com/DavidHDev/rbp-portfolio): labeled panels of logo rows, a
    collapsible Experience list with a blur fade, pill skills, and a stack
-   chip wall. Restyled to amw tokens; physics stack omitted (no matter-js). */
+   chip wall. Restyled to amw tokens.
+
+   Each list is one quiet panel: rows are separated by space and a hover
+   tint, not by borders, so the logos and titles carry the hierarchy. */
 
 /* `prior` marks the roles that carry OUTSIDE credibility and gives each its
    short form. The founder rows are his own companies and prove something
@@ -28,11 +36,15 @@ const EXPERIENCE = [
     company: 'AMWARE Technologies LLC',
     role: 'Founder & Fractional CTO',
     period: '2026 - present',
+    logo: logoAmware,
+    logoSize: { w: 32, h: 22 },
   },
   {
     company: 'EdenKode',
     role: 'Chief Technology Officer',
     period: '2024 - present',
+    logo: logoEdenKode,
+    logoSize: { w: 32, h: 25 },
   },
   {
     company: 'Kingdom Kode',
@@ -75,6 +87,42 @@ const EXPERIENCE = [
   },
 ]
 
+/* From Alec's resume, confirmed 2026-10-11. Every row is mirrored in the
+   Person JSON-LD (lib/seo/schema.js), which may only mark up what this panel
+   shows. Woz U is the school Steve Wozniak founded in 2017; Alec's
+   certificate carries his signature. Say exactly that, so a reader who
+   checks finds what the page says. Glendale Community College has no logo
+   in the repo yet; its row shows a GCC monogram tile until one arrives. */
+const EDUCATION = [
+  {
+    title: 'MBA, Business Administration',
+    school: 'Woolf University',
+    period: '2026',
+    logo: logoWoolf,
+    logoSize: { w: 30, h: 17 },
+  },
+  {
+    title: 'Certified Full-Stack Software Developer',
+    school:
+      'Woz U, founded by Apple co-founder Steve Wozniak. Certificate signed by Wozniak.',
+    period: '2019',
+    logo: logoWozU,
+  },
+  {
+    title: 'Associate of Science, Computer Science',
+    school: 'Glendale Community College',
+    period: '2020',
+    monogram: 'GCC',
+  },
+  {
+    title: 'AI Fluency for Small Businesses',
+    school: 'Anthropic',
+    period: '2026',
+    logo: logoAnthropic,
+    logoSize: { w: 24, h: 24 },
+  },
+]
+
 const SKILLS = [
   'System Architecture',
   'Fractional CTO Work',
@@ -92,55 +140,66 @@ export const PRIOR_EMPLOYERS = EXPERIENCE.filter((e) => e.prior).map(
   (e) => e.prior
 )
 
-const ROW_HEIGHT = 64
-
-function RecordPanel({ label, children, padded = true }) {
+function RecordPanel({ label, children }) {
   return (
-    <div className="flex flex-col gap-3">
-      <h3 className="amw-kicker">{label}</h3>
-      <div
-        className={`border-[var(--amw-line)] bg-[color-mix(in_srgb,var(--amw-card-2)_70%,transparent)] rounded-2xl border ${
-          padded ? 'p-2 sm:p-3' : ''
-        }`}
-      >
-        {children}
-      </div>
+    <div>
+      <h3 className="amw-kicker mb-3">{label}</h3>
+      {children}
     </div>
   )
 }
 
-function RecordRow({ logo, mark: Mark, title, subtitle, meta }) {
+function RecordList({ children }) {
   return (
-    <li
-      className="border-[var(--amw-line)] bg-[var(--amw-card)] flex items-center gap-4 rounded-xl border p-2"
-      style={{ minHeight: ROW_HEIGHT }}
-    >
+    <ul className="bg-[var(--amw-muted)] m-0 flex list-none flex-col gap-1 rounded-2xl p-2">
+      {children}
+    </ul>
+  )
+}
+
+function RecordRow({
+  logo,
+  logoSize,
+  mark: Mark,
+  monogram,
+  title,
+  subtitle,
+  meta,
+}) {
+  return (
+    <li className="flex items-center gap-4 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-900/[0.03] dark:hover:bg-white/[0.04]">
       {/* Tiles stay white in both themes so every logo reads on a
           consistent ground; marks therefore render in their dark form. */}
-      <span className="ring-[var(--amw-line)] inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white ring-1">
+      <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] bg-white">
         {Mark ? (
-          <Mark className="h-7 w-7 text-zinc-900" />
+          <Mark className="text-zinc-950 h-7 w-7" />
         ) : logo ? (
-          <Image src={logo} alt="" className="h-7 w-7" unoptimized />
+          <Image
+            src={logo}
+            alt=""
+            className="object-contain"
+            style={{ width: logoSize?.w ?? 28, height: logoSize?.h ?? 28 }}
+            unoptimized
+          />
         ) : (
-          <span className="amw-mono text-xs font-semibold text-[#0b756c]">
-            {title.charAt(0)}
+          <span className="amw-mono text-xs font-semibold tracking-[0.04em] text-[#0b756c]">
+            {monogram ?? title.charAt(0)}
           </span>
         )}
       </span>
-      <div className="flex min-w-0 flex-col">
-        <span className="truncate text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-base font-semibold tracking-[-0.01em] text-zinc-900 dark:text-zinc-100">
           {title}
         </span>
-        <span className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+        <span className="text-[var(--amw-mut)] text-sm leading-snug">
           {subtitle}
-          {meta && (
-            <span className="amw-mono ml-2 text-xs text-zinc-600 dark:text-zinc-400">
-              {meta}
-            </span>
-          )}
         </span>
-      </div>
+      </span>
+      {meta && (
+        <span className="amw-mono text-[var(--amw-mut)] shrink-0 text-right text-xs tabular-nums">
+          {meta}
+        </span>
+      )}
     </li>
   )
 }
@@ -149,24 +208,25 @@ function RecordRow({ logo, mark: Mark, title, subtitle, meta }) {
    of it, and what it hid was the single strongest credential on a page whose
    whole job is to be believed: Charles Schwab sat behind a tap, 5.4 viewports
    down. The collapse saved about 290px on a 7,580px page - four percent - and
-   cost the reader the proof. Showing all six also removes a state, an effect, a
-   motion and a tap target from a page that was running about eleven motion
-   systems against a budget of two to three. */
+   cost the reader the proof. Showing every row also removes a state, an
+   effect, a motion and a tap target from a page that was running about eleven
+   motion systems against a budget of two to three. */
 export function ExperienceRecord() {
   return (
     <RecordPanel label="Experience">
-      <ul className="flex flex-col gap-2">
+      <RecordList>
         {EXPERIENCE.map((entry) => (
           <RecordRow
             key={entry.company}
             logo={entry.logo}
+            logoSize={entry.logoSize}
             mark={entry.mark}
             title={entry.company}
             subtitle={entry.role}
             meta={entry.period}
           />
         ))}
-      </ul>
+      </RecordList>
     </RecordPanel>
   )
 }
@@ -174,50 +234,19 @@ export function ExperienceRecord() {
 export function EducationRecord() {
   return (
     <RecordPanel label="Education">
-      <ul className="flex flex-col gap-2">
-        {/* From Alec's resume, confirmed 2026-10-11. Every row is mirrored
-            in the Person JSON-LD (lib/seo/schema.js), which may only mark
-            up what this panel shows. Woz U is the school Steve Wozniak
-            founded in 2017; Alec's certificate carries his signature. Say
-            exactly that, so a reader who checks finds what the page says. */}
-        <RecordRow
-          title="MBA, Business Administration"
-          subtitle="Woolf University"
-          meta="2026"
-        />
-        <RecordRow
-          title="Certified Full-Stack Software Developer"
-          subtitle="Woz U, founded by Apple co-founder Steve Wozniak. Certificate signed by Wozniak."
-          meta="2019"
-        />
-        <RecordRow
-          title="Associate of Science, Computer Science"
-          subtitle="Glendale Community College"
-          meta="2020"
-        />
-        <RecordRow
-          title="AI Fluency for Small Businesses"
-          subtitle="Anthropic"
-          meta="2026"
-        />
-      </ul>
-    </RecordPanel>
-  )
-}
-
-/* Stated by Alec 2026-10-11. Brian is also a client, which his testimonial
-   card discloses; this row is the mentorship itself, said once, in plain
-   view, instead of only in metadata. */
-export function MentorshipRecord() {
-  return (
-    <RecordPanel label="Mentorship">
-      <ul className="flex flex-col gap-2">
-        <RecordRow
-          title="Brian Meece"
-          subtitle="Founder of RocketHub and Green Light Go"
-          meta="mentor"
-        />
-      </ul>
+      <RecordList>
+        {EDUCATION.map((entry) => (
+          <RecordRow
+            key={entry.title}
+            logo={entry.logo}
+            logoSize={entry.logoSize}
+            monogram={entry.monogram}
+            title={entry.title}
+            subtitle={entry.school}
+            meta={entry.period}
+          />
+        ))}
+      </RecordList>
     </RecordPanel>
   )
 }
@@ -225,11 +254,11 @@ export function MentorshipRecord() {
 export function SkillsRecord() {
   return (
     <RecordPanel label="What I do">
-      <div className="flex flex-wrap gap-2 p-1">
+      <div className="flex flex-wrap gap-2">
         {SKILLS.map((skill) => (
           <span
             key={skill}
-            className="border-[var(--amw-line)] bg-[var(--amw-card)] rounded-full border px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300"
+            className="bg-[var(--amw-muted)] ring-[var(--amw-line)] rounded-full px-4 py-2 text-sm text-zinc-700 ring-1 ring-inset dark:text-zinc-300"
           >
             {skill}
           </span>

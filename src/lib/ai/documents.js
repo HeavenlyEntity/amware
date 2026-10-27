@@ -215,6 +215,7 @@ export const getDocument = cache(async (id, page = 1) => {
     return {
       ...doc,
       body: `## Identity\n\n${facts()}\n\n${chapters
+        .filter((c) => c.copy)
         .map((c) => `## ${plain(c.title)}\n\n${plain(c.copy)}`)
         .join('\n\n')}\n\n## Profiles\n\n${contact()}`,
     }
