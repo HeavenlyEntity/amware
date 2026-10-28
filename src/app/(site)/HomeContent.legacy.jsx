@@ -10,6 +10,7 @@ import { GitHubIcon, LinkedInIcon } from '@/components/SocialIcons'
 import StaggeredText from '@/components/react-bits/staggered-text'
 import AmwareCreed from '@/components/brand/amware-creed'
 import KingdomKodeMark from '@/components/brand/kingdom-kode-mark'
+import MipiMark from '@/components/brand/mipi-mark'
 import { ProductCard } from '@/components/commerce/storefront'
 import imageKingdomKode from '@/images/photos/kingdom-kode-port.webp'
 import imageMipi from '@/images/photos/MiPi-example.webp'
@@ -19,7 +20,6 @@ import imageGsc from '@/images/photos/gsc-portal.webp'
 import imageGearz from '@/images/projects/gearz-mockup.webp'
 import logoRlcanning from '@/images/logos/rlcanning-logo.png'
 import logoDotCom from '@/images/logos/Dot_Com_Development.png'
-import logoMipi from '@/images/logos/mipi.svg'
 import logoSchwab from '@/images/logos/charles-schwab.png'
 import logoNewgen from '@/images/logos/newgen.png'
 import { ArrowDown, ArrowUpRight, Briefcase, Mail, PenLine } from 'lucide-react'
@@ -767,7 +767,7 @@ function Resume() {
     {
       company: 'MiPi',
       title: 'Founder & CEO',
-      logo: logoMipi,
+      mark: MipiMark,
       start: '2022',
       end: {
         label: 'Present',

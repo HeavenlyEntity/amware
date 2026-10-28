@@ -29,16 +29,16 @@ import logoCosmos from '@/images/logos/cosmos.svg'
 import logoPortalGen from '@/images/logos/PortalGen Fav-1.png'
 import logoOpenShuttle from '@/images/logos/open-shuttle.svg'
 import logoPlanetaria from '@/images/logos/planetaria.svg'
-import logoFuriousFroth from '@/images/logos/FF.svg'
 import logoChamoji from '@/images/logos/chamoji_logo-ico.png'
 import logoWindstone from '@/images/logos/Windstone icon-1.png'
-import logoMipi from '@/images/logos/mipi-lander-int-icon.svg'
 import authjsLogo from '@/images/logos/authjs.png'
 import logoConventionSuite from '@/images/logos/ConventionSuite.png'
 import KingdomKodeMark from '@/components/brand/kingdom-kode-mark'
+import EdenKodeMark from '@/components/brand/edenkode-mark'
+import FuriousFrothMark from '@/components/brand/furious-froth-mark'
+import MipiMark from '@/components/brand/mipi-mark'
 import logoCelestial from '@/images/logos/dark-celestial-square.svg'
 import logoGearz from '@/images/logos/gearz-icon.svg'
-import logoEdenKode from '@/images/logos/edenkode-mark.png'
 import mockupMipi from '@/images/photos/MiPi-mockup.webp'
 import coverWindstone from '@/images/projects/windstone-cover.png'
 import coverAuthjs from '@/images/projects/authjs-cover.png'
@@ -78,21 +78,21 @@ function getFullYear(dateStr) {
 
 const projectMedia = {
   Gearz: { logo: logoGearz, cover: coverGearz },
-  'EdenKode Investor Readiness': { logo: logoEdenKode, cover: coverEdenKode },
+  'EdenKode Investor Readiness': { mark: EdenKodeMark, cover: coverEdenKode },
   'Celestial Studio Salon': { logo: logoCelestial, cover: coverCelestial },
   'Kingdom Kode': { cover: coverKingdomKode, mark: KingdomKodeMark },
   'ConventionSuite - GSC\u2122': {
     logo: logoConventionSuite,
     cover: coverConventionSuite,
   },
-  'M i P i': { logo: logoMipi, cover: mockupMipi },
+  'M i P i': { mark: MipiMark, cover: mockupMipi },
   'PortalGen\u2122': { logo: logoPortalGen, cover: coverPortalGen },
   '@neatsuite/http': { logo: logoCosmos, cover: coverNeatsuite },
   'Auth.js - NetSuite Provider': { logo: authjsLogo, cover: coverAuthjs },
   Chamoji: { logo: logoChamoji, cover: coverChamoji },
   Windstone: { logo: logoWindstone, cover: coverWindstone },
   'Furious Froth Coffee\u00ae': {
-    logo: logoFuriousFroth,
+    mark: FuriousFrothMark,
     cover: coverFuriousFroth,
   },
   VRSA: { logo: logoPlanetaria, cover: coverVrsa },

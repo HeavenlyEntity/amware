@@ -2,12 +2,12 @@
 
 import Image from 'next/image'
 import KingdomKodeMark from '@/components/brand/kingdom-kode-mark'
+import EdenKodeMark from '@/components/brand/edenkode-mark'
+import MipiMark from '@/components/brand/mipi-mark'
 import logoAmware from '@/images/logos/amware-crown-mark.webp'
-import logoEdenKode from '@/images/logos/edenkode-mark.png'
 import logoWoolf from '@/images/logos/woolf-university.webp'
 import logoAnthropic from '@/images/logos/anthropic.svg'
 import logoWozU from '@/images/logos/woz-u.webp'
-import logoMipi from '@/images/logos/mipi.svg'
 import logoNewgen from '@/images/logos/newgen.png'
 import logoSchwab from '@/images/logos/charles-schwab.png'
 import logoDotCom from '@/images/logos/Dot_Com_Development.png'
@@ -43,8 +43,7 @@ const EXPERIENCE = [
     company: 'EdenKode',
     role: 'Chief Technology Officer',
     period: '2024 - present',
-    logo: logoEdenKode,
-    logoSize: { w: 32, h: 25 },
+    mark: EdenKodeMark,
   },
   {
     company: 'Kingdom Kode',
@@ -56,7 +55,7 @@ const EXPERIENCE = [
     company: 'MiPi',
     role: 'Founder & CEO',
     period: '2022 - present',
-    logo: logoMipi,
+    mark: MipiMark,
   },
   {
     company: 'NewGen Business Solutions',
