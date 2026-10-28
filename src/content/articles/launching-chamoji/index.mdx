@@ -1,0 +1,164 @@
+import { ArticleLayout } from '@/components/ArticleLayout'
+
+export const meta = {
+  title:
+    'Launching chamoji: Changelogs Written by the Commits You Already Make',
+  description:
+    'chamoji is an open-source changelog CLI that reads gitmoji, Conventional Commits and plain messages, picks the next version, and cuts the whole release in one command. Here is what shipped, how it sorts messy history, and where it goes next.',
+  slug: 'launching-chamoji',
+  date: '2026-10-28',
+  author: 'Alec Mingione',
+  tags: [
+    'chamoji',
+    'changelog',
+    'release-notes',
+    'gitmoji',
+    'conventional-commits',
+    'semver',
+    'github-actions',
+    'open-source',
+    'developer-tools',
+  ],
+  keywords: [
+    'chamoji',
+    'changelog generator',
+    'automatic release notes',
+    'gitmoji changelog',
+    'conventional commits changelog',
+    'semver next version',
+    'GitHub Action release notes',
+    'release automation CLI',
+    'AI coding agent release skill',
+  ],
+  canonical: '/articles/launching-chamoji',
+  og_image: '/images/blog/chamoji-launch-og.png',
+  og_image_alt:
+    'chamoji: release notes on autopilot. Every commit explains itself.',
+  reading_time: 7,
+}
+
+export default (props) => <ArticleLayout meta={meta} {...props} />
+
+# Launching chamoji: Changelogs Written by the Commits You Already Make
+
+> **TL;DR** — [chamoji](https://github.com/HeavenlyEntity/chamoji-ai) is an open-source changelog CLI. It reads your git history however your team writes commits (gitmoji, Conventional Commits or plain messages), sorts it into readable sections, picks the next semver version, and since 0.5.0 cuts the whole release in one command: `chamoji release`. There's a [GitHub Action](https://github.com/HeavenlyEntity/chamoji-ai#github-action) for release notes and PR previews, an agent skill so Claude Code or Cursor can ship releases for you, and a hosted Cloud tier with an [early-access waitlist at chamoji.dev](https://chamoji.dev). Try it now with `npx @chamoji/cli changelog`.
+
+![chamoji turning a messy git log into a release](/images/blog/chamoji-demo.gif)
+
+---
+
+## The Problem: Release Day Goes Wrong the Same Way Every Time
+
+Every team I've worked with has the same release-day ritual, and it breaks in the same places:
+
+- **The notes are written from memory**, the night before, so half of what shipped is missing.
+- **Major, minor or patch is a guess.** Nobody wants to be the person who called a breaking change a patch.
+- **Dependabot buries the features.** Forty "Bump x from 1.2.3 to 1.2.4" lines sit on top of the two things customers care about.
+- **`CHANGELOG.md`, the version in the manifest and the git tag drift apart**, because they're three hand edits in three places.
+
+The information to get all of this right is already in the repository. Every commit says what changed. The problem is that nothing reads it well enough to trust.
+
+## What chamoji Does
+
+chamoji is its own changelog engine, not a wrapper around gitmoji tools. Point it at a repo and it:
+
+- **Reads three commit styles.** Gitmoji (`✨ Add login`), Conventional Commits (`feat(auth): add login`) and plain messages (`Add login`), in any mix.
+- **Sorts them into sections** a person would write: Added, Changed, Fixed, Security, Documentation, Maintenance. CI and test commits go under Maintenance, so internal work doesn't read as new features.
+- **Collapses dependency noise** into one line: `⬆️ 47 dependency updates: jest, vite, … and 12 more`.
+- **Picks the next version** from what the commits imply. Breaking changes are a major bump, features a minor one, fixes a patch.
+- **Hides the noise.** Release commits, version-only commits and merge leftovers stay out of the notes.
+
+```bash
+npx @chamoji/cli changelog                 # Markdown to stdout
+npx @chamoji/cli next-version              # e.g. 1.3.0, or exit code 3 if nothing needs releasing
+```
+
+Everything works offline and without an API key. That's the first principle the project runs on: the deterministic path always works, and AI only fills gaps.
+
+## One Command for the Whole Release
+
+The changelog was never the whole job. A release is a version bump, a changelog section, a commit and a tag, and getting those four out of step is exactly how teams end up with drift. So 0.5.0 added `chamoji release`:
+
+```bash
+chamoji release --dry-run   # the version and notes it would release; changes nothing
+chamoji release             # CHANGELOG.md, version bumps, release commit and tag
+chamoji release --push      # also push, and create the GitHub Release
+```
+
+In one go it:
+
+- checks for a clean tree, the default branch and full history
+- picks the version
+- adds the new section above the last release in `CHANGELOG.md` (it never rewrites older, hand-written entries)
+- bumps `package.json`, `package-lock.json`, `pyproject.toml` or `Cargo.toml`
+- commits in your repo's own style, and makes an annotated tag
+
+If anything fails before the tag exists, it resets the repo to where it started. Nothing reaches a remote unless you pass `--push`.
+
+chamoji releases itself this way. Versions 0.5.0 and 0.6.0 were both cut with `chamoji release`, published to npm from a tag by CI, and given their GitHub release notes by the chamoji Action.
+
+## Changelogs on Autopilot With the GitHub Action
+
+The [chamoji Action](https://github.com/HeavenlyEntity/chamoji-ai#github-action) does three jobs:
+
+- **Release notes:** on every pushed tag, it writes that tag's notes into its GitHub Release.
+- **PR previews:** on every pull request, it keeps one comment up to date with the changelog lines the PR adds and the version merging it would make, such as "Merging this makes the next release **v0.5.0** (minor)." It updates that same comment on every push, never piling on duplicates.
+- **Releases:** on a button press, it runs the whole release.
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+- uses: HeavenlyEntity/chamoji-ai@v0.5.0
+```
+
+The PR preview is my favourite part. Reviewers see what a change will look like in the release notes while it's still easy to fix the commit message.
+
+## Let Your Coding Agent Ship the Release
+
+More and more of my releases start as a sentence to an agent: "cut a release". So chamoji ships an agent skill that teaches Claude Code, Codex, Cursor and others to do it properly:
+
+```bash
+npx skills add HeavenlyEntity/chamoji-ai --skill chamoji-release
+```
+
+The first version of the skill walked the agent through about ten steps. It worked, but it was slow and token-hungry, and the agent ended up writing changelog entries itself, which is exactly the job chamoji exists to do. Now the skill is one call to `chamoji release`. In the same test repos, the agent went from 6–11 tool calls down to 4–6 and took roughly half the time. It also pushes only when you explicitly say "push" or "publish". A pushed tag is hard to take back, so "do the release" isn't enough.
+
+## Measuring It on Messy, Real-World History
+
+Clean gitmoji repos are easy. The real test is history nobody wrote with a tool in mind, so I benchmark chamoji on six public repos. The number that matters is how many commits land in Miscellaneous, the "couldn't sort it" pile, without any AI:
+
+| Repo              | Commits | Miscellaneous |
+| ----------------- | ------- | ------------- |
+| gitmoji           | 1,308   | 2%            |
+| gitmoji-cli       | 1,167   | 1%            |
+| sindresorhus/meow | 160     | 18%           |
+| vitejs/vite       | 8,685   | 2%            |
+| **jquery/jquery** | 6,402   | **31%**       |
+| **moment/moment** | 2,999   | **28%**       |
+
+jQuery and Moment are the hard ones. Their history is full of `Core: Fix …` component prefixes, `[bugfix]` tags and release chores. The latest parsing pass, shipped in 0.6.0, taught chamoji to read through those prefixes and hide release noise. That moved jQuery from 42% to 31% and Moment from 41% to 28%, without changing a single result on the clean repos. The median across all six is 10%.
+
+That's still above the 25% line I want for a useful first run, and I'm not hiding it. What's left is mostly subjects with no verb a rule can use ("Don't …", "Only …"). It's where the optional `--ai` step comes in: it sends only those leftover subjects, never code or diffs, to a small classification model.
+
+## chamoji Cloud: Early Access
+
+The CLI is free and open source, and it will stay that way. The paid tier is for the people downstream of commits who never open git:
+
+- hosted release notes
+- team memory
+- review packets
+
+Developers never pay; the teams who read the output do. The [waitlist is open at chamoji.dev](https://chamoji.dev), and it's one email when Cloud opens.
+
+## What's Next
+
+The next milestone is the **commit composer**: `chamoji commit` and a git hook that help you write a good commit at the moment you make it. Changelogs happen once per release; commits happen every day, and that's where the habit lives. It will read gitmoji-cli's config, so switching over takes one command, and it's built to stay out of the way of `git commit -m` and your editor's commit UI.
+
+If you maintain a project and release day is still a ritual, give it two minutes:
+
+```bash
+npx @chamoji/cli changelog
+```
+
+Then [star the repo](https://github.com/HeavenlyEntity/chamoji-ai), open an issue with the history it sorts badly, or [join the Cloud waitlist](https://chamoji.dev). Every commit should explain itself.
