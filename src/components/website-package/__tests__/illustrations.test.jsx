@@ -38,6 +38,6 @@ it('puts Alec, not a stock face, on the strategy call', () => {
   const srcs = [...container.querySelectorAll('img')].map((img) =>
     img.getAttribute('src')
   )
-  expect(srcs.some((s) => /at-the-desk/.test(s))).toBe(true)
+  expect(srcs.some((s) => /strategy-call/.test(s))).toBe(true)
   expect(srcs.some((s) => /webcam-person/.test(s))).toBe(false)
 })

@@ -3,7 +3,8 @@ import Image from 'next/image'
 import { IconMicrophone, IconPhoneOff, IconVideo } from '@tabler/icons-react'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
-import atTheDesk from '@/images/photos/at-the-desk.jpg'
+import strategyCall from '@/images/photos/strategy-call.webp'
+import strategyCallHeadshot from '@/images/photos/strategy-call-headshot.webp'
 const shadow =
   'shadow-[0_24px_40px_-20px_rgba(38,38,43,0.30),0_10px_24px_0_rgba(38,38,43,0.06),0_1px_1px_0_rgba(38,38,43,0.16),0_0_0_1px_rgba(38,38,43,0.05),0_8px_14px_-10px_rgba(38,38,43,0.40)]'
 function MiniHeroWireframe() {
@@ -104,11 +105,15 @@ export const Consultation = () => {
             transition={{ duration: 0.35, ease: 'easeOut' }}
             className="z-1 relative h-full w-full"
           >
+            {/* Landscape 3:2 photo matches the resting 300x200 frame, so
+                nothing is cropped; the face sits in the upper third, clear
+                of the call controls. */}
             <Image
-              src={atTheDesk}
+              src={strategyCall}
               alt=""
               sizes="400px"
-              className="h-full w-full object-cover"
+              placeholder="blur"
+              className="h-full w-full object-cover object-[50%_30%]"
             />
           </motion.div>
           <motion.div
@@ -161,10 +166,13 @@ export const Consultation = () => {
               initial: { height: 0, width: 0, opacity: 0 },
             }}
           >
+            {/* A tight headshot crop, so the face still reads at 64px
+                instead of shrinking the whole desk scene. */}
             <Image
-              src={atTheDesk}
+              src={strategyCallHeadshot}
               alt=""
               sizes="64px"
+              placeholder="blur"
               className={cn(
                 'h-full w-full rounded-2xl object-cover ring-1 ring-white',
                 shadow
