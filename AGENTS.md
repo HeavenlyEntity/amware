@@ -41,7 +41,7 @@ runs is now safe.** The old rule against it no longer applies.
 - Graceful error handling on public pages (loadError prop, fallback UI with refresh); throw on staff pages
 - Card UIs should be minimal at rest; reveal supplementary details on interaction; show full images without cropping (`object-contain`), keep media flush, and clip media/overlays inside card borders
 - About/ProfileCard spotlight UIs should shrink on mobile so the interaction stays playable without filling the viewport
-- When grouping commits, use the gitmoji.dev convention
+- "Commit and push" means push straight to `main` with gitmoji.dev messages; stage only task-related files, leaving hook state, generated files, screenshots, and design docs uncommitted
 - Use `.toFixed(2)` for price display (e.g. `$75.00`)
 - Guard empty arrays before `.in('id', [])` — return an empty dataset instead of querying; prefer atomic DB operations (RPC, single UPDATE) over read-then-write patterns
 
@@ -51,4 +51,6 @@ runs is now safe.** The old rule against it no longer applies.
 - CMS is Payload 3 on Postgres (`@payloadcms/db-postgres`); commerce integrates Creem (`@creem_io/nextjs`)
 - Site positioning and meta use a fractional CTO tone; About narrative is engineer → architect → CTO with MBA as the business-technical bridge
 - Project cards use `BorderGlow`, sort most-recent-first, and pull cover assets from `src/images/projects/`
+- Legal entity name is spelled `AMWARE Technologies LLC` (footer copyright)
+- Affiliate tool links on `/uses` open in a new tab with `rel="sponsored"` and a small up-right arrow beside the name
 - Deposit-plan service cards use reservation as their primary CTA and offer intro-call scheduling after successful payment; services without a deposit plan retain their direct booking/contact fallback
