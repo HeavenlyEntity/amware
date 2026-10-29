@@ -240,13 +240,111 @@ export interface Article {
 export interface Project {
   id: number
   name: string
+  /**
+   * Short lowercase id, e.g. "chamoji". Picks the logo and cover from the images in code; a key with no image gets a placeholder.
+   */
+  key: string
+  kind: 'venture' | 'client' | 'oss' | 'internal'
+  status: 'live' | 'development' | 'archived'
+  /**
+   * Sorts the archive and places the project on the timeline.
+   */
+  date: string
+  /**
+   * Shows the project in "On the bench" at the top of the page. Three at most.
+   */
+  onBench?: boolean | null
+  /**
+   * Orders the bench; the archive sorts by date.
+   */
+  order?: number | null
+  tags?:
+    | {
+        label: string
+        id?: string | null
+      }[]
+    | null
   description?: string | null
   link?: {
     url?: string | null
     label?: string | null
   }
+  /**
+   * The "What happened" line on the card.
+   */
+  whatHappened?: string | null
+  /**
+   * Where it was built, e.g. "Built at NewGen".
+   */
+  org?: string | null
+  /**
+   * Replaces the default note shown when the project has no public link.
+   */
+  privateNote?: string | null
+  /**
+   * The case study in the drawer.
+   */
+  story?: {
+    lede?: string | null
+    chapters?:
+      | {
+          title: string
+          icon:
+            | 'search'
+            | 'code'
+            | 'rocket'
+            | 'workflow'
+            | 'customize'
+            | 'blocks'
+            | 'responsive'
+            | 'computer'
+            | 'system'
+          body: string
+          id?: string | null
+        }[]
+      | null
+    /**
+     * Real outcomes only, never invented metrics. A whole number ("26", "100+") counts up; anything else shows as written.
+     */
+    results?:
+      | {
+          value: string
+          label: string
+          id?: string | null
+        }[]
+      | null
+    team?: {
+      /**
+       * Number of builders, once confirmed. 0 shows the label and note without the seat graphic.
+       */
+      size?: number | null
+      label?: string | null
+      note?: string | null
+    }
+    stack?:
+      | {
+          label: string
+          id?: string | null
+        }[]
+      | null
+    /**
+     * Shows the NetSuite badge in the drawer.
+     */
+    netsuite?: boolean | null
+  }
+  /**
+   * Sparkline values, e.g. [5, 10, 20]. Not shown on the site yet.
+   */
+  activity?:
+    | {
+        [k: string]: unknown
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null
   logo?: (number | null) | Media
-  order?: number | null
   updatedAt: string
   createdAt: string
 }
@@ -797,6 +895,18 @@ export interface ArticlesSelect<T extends boolean = true> {
  */
 export interface ProjectsSelect<T extends boolean = true> {
   name?: T
+  key?: T
+  kind?: T
+  status?: T
+  date?: T
+  onBench?: T
+  order?: T
+  tags?:
+    | T
+    | {
+        label?: T
+        id?: T
+      }
   description?: T
   link?:
     | T
@@ -804,8 +914,45 @@ export interface ProjectsSelect<T extends boolean = true> {
         url?: T
         label?: T
       }
+  whatHappened?: T
+  org?: T
+  privateNote?: T
+  story?:
+    | T
+    | {
+        lede?: T
+        chapters?:
+          | T
+          | {
+              title?: T
+              icon?: T
+              body?: T
+              id?: T
+            }
+        results?:
+          | T
+          | {
+              value?: T
+              label?: T
+              id?: T
+            }
+        team?:
+          | T
+          | {
+              size?: T
+              label?: T
+              note?: T
+            }
+        stack?:
+          | T
+          | {
+              label?: T
+              id?: T
+            }
+        netsuite?: T
+      }
+  activity?: T
   logo?: T
-  order?: T
   updatedAt?: T
   createdAt?: T
 }
