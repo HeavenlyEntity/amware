@@ -72,6 +72,15 @@
   --amw-mut: #6b6b74;
 }
 
+/* Header focus ring: 2px in the accent ink with a 2px offset (#0b756c on
+   the white bar, the light teal on the black one). It outranks the global
+   3px ring in accessibility.css, which would sit off the inverse bar. */
+.amw.amw-panel-invert :is(a, button):focus-visible {
+  outline: 2px solid var(--amw-accent-ink) !important;
+  outline-offset: 2px !important;
+  box-shadow: none !important;
+}
+
 /* ---- landing rail: hide the native scrollbar, keep it scrollable -------- */
 .scrollbar-hide {
   -ms-overflow-style: none;

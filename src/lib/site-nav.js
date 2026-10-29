@@ -16,19 +16,36 @@ import { identity } from '@/content/site/identity'
    Person schema. */
 export const CONTACT_EMAIL = identity.email
 
+/* The Digital Products page ships in the products split. Until then its
+   catalog row shows as "Soon": not a link, and left out of menuHrefs() so
+   the route-registry test stays honest. Flip the flag when the page is
+   live. */
+export const DIGITAL_PRODUCTS_HREF = '/digital-products'
+export const DIGITAL_PRODUCTS_LIVE = false
+
 export const SOCIAL_LINKS = [
   { id: 'x', label: 'Follow on X', href: identity.x },
   { id: 'linkedin', label: 'Follow on LinkedIn', href: identity.linkedin },
   { id: 'github', label: 'Follow on GitHub', href: identity.github },
 ]
 
-export function menuCards() {
+/* `soon` rows render as plain text with a "Soon" hint instead of a link.
+   The option exists so tests can render both states of the flag. */
+export function menuCards({
+  digitalProductsLive = DIGITAL_PRODUCTS_LIVE,
+} = {}) {
   return [
     {
       id: 'catalog',
       title: 'Catalog',
       links: [
         { label: 'Boilerplates & Products', href: '/products', badge: null },
+        {
+          label: 'Digital Products',
+          href: DIGITAL_PRODUCTS_HREF,
+          badge: null,
+          soon: !digitalProductsLive,
+        },
         { label: 'Services', href: '/services', badge: null },
         { label: 'Courses', href: '/courses', badge: null },
       ],
@@ -45,9 +62,7 @@ export function menuCards() {
         { label: 'Review my offer', href: REVIEW_HREF, badge: null },
         { label: 'The desk', href: DESK_HREF, badge: null },
       ],
-      footnote: `Coming: ${soonTools()
-        .map((tool) => tool.label)
-        .join(' · ')}`,
+      soon: soonTools().map((tool) => tool.label),
     },
     {
       id: 'explore',
@@ -69,7 +84,10 @@ export function menuCards() {
   ]
 }
 
-/* Every route the menu links to, for the registry test. */
-export function menuHrefs() {
-  return menuCards().flatMap((card) => card.links.map((link) => link.href))
+/* Every route the menu links to, for the registry test. "Soon" rows are
+   not links, so they are left out. */
+export function menuHrefs(options) {
+  return menuCards(options).flatMap((card) =>
+    card.links.filter((link) => !link.soon).map((link) => link.href)
+  )
 }

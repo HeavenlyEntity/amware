@@ -7,7 +7,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useRootTheme } from '@/hooks/use-client-value'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
-import { ArrowUpRight, ChevronRight } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronRight, Copy, Mail } from 'lucide-react'
 import clsx from 'clsx'
 
 import { GitHubIcon, LinkedInIcon, TwitterIcon } from '@/components/SocialIcons'
@@ -138,121 +138,265 @@ const cardVariants = {
   hidden: { opacity: 0, y: 30 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: easeOut } },
 }
+/* Reduced motion: cards and actions are simply there. MotionConfig's
+   "user" mode drops the slide but would still fade them in. */
+const stillVariants = {
+  hidden: { opacity: 1, y: 0 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0 } },
+}
+const actionVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: easeOut } },
+}
 
-function MenuCard({ card, pathname, onNavigate }) {
+/* One row style for every card (the design's Refactoring UI pass): 16px
+   medium rows that never wrap, hierarchy from weight and colour rather
+   than size. Muted is zinc-600 on the white bar and zinc-400 on the black
+   one; both clear 4.5:1 on the card tier. */
+const ROW =
+  'group flex min-h-11 items-center justify-between gap-3 py-2.5 text-base/6 font-medium tracking-[-0.01em] no-underline transition-opacity duration-300'
+const ROW_HOVER = 'text-current hover:opacity-70'
+const LABEL =
+  'flex min-w-0 items-center gap-2 transition-transform duration-300 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0'
+const MUTED = 'text-zinc-400 dark:text-zinc-600'
+const ICON = `h-4 w-4 shrink-0 ${MUTED}`
+const SUB = `amw-mono m-0 mb-2 text-[10px] leading-none uppercase tracking-[0.14em] ${MUTED}`
+const RULE = 'dark:bg-zinc-950/10 h-px bg-white/10'
+
+function RowArrow({ on }) {
+  return (
+    <ArrowUpRight
+      className={clsx(
+        'h-4 w-4 shrink-0 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-current motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:translate-y-0',
+        on ? 'text-current' : MUTED
+      )}
+      aria-hidden="true"
+    />
+  )
+}
+
+/* The chip tint is 10% rather than the design's 14%: at 14% over the grey
+   card, #0b756c text measures 4.46:1 on the white bar, just under AA for
+   10px text. */
+function Badge({ children }) {
+  return (
+    <span className="amw-mono text-[var(--amw-accent-ink)] inline-flex h-[18px] shrink-0 items-center rounded-[0.4rem] bg-[rgba(20,187,172,0.1)] px-1.5 text-[10px] font-semibold uppercase leading-none tracking-[0.12em]">
+      {children}
+    </span>
+  )
+}
+
+function Rows({ children }) {
+  const items = [children].flat().filter(Boolean)
+  /* role="list": Safari drops list semantics from list-style: none. */
+  return (
+    <ul role="list" className="m-0 mt-4 list-none p-0">
+      {items.map((item, index) => (
+        <li key={item.key}>
+          {item}
+          {index < items.length - 1 && <div className={RULE} />}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/* Contact: two actions in the shared row style, then Follow. The copy
+   button only claims success when the clipboard write resolved. */
+function ContactCard({ card, onNavigate }) {
+  const [copy, setCopy] = useState('idle')
+  const timer = useRef(0)
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      clearTimeout(timer.current)
+    }
+  }, [])
+
+  /* An absent clipboard API (insecure context) throws inside the try and
+     lands in the failed state too. */
+  const copyEmail = async () => {
+    let result = 'copied'
+    try {
+      await navigator.clipboard.writeText(card.email)
+    } catch {
+      result = 'failed'
+    }
+    if (!mounted.current) return
+    setCopy(result)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setCopy('idle'), 2000)
+  }
+
+  const label = {
+    idle: 'Copy email address',
+    copied: 'Copied to clipboard',
+    /* Shorter than "Couldn't copy, use Email me", which overruns the 4-up
+       card at 1440 by 8px and would truncate mid-instruction. */
+    failed: 'Copy failed, use Email me',
+  }[copy]
+  const announce = {
+    idle: '',
+    copied: 'Email address copied',
+    failed: "Couldn't copy the email address. Use Email me instead.",
+  }[copy]
+
+  return (
+    <>
+      <Rows>
+        <a
+          key="mail"
+          href={`mailto:${card.email}`}
+          title={card.email}
+          onClick={onNavigate}
+          className={clsx(ROW, ROW_HOVER)}
+        >
+          <span className={LABEL}>
+            <Mail className={ICON} aria-hidden="true" />
+            <span className="truncate">Email me</span>
+          </span>
+          <RowArrow />
+        </a>
+        <button
+          key="copy"
+          type="button"
+          onClick={copyEmail}
+          className={clsx(
+            ROW,
+            ROW_HOVER,
+            'w-full cursor-pointer border-0 bg-transparent px-0 text-left font-[inherit]'
+          )}
+        >
+          <span className={LABEL}>
+            {copy === 'copied' ? (
+              <Check
+                className="text-[var(--amw-accent-ink)] h-4 w-4 shrink-0"
+                strokeWidth={2.25}
+                aria-hidden="true"
+              />
+            ) : (
+              <Copy className={ICON} aria-hidden="true" />
+            )}
+            <span className="truncate" title={label}>
+              {label}
+            </span>
+          </span>
+        </button>
+      </Rows>
+      <span className="sr-only" aria-live="polite">
+        {announce}
+      </span>
+      <div className="mt-auto pt-6">
+        <p className={SUB}>Follow</p>
+        <div className="flex items-center gap-3">
+          {card.socials.map((social) => {
+            const Icon = SOCIAL_ICONS[social.id]
+            return (
+              <a
+                key={social.id}
+                href={social.href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={social.label}
+                className="dark:bg-zinc-950/10 dark:hover:bg-zinc-950/20 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-current transition-all duration-300 hover:scale-110 hover:bg-white/20 motion-reduce:hover:scale-100"
+              >
+                <Icon className="h-5 w-5 fill-current" />
+              </a>
+            )
+          })}
+        </div>
+      </div>
+    </>
+  )
+}
+
+export function MenuCard({ card, pathname, onNavigate }) {
+  const reduce = useReducedMotion()
+  const soonId = useId()
   const isActive = (href) =>
     pathname === href || (href !== '/' && pathname?.startsWith(`${href}/`))
   return (
     <motion.div
-      className="min-h-48 dark:bg-zinc-950/[0.05] xl:min-h-64 rounded-2xl bg-white/[0.06] p-5"
-      variants={cardVariants}
+      /* rounded-[16px], not rounded-2xl: a global rule in tailwind.css gives
+         every .rounded-2xl a drop shadow, and these cards are flat. */
+      className="min-h-48 dark:bg-zinc-950/[0.05] flex flex-col rounded-[16px] bg-white/[0.06] p-5"
+      variants={reduce ? stillVariants : cardVariants}
     >
-      <span className="amw-eyebrow mb-0">{`// ${card.title}`}</span>
+      <span className="amw-eyebrow">{`// ${card.title}`}</span>
 
       {card.id === 'contact' && (
-        <div className="mt-5 flex h-[calc(100%-2rem)] flex-col justify-between pb-2">
-          {/* break-all chopped the address mid-word: the xl grid is four up,
-              which leaves the card 223px while 20px type needs 269px, so it
-              rendered as "amware.develop@gmai / l.com". The size steps down
-              where the card narrows, and the only break opportunity is after
-              the @, so a longer address wraps somewhere a reader expects
-              instead of anywhere. <wbr> adds no characters, so copy and paste
-              still yields the plain address. */}
-          <a
-            href={`mailto:${card.email}`}
-            onClick={onNavigate}
-            className="text-lg font-semibold tracking-tight text-current no-underline transition-opacity [overflow-wrap:anywhere] hover:opacity-70 md:text-xl xl:text-base"
-          >
-            {(() => {
-              const at = card.email.indexOf('@')
-              if (at < 0) return card.email
-              return (
-                <>
-                  {card.email.slice(0, at + 1)}
-                  <wbr />
-                  {card.email.slice(at + 1)}
-                </>
-              )
-            })()}
-          </a>
-          <div className="mt-auto flex items-center gap-3 pt-8">
-            {card.socials.map((social) => {
-              const Icon = SOCIAL_ICONS[social.id]
-              return (
-                <a
-                  key={social.id}
-                  href={social.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={social.label}
-                  className="dark:bg-zinc-950/10 dark:hover:bg-zinc-950/20 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-current transition-all duration-300 hover:scale-110 hover:bg-white/20 motion-reduce:hover:scale-100"
-                >
-                  <Icon className="h-5 w-5 fill-current" />
-                </a>
-              )
-            })}
-          </div>
-        </div>
+        <ContactCard card={card} onNavigate={onNavigate} />
       )}
 
       {card.links.length > 0 && (
-        <ul className="m-0 mt-5 list-none p-0">
-          {card.links.map((link, index) => (
-            <li key={link.href}>
+        <Rows>
+          {card.links.map((link) =>
+            link.soon ? (
+              /* Not live yet: plain text, no arrow, not focusable. */
+              <span key={link.href} className={clsx(ROW, MUTED)}>
+                <span className="truncate">{link.label}</span>
+                <span className="amw-mono shrink-0 text-[11px] tracking-[0.06em]">
+                  Soon
+                </span>
+              </span>
+            ) : (
               <Link
+                key={link.href}
                 href={link.href}
                 onClick={onNavigate}
                 aria-current={isActive(link.href) ? 'page' : undefined}
-                className="group flex items-center justify-between py-3 text-lg font-semibold tracking-tight text-current no-underline transition-all duration-300 hover:opacity-70 md:text-xl"
+                className={clsx(ROW, ROW_HOVER)}
               >
-                <span className="flex items-center gap-3 transition-transform duration-300 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0">
-                  {link.label}
-                  {link.badge && (
-                    <span className="bg-[var(--amw-accent)] amw-mono text-zinc-950 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-widest">
-                      {link.badge}
-                    </span>
-                  )}
+                <span className={LABEL}>
+                  <span className="truncate">{link.label}</span>
+                  {link.badge && <Badge>{link.badge}</Badge>}
                   {isActive(link.href) && (
                     <span className="sr-only">(current page)</span>
                   )}
                 </span>
-                <ArrowUpRight
-                  className={clsx(
-                    'h-5 w-5 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:opacity-100',
-                    isActive(link.href) ? 'opacity-100' : 'opacity-50'
-                  )}
-                  aria-hidden="true"
-                />
+                <RowArrow on={isActive(link.href)} />
               </Link>
-              {index < card.links.length - 1 && (
-                <div className="dark:bg-zinc-950/10 h-px bg-white/10" />
-              )}
-            </li>
-          ))}
-        </ul>
+            )
+          )}
+        </Rows>
       )}
 
-      {card.footnote && (
-        <p className="amw-mono mt-4 text-[10px] uppercase tracking-widest opacity-80">
-          {card.footnote}
-        </p>
+      {card.soon?.length > 0 && (
+        <div className="mt-auto pt-5">
+          <p id={soonId} className={SUB}>
+            Coming soon
+          </p>
+          <ul
+            role="list"
+            aria-labelledby={soonId}
+            className="m-0 flex list-none flex-wrap gap-1.5 p-0"
+          >
+            {card.soon.map((label) => (
+              <li
+                key={label}
+                className={clsx(
+                  'dark:border-zinc-950/[0.22] inline-flex h-[26px] items-center whitespace-nowrap rounded-[0.4rem] border border-dashed border-white/[0.22] px-2 text-[13px] leading-none',
+                  MUTED
+                )}
+              >
+                {label}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </motion.div>
   )
 }
 
 function MenuActions({ onNavigate }) {
+  const reduce = useReducedMotion()
   return (
     <motion.div
       className="col-span-full flex flex-wrap items-center justify-center gap-3 pt-2"
-      variants={{
-        hidden: { opacity: 0, y: 20 },
-        visible: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 0.6, ease: easeOut },
-        },
-      }}
+      variants={reduce ? stillVariants : actionVariants}
     >
       <Link
         href="/contact"
@@ -477,7 +621,7 @@ export function SiteHeader() {
             >
               <div className="scrollbar-hide max-h-[calc(100dvh-6rem)] overflow-y-auto">
                 <motion.div
-                  className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4"
+                  className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4 p-4"
                   initial="hidden"
                   animate="visible"
                   exit="hidden"
