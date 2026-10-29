@@ -117,7 +117,9 @@ export function resources() {
     )}\n\nOnly listed public content has a Markdown mirror. Follow source links for full context and attribution. Project descriptions identify work completed at other organizations. No JavaScript is required to read these pages.`
 }
 const projectText = (project) =>
-  `### ${plain(project.name)}\n\n${plain(project.description)}\n\n${link(
+  `### ${plain(project.name)}\n\n${plain(project.description)}${
+    project.org ? `\n\n${plain(project.org)}.` : ''
+  }\n\n${link(
     'Original project entry',
     siteOrigin + '/projects#' + projectAnchor(project.name)
   )}${

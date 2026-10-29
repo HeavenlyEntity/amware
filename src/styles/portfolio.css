@@ -1,0 +1,346 @@
+/* =========================================================================
+   Shared tokens and primitives for the redesigned Projects and Courses
+   pages, ported from the approved designs
+   (docs/design/2026-10-27-portfolio-upgrade/reference/*.design.html).
+
+   Dark is the designed state. Every surface reads the --pj-* tokens below,
+   whose dark values are the design's; the light theme swaps them, so the
+   page keeps working when the site is light. The hero sits on the Dither
+   field and stays dark in both themes (.pj-dark pins its tokens).
+
+   Text greys are teal-tinted and clear 4.5:1 on the panels they sit on.
+   Depth comes from background steps and inset rings, not borders.
+   ========================================================================= */
+
+.pj,
+.co {
+  --pj-t1: var(--amw-ink);
+  --pj-t2: #4a5557;
+  --pj-t3: #5b6667;
+  --pj-t-strong: #3f3f46;
+  --pj-panel: var(--amw-muted);
+  --pj-panel-2: #e9e9ec;
+  --pj-sunk: var(--amw-card);
+  --pj-ring: rgba(24, 24, 27, 0.08);
+  --pj-ring-2: rgba(24, 24, 27, 0.14);
+  --pj-chip: rgba(24, 24, 27, 0.05);
+  --pj-accent: var(--amw-accent);
+  --pj-accent-ink: var(--amw-accent-ink);
+  --pj-accent-soft: rgba(20, 187, 172, 0.08);
+  --pj-accent-ring: rgba(20, 187, 172, 0.35);
+  --pj-pill-bg: #ffffff;
+  --pj-pill-fg: #09090b;
+  --pj-tile: #ffffff;
+  --pj-live: #14bbac;
+  --pj-dev: #f59e0b;
+  --pj-dev-ink: #b45309;
+  --pj-lift: 0 28px 50px -30px rgba(24, 24, 27, 0.35);
+  --pj-scrim: rgba(9, 9, 11, 0.45);
+  --pattern-fg: rgba(24, 24, 27, 0.05);
+  /* BorderGlow's additive outer glow washes out on light panels, so it
+     blends normally; the edge fill stays soft-light so it tints the edge
+     without covering the text. */
+  --border-glow-blend: normal;
+  --border-glow-fill-blend: soft-light;
+  --pj-mono: var(--amw-mono);
+}
+
+:where(.dark) .pj,
+:where(.dark) .co,
+.pj .pj-dark,
+.co .pj-dark {
+  --pj-t1: #f3f6f6;
+  --pj-t2: #a9b4b5;
+  --pj-t3: #84908f;
+  --pj-t-strong: #d4d4d8;
+  --pj-panel: #101015;
+  --pj-panel-2: #141419;
+  --pj-sunk: #0b0b0f;
+  --pj-ring: rgba(255, 255, 255, 0.07);
+  --pj-ring-2: rgba(255, 255, 255, 0.12);
+  --pj-chip: rgba(255, 255, 255, 0.05);
+  --pj-accent: #3ce8ce;
+  --pj-accent-ink: #5eead4;
+  --pj-accent-soft: rgba(60, 232, 206, 0.06);
+  --pj-accent-ring: rgba(60, 232, 206, 0.3);
+  --pj-pill-bg: #fafafa;
+  --pj-pill-fg: #09090b;
+  --pj-tile: #141419;
+  --pj-live: #3ce8ce;
+  --pj-dev: #fbbf24;
+  --pj-dev-ink: #fbbf24;
+  --pj-lift: 0 28px 50px -26px rgba(0, 0, 0, 0.95);
+  --pj-scrim: rgba(0, 0, 0, 0.6);
+  --pattern-fg: rgba(255, 255, 255, 0.05);
+  --border-glow-blend: plus-lighter;
+  --border-glow-fill-blend: soft-light;
+}
+
+.pj,
+.co {
+  color: var(--pj-t1);
+}
+
+/* ---- shared type --------------------------------------------------------- */
+
+.pj-wrap {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 3vw, 32px);
+  box-sizing: border-box;
+}
+.pj-eyebrow {
+  margin: 0;
+  font-family: var(--pj-mono);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pj-accent-ink);
+}
+.pj-kicker {
+  margin: 0;
+  font-family: var(--pj-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pj-t2);
+}
+.pj-kicker--accent {
+  color: var(--pj-accent-ink);
+}
+.pj-h2 {
+  margin: 12px 0 0;
+  font-family: Layer, sans-serif;
+  font-size: clamp(30px, 3vw, 36px);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--pj-t1);
+  text-wrap: balance;
+}
+.pj-lead {
+  margin: 12px 0 0;
+  max-width: 40rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--pj-t2);
+}
+.pj-section {
+  margin-top: 96px;
+}
+
+/* Hero entrance: CSS so it runs from the server HTML. Reduced motion
+   shows the end state (the global reduced-motion rule removes the
+   animation, so the hidden start state is overridden below). */
+.pj-rise {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: pj-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--d, 0s);
+}
+@keyframes pj-rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- buttons --------------------------------------------------------------- */
+
+.pj-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 6px 6px 20px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--pj-accent);
+  color: #09090b;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-radius 0.5s;
+}
+.pj-btn:hover {
+  border-radius: 50px;
+  color: #09090b;
+}
+.pj-btn-dot {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #09090b;
+  color: #fafafa;
+  transition: transform 0.3s;
+}
+.pj-btn:hover .pj-btn-dot {
+  transform: scale(1.1) translateY(2px);
+}
+.pj-btn--across:hover .pj-btn-dot {
+  transform: scale(1.1) translateX(2px);
+}
+.pj-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-family: var(--pj-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pj-t-strong);
+  text-decoration: none;
+}
+.pj-ghost:hover {
+  color: var(--pj-accent-ink);
+}
+.pj-ghost span {
+  transition: transform 0.3s;
+}
+.pj-ghost:hover span {
+  transform: translateX(4px);
+}
+.pj-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--pj-chip);
+  box-shadow: inset 0 0 0 1px var(--pj-ring-2);
+  color: var(--pj-t1);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pj-quiet:hover {
+  transform: translateY(-2px);
+}
+
+/* ---- status dots ------------------------------------------------------------ */
+
+.pj-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--pj-t3);
+}
+.pj-dot[data-s='live'] {
+  background: var(--pj-live);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pj-live) 70%, transparent);
+}
+.pj-dot[data-s='development'] {
+  background: var(--pj-dev);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pj-dev) 50%, transparent);
+}
+
+/* ---- hero ------------------------------------------------------------------- */
+
+.pj-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #0b0b0f;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 32px 64px -32px rgba(0, 0, 0, 0.7);
+  color: var(--pj-t1);
+}
+.pj-dither {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0;
+  animation: pj-dither-in 1.6s ease 0.2s forwards;
+}
+@keyframes pj-dither-in {
+  to {
+    opacity: 0.85;
+  }
+}
+/* Left-heavy veil so the headline reads first and strongest. */
+.pj-veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+      90deg,
+      rgba(11, 11, 15, 0.9) 0%,
+      rgba(11, 11, 15, 0.72) 34%,
+      rgba(11, 11, 15, 0.2) 64%,
+      rgba(11, 11, 15, 0.38) 100%
+    ),
+    linear-gradient(0deg, rgba(11, 11, 15, 0.75) 0%, transparent 38%),
+    linear-gradient(180deg, rgba(11, 11, 15, 0.5) 0%, transparent 22%);
+}
+/* Hero intro and actions, shared by both heroes. */
+.pj-intro {
+  margin: 24px 0 0;
+  max-width: 32rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--pj-t2);
+}
+.pj-hero-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 32px;
+}
+
+/* Premium icon tiles: the icon packs are drawn light, so their tile stays
+   dark in both themes. */
+.pj-ico {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #18181e, #0e0e12);
+  box-shadow: 0 0 0 4px var(--pj-sunk),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.pj-ico img {
+  width: 28px;
+  height: 28px;
+}
+
+/* ---- reduced motion ------------------------------------------------------------------ */
+/* accessibility.css removes every animation and transition under both the
+   OS setting and the site's pause toggle. Only the end states of entrances
+   that start hidden need restating here. */
+@media (prefers-reduced-motion: reduce) {
+  .pj-rise {
+    opacity: 1;
+    transform: none;
+  }
+  .pj-dither {
+    opacity: 0.85;
+  }
+}
+[data-reduced-motion='true'] .pj-rise {
+  opacity: 1;
+  transform: none;
+}
+[data-reduced-motion='true'] .pj-dither {
+  opacity: 0.85;
+}

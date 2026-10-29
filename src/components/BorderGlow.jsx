@@ -1,3 +1,5 @@
+'use client'
+
 import { useRef, useCallback, useState, useEffect } from 'react'
 
 function parseHSL(hslStr) {
@@ -55,14 +57,22 @@ function animateValue({
   onEnd,
 }) {
   const t0 = performance.now() + delay
+  let raf = 0
   function tick() {
     const elapsed = performance.now() - t0
     const t = Math.min(elapsed / duration, 1)
     onUpdate(start + (end - start) * ease(t))
-    if (t < 1) requestAnimationFrame(tick)
+    if (t < 1) raf = requestAnimationFrame(tick)
     else if (onEnd) onEnd()
   }
-  setTimeout(() => requestAnimationFrame(tick), delay)
+  const timer = setTimeout(() => {
+    raf = requestAnimationFrame(tick)
+  }, delay)
+  /* Cancel, so an unmount mid-sweep stops setting state. */
+  return () => {
+    clearTimeout(timer)
+    cancelAnimationFrame(raf)
+  }
 }
 
 const GRADIENT_POSITIONS = [
@@ -88,15 +98,37 @@ function buildMeshGradients(colors) {
   return gradients
 }
 
+/* Light surfaces get a quieter border, shadow and normal blending: the
+   soft-light and plus-lighter modes only read on dark cards. Only hex
+   colours can be judged; a CSS variable keeps the dark defaults and the
+   theme-aware border classes. */
+function isLightColor(color) {
+  const value = color.trim().replace('#', '')
+  if (!/^[\da-f]{3}([\da-f]{3})?$/i.test(value)) return false
+  const hex =
+    value.length === 3
+      ? value
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : value
+  const red = parseInt(hex.slice(0, 2), 16)
+  const green = parseInt(hex.slice(2, 4), 16)
+  const blue = parseInt(hex.slice(4, 6), 16)
+  return red * 0.2126 + green * 0.7152 + blue * 0.0722 > 180
+}
+
 const DEFAULT_SHADOW =
   'rgba(0,0,0,0.1) 0 1px 2px, rgba(0,0,0,0.1) 0 2px 4px, rgba(0,0,0,0.1) 0 4px 8px, rgba(0,0,0,0.1) 0 8px 16px, rgba(0,0,0,0.1) 0 16px 32px, rgba(0,0,0,0.1) 0 32px 64px'
+const LIGHT_SHADOW =
+  'rgb(24 24 27 / 4%) 0 1px 2px, rgb(24 24 27 / 5%) 0 8px 24px'
 
 const BorderGlow = ({
   children,
   className = '',
   edgeSensitivity = 30,
   glowColor = '40 80 80',
-  backgroundColor = '#060010',
+  backgroundColor = '#120F17',
   borderRadius = 28,
   glowRadius = 40,
   glowIntensity = 1.0,
@@ -104,7 +136,7 @@ const BorderGlow = ({
   animated = false,
   colors = ['#c084fc', '#f472b6', '#38bdf8'],
   fillOpacity = 0.5,
-  shadow = DEFAULT_SHADOW,
+  shadow,
 }) => {
   const cardRef = useRef(null)
   const [isHovered, setIsHovered] = useState(false)
@@ -160,39 +192,58 @@ const BorderGlow = ({
     [getEdgeProximity, getCursorAngle]
   )
 
+  /* `animated` can also turn on after mount (the archive staggers its
+     sweep once the grid scrolls into view), so the sweep re-arms itself
+     from a frame callback rather than relying on the initial state. */
   useEffect(() => {
     if (!animated) return
     const angleStart = 110
     const angleEnd = 465
+    const arm = requestAnimationFrame(() => {
+      setSweepActive(true)
+      setCursorAngle(angleStart)
+    })
 
-    animateValue({ duration: 500, onUpdate: (v) => setEdgeProximity(v / 100) })
-    animateValue({
-      ease: easeInCubic,
-      duration: 1500,
-      end: 50,
-      onUpdate: (v) => {
-        setCursorAngle((angleEnd - angleStart) * (v / 100) + angleStart)
-      },
-    })
-    animateValue({
-      ease: easeOutCubic,
-      delay: 1500,
-      duration: 2250,
-      start: 50,
-      end: 100,
-      onUpdate: (v) => {
-        setCursorAngle((angleEnd - angleStart) * (v / 100) + angleStart)
-      },
-    })
-    animateValue({
-      ease: easeInCubic,
-      delay: 2500,
-      duration: 1500,
-      start: 100,
-      end: 0,
-      onUpdate: (v) => setEdgeProximity(v / 100),
-      onEnd: () => setSweepActive(false),
-    })
+    const stops = [
+      animateValue({
+        duration: 500,
+        onUpdate: (v) => setEdgeProximity(v / 100),
+      }),
+      animateValue({
+        ease: easeInCubic,
+        duration: 1500,
+        end: 50,
+        onUpdate: (v) => {
+          setCursorAngle((angleEnd - angleStart) * (v / 100) + angleStart)
+        },
+      }),
+      animateValue({
+        ease: easeOutCubic,
+        delay: 1500,
+        duration: 2250,
+        start: 50,
+        end: 100,
+        onUpdate: (v) => {
+          setCursorAngle((angleEnd - angleStart) * (v / 100) + angleStart)
+        },
+      }),
+      animateValue({
+        ease: easeInCubic,
+        delay: 2500,
+        duration: 1500,
+        start: 100,
+        end: 0,
+        onUpdate: (v) => setEdgeProximity(v / 100),
+        onEnd: () => setSweepActive(false),
+      }),
+    ]
+    return () => {
+      cancelAnimationFrame(arm)
+      stops.forEach((stop) => stop())
+      /* Stopped early (e.g. reduced motion turned on): drop the glow
+         rather than freezing it mid-sweep. */
+      setSweepActive(false)
+    }
   }, [animated])
 
   const colorSensitivity = edgeSensitivity + 20
@@ -214,6 +265,8 @@ const BorderGlow = ({
   const borderBg = meshGradients.map((g) => `${g} border-box`)
   const fillBg = meshGradients.map((g) => `${g} padding-box`)
   const angleDeg = `${cursorAngle.toFixed(3)}deg`
+  const lightSurface = isLightColor(backgroundColor)
+  const hexSurface = backgroundColor.trim().startsWith('#')
 
   return (
     <div
@@ -221,12 +274,19 @@ const BorderGlow = ({
       onPointerMove={handlePointerMove}
       onPointerEnter={() => setIsHovered(true)}
       onPointerLeave={() => setIsHovered(false)}
-      className={`dark:border-white/15 relative isolate grid border border-zinc-200 ${className}`}
+      className={`relative isolate grid border ${
+        hexSurface ? '' : 'dark:border-white/15 border-zinc-200'
+      } ${className}`}
       style={{
         background: backgroundColor,
+        borderColor: hexSurface
+          ? lightSurface
+            ? 'rgb(24 24 27 / 12%)'
+            : 'rgb(255 255 255 / 15%)'
+          : undefined,
         borderRadius: `${borderRadius}px`,
         transform: 'translate3d(0, 0, 0.01px)',
-        boxShadow: shadow,
+        boxShadow: shadow ?? (lightSurface ? LIGHT_SHADOW : DEFAULT_SHADOW),
       }}
     >
       {/* mesh gradient border */}
@@ -283,7 +343,11 @@ const BorderGlow = ({
           WebkitMaskComposite:
             'source-out, source-over, source-over, source-over, source-over, source-over',
           opacity: borderOpacity * fillOpacity,
-          mixBlendMode: 'soft-light',
+          /* A page can set these to `normal` for a light theme when the
+             surface is a CSS variable the hex check cannot read. */
+          mixBlendMode: lightSurface
+            ? 'normal'
+            : 'var(--border-glow-fill-blend, soft-light)',
           transition: isVisible
             ? 'opacity 0.25s ease-out'
             : 'opacity 0.75s ease-in-out',
@@ -297,7 +361,9 @@ const BorderGlow = ({
           maskImage: `conic-gradient(from ${angleDeg} at center, black 2.5%, transparent 10%, transparent 90%, black 97.5%)`,
           WebkitMaskImage: `conic-gradient(from ${angleDeg} at center, black 2.5%, transparent 10%, transparent 90%, black 97.5%)`,
           opacity: glowOpacity,
-          mixBlendMode: 'plus-lighter',
+          mixBlendMode: lightSurface
+            ? 'normal'
+            : 'var(--border-glow-blend, plus-lighter)',
           transition: isVisible
             ? 'opacity 0.25s ease-out'
             : 'opacity 0.75s ease-in-out',
