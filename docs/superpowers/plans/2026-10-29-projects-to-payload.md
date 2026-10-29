@@ -1,8 +1,8 @@
 # Move the Projects content into Payload
 
-Status: steps 1–2 done on branch `projects-cms` (uncommitted), 2026-10-29.
-Step 3 (the owner runs the SQL) is next. Nothing has been applied to the
-database.
+Status, 2026-10-29: steps 1–4 done. The SQL ran in Supabase, and the seed
+wrote all 15 projects; they read back identical to content/site/projects.js.
+No page reads them yet. Step 5 (switch the reads) is next.
 
 ## Goal
 
@@ -165,6 +165,13 @@ The `TODO(alec)` comments in `projects.js` move into a checklist in the runbook:
 - Chamoji's date.
 
 Each can then be corrected in the admin.
+
+**After step 3 (2026-10-29):** a dry run against the new schema finds no
+missing columns. It only wants `DISABLE ROW LEVEL SECURITY` on the four child
+tables, because Supabase switched RLS on when they were created; every other
+Payload table has it off. Payload connects as `postgres`, the owner, and RLS
+isn't forced, so reads and writes work either way. The next `pnpm dev` push
+from a checkout with these fields will switch it off to match.
 
 ### 5. Switch the reads
 
