@@ -2,7 +2,9 @@
 
 Status, 2026-10-29: steps 1–4 done. The SQL ran in Supabase, and the seed
 wrote all 15 projects; they read back identical to content/site/projects.js.
-No page reads them yet. Step 5 (switch the reads) is next.
+Step 5 is written on `projects-cms` but not committed: the page and the AI
+documents read Payload, falling back to the static file. Step 6 (verify,
+then push) is next.
 
 ## Goal
 
@@ -18,7 +20,7 @@ stays as the fallback if the database is unreachable.
   on the site reads it.
 - **Production table `projects`** (checked read-only on 2026-10-29): columns
   `id, name, description, link_url, link_label, logo_id, order, updated_at,
-  created_at`. **0 rows.** `payload_locked_documents_rels.projects_id` already
+created_at`. **0 rows.** `payload_locked_documents_rels.projects_id` already
   exists.
 - **Readers of `projects.js`:**
   - `src/app/(site)/projects/ProjectsContent.jsx` (client): `projects`, `projectAnchor`
@@ -31,28 +33,28 @@ stays as the fallback if the database is unreachable.
 
 ## Data shape to model (15 projects)
 
-| `projects.js` | Payload field | Postgres |
-|---|---|---|
-| `name` | `name` (exists) | `name` |
-| `key` | `key` text, required, unique | `key varchar`, unique index `projects_key_idx` |
-| `kind` | select: venture, client, oss, internal | `enum_projects_kind` |
-| `status` | select: live, development, archived | `enum_projects_status` |
-| `date` `'MM/DD/YY'` | `date` (date picker) | `date timestamp(3) with time zone` |
-| `description` | `description` (exists) | `description` |
-| `link.href` / `link.label` | `link.url` / `link.label` (exist) | `link_url`, `link_label` |
-| `whatHappened` | `whatHappened` textarea | `what_happened varchar` |
-| `org` (3 projects) | `org` text | `org varchar` |
-| `privateNote` (1) | `privateNote` textarea | `private_note varchar` |
-| position 1–3 | `onBench` checkbox | `on_bench boolean` |
-| position | `order` (exists) | `order` |
-| `activity` (no defined meaning, hidden) | `activity` json | `activity jsonb` |
-| `tags[]` | array `tags{label}` | table `projects_tags` |
-| `story.lede` | group `story.lede` | `story_lede varchar` |
-| `story.chapters[]{t,i,b}` | array `story.chapters{title, icon (select), body}` | table `projects_story_chapters`, `enum_projects_story_chapters_icon` |
-| `story.results[]{v,l}` | array `story.results{value,label}` | table `projects_story_results` |
-| `story.team{size,label,note}` | group `story.team` | `story_team_size numeric`, `story_team_label`, `story_team_note` |
-| `story.stack[]` | array `story.stack{label}` | table `projects_story_stack` |
-| `story.netsuite` (3) | `story.netsuite` checkbox | `story_netsuite boolean` |
+| `projects.js`                           | Payload field                                      | Postgres                                                             |
+| --------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------- |
+| `name`                                  | `name` (exists)                                    | `name`                                                               |
+| `key`                                   | `key` text, required, unique                       | `key varchar`, unique index `projects_key_idx`                       |
+| `kind`                                  | select: venture, client, oss, internal             | `enum_projects_kind`                                                 |
+| `status`                                | select: live, development, archived                | `enum_projects_status`                                               |
+| `date` `'MM/DD/YY'`                     | `date` (date picker)                               | `date timestamp(3) with time zone`                                   |
+| `description`                           | `description` (exists)                             | `description`                                                        |
+| `link.href` / `link.label`              | `link.url` / `link.label` (exist)                  | `link_url`, `link_label`                                             |
+| `whatHappened`                          | `whatHappened` textarea                            | `what_happened varchar`                                              |
+| `org` (3 projects)                      | `org` text                                         | `org varchar`                                                        |
+| `privateNote` (1)                       | `privateNote` textarea                             | `private_note varchar`                                               |
+| position 1–3                            | `onBench` checkbox                                 | `on_bench boolean`                                                   |
+| position                                | `order` (exists)                                   | `order`                                                              |
+| `activity` (no defined meaning, hidden) | `activity` json                                    | `activity jsonb`                                                     |
+| `tags[]`                                | array `tags{label}`                                | table `projects_tags`                                                |
+| `story.lede`                            | group `story.lede`                                 | `story_lede varchar`                                                 |
+| `story.chapters[]{t,i,b}`               | array `story.chapters{title, icon (select), body}` | table `projects_story_chapters`, `enum_projects_story_chapters_icon` |
+| `story.results[]{v,l}`                  | array `story.results{value,label}`                 | table `projects_story_results`                                       |
+| `story.team{size,label,note}`           | group `story.team`                                 | `story_team_size numeric`, `story_team_label`, `story_team_note`     |
+| `story.stack[]`                         | array `story.stack{label}`                         | table `projects_story_stack`                                         |
+| `story.netsuite` (3)                    | `story.netsuite` checkbox                          | `story_netsuite boolean`                                             |
 
 Chapter icons in use: search, code, rocket, workflow, customize, blocks,
 responsive, computer, system.
@@ -159,6 +161,7 @@ SQL editor. Claude does not apply DDL to production.
 - It does not seed images. Those stay in code (step 5).
 
 The `TODO(alec)` comments in `projects.js` move into a checklist in the runbook:
+
 - unknown team sizes;
 - no numeric results for seven projects;
 - Exhibit House's assumed date, status and placeholder cover;
@@ -194,6 +197,29 @@ from a checkout with these fields will switch it off to match.
   - Add the revalidate hook either way.
 - **The `key` description already promises a placeholder,** so the `ProjectMark` and `ProjectCover` fallback must land in the same commit as the switch.
 - **`ProjectsContent`** builds `featured`, `archive` and `indexByAnchor` at module scope. These move into the component, or into props.
+
+**Done (uncommitted), 2026-10-29:**
+
+- `lib/projects/load.js` returns `{ projects, benchCount }`; the bench count
+  comes from `onBench`. `loadProjects()` falls back on a database error (the
+  AI documents, which are force-dynamic). `loadProjectsForPage()` rethrows
+  during a production regeneration so Next keeps the last good page, and
+  falls back at build and in dev.
+- The revalidate hook only covers `/projects`. The AI routes render on every
+  request, so `revalidatePath` on them would do nothing.
+- The bench copy still says "The three newest builds"; with the checkbox, that
+  is only true while the admin keeps it so. TODO(alec): reword if needed.
+- The hook revalidates inside `after()`, so after Payload commits. Calling
+  it inside the transaction could let a visitor regenerate the page from the
+  old rows and cache that for a day.
+- With no project on the bench, the "On the bench" heading still renders
+  empty. The section stays because the hero's button links to `#pj-bench`.
+- Open question for Alec: if the database fails during a production build,
+  the static file is baked in for up to a day, silently. Failing the build
+  when `VERCEL_ENV === 'production'` would surface it, at the cost of a failed
+  deploy on a pooler blip.
+- A production build prerendered `/projects` from Payload with no CMS errors:
+  3 bench and 12 archive projects, and `/projects.md` lists all 15.
 
 ### 6. Verify, then push to `main`
 

@@ -1,5 +1,7 @@
 import Image from 'next/image'
 
+import { Pattern } from '@/components/ui/pattern'
+
 import logoCosmos from '@/images/logos/cosmos.svg'
 import logoPortalGen from '@/images/logos/PortalGen Fav-1.png'
 import logoOpenShuttle from '@/images/logos/open-shuttle.svg'
@@ -34,7 +36,8 @@ import coverEdenKode from '@/images/projects/edenkode-cover.webp'
 
 /* Covers and logos per project key. The theme-aware brand marks render
    with currentColor, so they take the tile's text colour; every other logo
-   stays an image. */
+   stays an image. A project added in the admin under a key not listed here
+   gets its initial on the tile and the hatch pattern as its cover. */
 export const PROJECT_MEDIA = {
   gearz: { logo: logoGearz, cover: coverGearz },
   edenkode: { mark: EdenKodeMark, cover: coverEdenKode },
@@ -55,6 +58,13 @@ export const PROJECT_MEDIA = {
 
 export function ProjectMark({ project }) {
   const media = PROJECT_MEDIA[project.key]
+  if (!media) {
+    return (
+      <span className="pj-mark pj-initial">
+        {(Array.from(project.name.trim())[0] ?? '').toUpperCase()}
+      </span>
+    )
+  }
   if (media.mark) {
     const Mark = media.mark
     return <Mark className="pj-mark" />
@@ -75,9 +85,21 @@ export function ProjectLogo({ project, size = '' }) {
 }
 
 export function ProjectCover({ project, sizes, alt = '', priority = false }) {
+  const media = PROJECT_MEDIA[project.key]
+  if (!media) {
+    return (
+      <div
+        className="pj-cover-fallback"
+        role={alt ? 'img' : undefined}
+        aria-label={alt || undefined}
+      >
+        <Pattern className="absolute inset-0" />
+      </div>
+    )
+  }
   return (
     <Image
-      src={PROJECT_MEDIA[project.key].cover}
+      src={media.cover}
       alt={alt}
       fill
       sizes={sizes}

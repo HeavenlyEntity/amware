@@ -1,4 +1,24 @@
 import type { CollectionConfig } from 'payload'
+import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
+
+/* The Projects page is ISR with a daily revalidate; this refreshes it as
+   soon as an edit is saved. after() defers it past the response, so past
+   Payload's commit: revalidating inside the transaction could let a visitor
+   regenerate the page from the old rows and cache that for a day. The AI
+   documents read projects on every request, so they need nothing. Outside
+   a Next request (the seed sim, a script) both calls throw; the save itself
+   must not fail for that. */
+function revalidateProjects() {
+  try {
+    after(() => revalidatePath('/projects'))
+  } catch (error) {
+    console.warn(
+      'Projects: /projects not revalidated:',
+      error instanceof Error ? error.message : error
+    )
+  }
+}
 
 /* The Projects page content. Field names read well in the admin; the page
    still consumes the shape in content/site/projects.js, and
@@ -15,6 +35,10 @@ export const Projects: CollectionConfig = {
   },
   access: {
     read: () => true,
+  },
+  hooks: {
+    afterChange: [revalidateProjects],
+    afterDelete: [revalidateProjects],
   },
   fields: [
     { name: 'name', type: 'text', required: true },

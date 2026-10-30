@@ -5,7 +5,8 @@ import glob from 'fast-glob'
 import { unstable_cache } from 'next/cache'
 import { cache } from 'react'
 import { getPayloadClient } from '../getPayloadClient'
-import { projects, projectAnchor } from '../../content/site/projects'
+import { projectAnchor } from '../../content/site/projects'
+import { loadProjects } from '../projects/load'
 import { chapters } from '../../content/site/about'
 import { identity } from '../../content/site/identity'
 import { siteOrigin } from '../site-origin'
@@ -191,7 +192,9 @@ export const getDocument = cache(async (id, page = 1) => {
     return {
       ...doc,
       warnings,
-      body: `## About\n\n${facts()}\n\n${capability}\n\n## Selected engineering work\n\n${projects
+      body: `## About\n\n${facts()}\n\n${capability}\n\n## Selected engineering work\n\n${(
+        await loadProjects()
+      ).projects
         .filter((p) =>
           ['ConventionSuite - GSC™', 'PortalGen™', '@neatsuite/http'].includes(
             p.name
@@ -226,8 +229,10 @@ export const getDocument = cache(async (id, page = 1) => {
       ...doc,
       body: `## Get in touch\n\nContact Alec Mingione about technical leadership, software engineering, or a project described on this site.\n\n${contact()}`,
     }
-  if (id === 'projects')
+  if (id === 'projects') {
+    const { projects } = await loadProjects()
     return { ...doc, body: projects.map(projectText).join('\n\n') }
+  }
   if (id.startsWith('articles/'))
     return (await files()).find((row) => row.id === id) ?? null
   if (['articles', 'blog', 'products', 'courses', 'services'].includes(id)) {

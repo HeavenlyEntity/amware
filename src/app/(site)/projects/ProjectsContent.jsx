@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight } from 'lucide-react'
 
-import { projects, projectAnchor } from '@/content/site/projects'
+import { projectAnchor } from '@/content/site/projects'
 import { heroStats, timelineYears } from '@/lib/projects/archive'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { Pattern } from '@/components/ui/pattern'
@@ -20,16 +20,12 @@ import { CaseStudyDrawer } from '@/components/projects/case-study-drawer'
    bench", the archive as filterable cards or a sortable list, a closing
    band, and a case-study drawer for any build. Styles: styles/projects.css.
 
+   `projects` comes from Payload (lib/projects/load.js) in page order, the
+   bench first; `benchCount` is how many of them are on the bench.
+
    The drawer is driven by the URL hash (the existing projectAnchor), so a
    story can be shared and the AI documents' /projects#anchor links open
    it. The hash is read as an external store: the server renders closed. */
-
-const FEATURED_COUNT = 3
-const featured = projects.slice(0, FEATURED_COUNT)
-const archive = projects.slice(FEATURED_COUNT)
-const indexByAnchor = new Map(
-  projects.map((p, i) => [`#${projectAnchor(p.name)}`, i])
-)
 
 const hashListeners = new Set()
 function subscribeHash(fn) {
@@ -56,7 +52,13 @@ const REVEAL = {
   viewport: { once: true, amount: 0.12 },
 }
 
-export default function ProjectsContent({ currentYear }) {
+export default function ProjectsContent({ projects, benchCount, currentYear }) {
+  const featured = projects.slice(0, benchCount)
+  const archive = projects.slice(benchCount)
+  const indexByAnchor = useMemo(
+    () => new Map(projects.map((p, i) => [`#${projectAnchor(p.name)}`, i])),
+    [projects]
+  )
   const reduced = useReducedMotion()
   const hash = useSyncExternalStore(subscribeHash, getHash, getServerHash)
   const openIndex = indexByAnchor.get(hash) ?? -1
@@ -67,12 +69,15 @@ export default function ProjectsContent({ currentYear }) {
     ? { duration: 0 }
     : { duration: 0.8, ease: [0.16, 1, 0.3, 1] }
 
-  const open = useCallback((key, opener) => {
-    const project = projects.find((p) => p.key === key)
-    if (!project) return
-    openerRef.current = opener ?? null
-    setHash(`#${projectAnchor(project.name)}`)
-  }, [])
+  const open = useCallback(
+    (key, opener) => {
+      const project = projects.find((p) => p.key === key)
+      if (!project) return
+      openerRef.current = opener ?? null
+      setHash(`#${projectAnchor(project.name)}`)
+    },
+    [projects]
+  )
   const close = useCallback(() => setHash(''), [])
   const step = useCallback(
     (dir) => {
@@ -81,7 +86,7 @@ export default function ProjectsContent({ currentYear }) {
         projects[(openIndex + dir + projects.length) % projects.length]
       setHash(`#${projectAnchor(next.name)}`)
     },
-    [openIndex]
+    [openIndex, projects]
   )
 
   return (
