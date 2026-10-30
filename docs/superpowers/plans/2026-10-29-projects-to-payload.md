@@ -1,10 +1,8 @@
 # Move the Projects content into Payload
 
-Status, 2026-10-29: steps 1–4 done. The SQL ran in Supabase, and the seed
-wrote all 15 projects; they read back identical to content/site/projects.js.
-Step 5 is written on `projects-cms` but not committed: the page and the AI
-documents read Payload, falling back to the static file. Step 6 (verify,
-then push) is next.
+Status, 2026-10-30: steps 1–5 done and pushed to `main`. The page and the AI
+documents read Payload, falling back to the static file. One check is left from
+step 6: edit a field in the production `/admin` and see it on `/projects`.
 
 ## Goal
 
@@ -198,7 +196,7 @@ from a checkout with these fields will switch it off to match.
 - **The `key` description already promises a placeholder,** so the `ProjectMark` and `ProjectCover` fallback must land in the same commit as the switch.
 - **`ProjectsContent`** builds `featured`, `archive` and `indexByAnchor` at module scope. These move into the component, or into props.
 
-**Done (uncommitted), 2026-10-29:**
+**Done, 2026-10-29:**
 
 - `lib/projects/load.js` returns `{ projects, benchCount }`; the bench count
   comes from `onBench`. `loadProjects()` falls back on a database error (the
@@ -234,6 +232,18 @@ from a checkout with these fields will switch it off to match.
 - Fallback check: with a bad `DATABASE_URI` in a throwaway shell, the build still renders the static projects.
 - Commit with gitmoji and push to `main`, per the commit rule. Then confirm the Vercel deploy built.
 - After the push, update the shared-DB memory. Older worktrees under `.claude/worktrees/` must merge `main` before any `pnpm dev`.
+
+**Results, 2026-10-30:**
+
+- eslint, prettier, `tsc`, `pnpm test` (970) and `pnpm build` pass.
+- `next start`: the page text is identical to the live site, hero shows 9 live
+  and 3 in development, 375px has no sideways scroll, and the drawer opens.
+- The fallback build check could not run as written. With a bad `DATABASE_URI`
+  the build stops at `/blog/[slug]`, whose `generateStaticParams` needs the
+  database, before `/projects`. So the site cannot build without the database
+  at all, and the projects fallback is covered by `load.test.js` only.
+- The `/admin` edit check needs the owner's sign-in, so it runs on production
+  after the deploy.
 
 ### Rollback
 
