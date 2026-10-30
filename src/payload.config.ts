@@ -1,5 +1,6 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { PHASE_PRODUCTION_BUILD } from 'next/constants'
 import { buildConfig } from 'payload'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
@@ -75,11 +76,19 @@ export default buildConfig({
          through prerendering. It gets worse with every page added to
          generateStaticParams, which is a nasty way to find out.
 
-         Two is enough here: a request does its queries in sequence, and a
-         second connection only helps when two run concurrently in one
-         instance. Raise it with DATABASE_POOL_MAX if the pooler plan grows,
-         and keep workers x max under the ceiling. */
-      max: Number(process.env.DATABASE_POOL_MAX ?? 2),
+         The adapter keeps one pooled connection for good (connectWithReconnect
+         never releases it), so a pool of N leaves N - 1 usable. Two is enough
+         to build: prerendering only reads, in sequence. A save needs two
+         usable, because it holds one for its transaction while Payload's
+         document-lock check queries outside that transaction; with only one,
+         every admin save deadlocks. So three at runtime.
+
+         Raise it with DATABASE_POOL_MAX if the pooler plan grows, and keep
+         workers x max under the ceiling. It applies to builds too. */
+      max: Number(
+        process.env.DATABASE_POOL_MAX ??
+          (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD ? 2 : 3)
+      ),
       // Hand connections back quickly rather than parking them while another
       // build worker waits for one.
       idleTimeoutMillis: 10_000,
