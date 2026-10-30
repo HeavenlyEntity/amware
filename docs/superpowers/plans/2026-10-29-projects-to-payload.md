@@ -242,8 +242,24 @@ from a checkout with these fields will switch it off to match.
   the build stops at `/blog/[slug]`, whose `generateStaticParams` needs the
   database, before `/projects`. So the site cannot build without the database
   at all, and the projects fallback is covered by `load.test.js` only.
-- The `/admin` edit check needs the owner's sign-in, so it runs on production
-  after the deploy.
+- The `/admin` edit check needs the owner's sign-in, so it ran on production
+  after the deploy, and it found a bug. Every admin save hung until the
+  10-second function timeout and returned a 504, with nothing written.
+  - **Cause:** the Payload Postgres adapter never releases the connection it
+    takes at startup, so `max: 2` left one usable. A REST save holds that one
+    for its transaction, then the document-lock check waits for a second.
+    Local API calls skip that check, so the seed and sims never hit this.
+  - **Fix (`64ca955`):** 3 connections at runtime, 2 during builds.
+    `DATABASE_POOL_MAX` still overrides both.
+  - **Retest:** a Gearz description edit on production returned 200 and showed
+    on `/projects` straight away, so the `after()` revalidate hook works.
+    `/projects.md` followed it within its 60-second CDN cache.
+  - **Revert:** the description is back to the original, `/projects.md`
+    matches the pre-edit copy byte for byte, and the `/projects` visible text
+    matches too.
+  - **Remaining risk:** three connections leave no margin. Two overlapping saves
+    in one instance could still hang until the timeout, because no
+    `connectionTimeoutMillis` is set. That is unlikely with one admin.
 
 ### Rollback
 
