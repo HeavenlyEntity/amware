@@ -7,7 +7,7 @@ export const Products: CollectionConfig = {
   slug: 'products',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'type', 'status', 'order'],
+    defaultColumns: ['name', 'type', 'line', 'edition', 'status', 'order'],
   },
   access: {
     read: ({ req: { user } }) => {
@@ -32,6 +32,71 @@ export const Products: CollectionConfig = {
       ],
     },
     { name: 'tagline', type: 'text' },
+    /* Which storefront a product belongs to. `type` says what it is; `line`
+       says which page sells it, so the WareKit pricing grid and the digital
+       products shelf each read their own rows. */
+    {
+      name: 'line',
+      type: 'select',
+      options: [
+        { label: 'WareKit', value: 'warekit' },
+        { label: 'Digital product', value: 'digital' },
+      ],
+      admin: {
+        description:
+          'Which storefront sells this: the WareKit pricing page or the ' +
+          'digital products shelf.',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'edition',
+      type: 'select',
+      options: [
+        { label: 'NetSuite', value: 'netsuite' },
+        { label: 'Standard', value: 'standard' },
+      ],
+      admin: {
+        description:
+          'WareKit edition: the NetSuite kits or the standard (non-NetSuite) ' +
+          'kit. WareKit products only.',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'digitalFormat',
+      type: 'select',
+      options: [
+        { label: 'PDF guide', value: 'pdf-guide' },
+        { label: 'Checklist', value: 'checklist' },
+      ],
+      admin: {
+        description: 'What the buyer downloads.',
+        condition: (data) => data?.line === 'digital',
+      },
+    },
+    {
+      name: 'pageCount',
+      type: 'number',
+      min: 1,
+      admin: {
+        description: 'Pages in the PDF, shown on the shelf card.',
+        condition: (data) => data?.line === 'digital',
+      },
+    },
+    {
+      name: 'audience',
+      type: 'select',
+      hasMany: true,
+      options: [
+        { label: 'Founders', value: 'founders' },
+        { label: 'Developers', value: 'developers' },
+      ],
+      admin: {
+        description: 'Who the guide is written for. Pick both if both.',
+        condition: (data) => data?.line === 'digital',
+      },
+    },
     /* Pricing-page presentation. A kit is one cell in a stack x tier grid,
        and the grid is built from these rather than parsed out of the slug --
        a naming convention is not a data model, and renaming a kit should not
@@ -165,15 +230,25 @@ export const Products: CollectionConfig = {
       },
     },
     { name: 'demoUrl', type: 'text' },
+    /* The deliverable is what a buyer pays for, so these two fields are closed
+       to anyone who is not signed in, even though collection read access is
+       public for published rows (REST and GraphQL included). Local API calls
+       override access by default, so the product page, the checkout action
+       and the access page still see them. This only closes the relationship
+       field: a file uploaded to the public media collection is still
+       listed at /api/media and served from its URL, so a paid file belongs
+       behind downloadUrl or a private store, not in public media. */
     {
       name: 'downloadFile',
       type: 'upload',
       relationTo: 'media',
+      access: { read: ({ req: { user } }) => Boolean(user) },
       admin: { description: 'Deliverable for digital downloads.' },
     },
     {
       name: 'downloadUrl',
       type: 'text',
+      access: { read: ({ req: { user } }) => Boolean(user) },
       admin: { description: 'Alternative external deliverable URL.' },
     },
     { name: 'featured', type: 'checkbox', defaultValue: false },

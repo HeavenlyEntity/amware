@@ -360,6 +360,26 @@ export interface Product {
   type: 'digital' | 'boilerplate' | 'service-package'
   tagline?: string | null
   /**
+   * Which storefront sells this: the WareKit pricing page or the digital products shelf.
+   */
+  line?: ('warekit' | 'digital') | null
+  /**
+   * WareKit edition: the NetSuite kits or the standard (non-NetSuite) kit. WareKit products only.
+   */
+  edition?: ('netsuite' | 'standard') | null
+  /**
+   * What the buyer downloads.
+   */
+  digitalFormat?: ('pdf-guide' | 'checklist') | null
+  /**
+   * Pages in the PDF, shown on the shelf card.
+   */
+  pageCount?: number | null
+  /**
+   * Who the guide is written for. Pick both if both.
+   */
+  audience?: ('founders' | 'developers')[] | null
+  /**
    * Which column of the pricing page this kit belongs to. Kits only.
    */
   stack?: ('react-netsuite' | 'next-netsuite') | null
@@ -966,6 +986,11 @@ export interface ProductsSelect<T extends boolean = true> {
   slugLock?: T
   type?: T
   tagline?: T
+  line?: T
+  edition?: T
+  digitalFormat?: T
+  pageCount?: T
+  audience?: T
   stack?: T
   tier?: T
   popular?: T
