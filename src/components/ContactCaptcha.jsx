@@ -3,7 +3,9 @@
 import Script from 'next/script'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-export function ContactCaptcha({ onToken }) {
+/* `tone="dark"` is for the panels that stay dark in both themes (EmailCapture's
+   host surfaces): the failure copy and retry button use light ink there. */
+export function ContactCaptcha({ onToken, tone }) {
   const container = useRef(null)
   const [ready, setReady] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -60,6 +62,7 @@ export function ContactCaptcha({ onToken }) {
   }, [ready, siteKey, attempt, onToken])
 
   const failed = !siteKey || status === 'error'
+  const dark = tone === 'dark'
   return (
     <div className="mt-6">
       {siteKey && (
@@ -77,7 +80,11 @@ export function ContactCaptcha({ onToken }) {
       {failed && (
         <p
           role="alert"
-          className="mt-2 text-xs text-zinc-600 dark:text-zinc-400"
+          className={
+            dark
+              ? 'mt-2 text-xs text-zinc-300'
+              : 'mt-2 text-xs text-zinc-600 dark:text-zinc-400'
+          }
         >
           The security check could not load. Please try again or refresh the
           page.
@@ -86,7 +93,9 @@ export function ContactCaptcha({ onToken }) {
       {failed && siteKey && (
         <button
           type="button"
-          className="min-h-11 mt-2 px-2 text-sm underline"
+          className={`min-h-11 mt-2 px-2 text-sm underline${
+            dark ? ' text-zinc-100' : ''
+          }`}
           onClick={() => {
             onToken('')
             setStatus('loading')
