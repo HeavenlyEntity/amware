@@ -16,12 +16,11 @@ import { identity } from '@/content/site/identity'
    Person schema. */
 export const CONTACT_EMAIL = identity.email
 
-/* The Digital Products page ships in the products split. Until then its
-   catalog row shows as "Soon": not a link, and left out of menuHrefs() so
-   the route-registry test stays honest. Flip the flag when the page is
-   live. */
+/* With the flag off the catalog row shows as "Soon": not a link, and left
+   out of menuHrefs() so the route-registry test stays honest. The Secure the
+   Stack cross-link follows it too. */
 export const DIGITAL_PRODUCTS_HREF = '/digital-products'
-export const DIGITAL_PRODUCTS_LIVE = false
+export const DIGITAL_PRODUCTS_LIVE = true
 
 export const SOCIAL_LINKS = [
   { id: 'x', label: 'Follow on X', href: identity.x },

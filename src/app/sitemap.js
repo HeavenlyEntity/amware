@@ -5,6 +5,8 @@ import { siteOrigin } from '@/lib/site-origin'
    them. Founders' Desk is the site's best answer to "technical advisor for
    a non-technical founder", and it was missing from the sitemap entirely. */
 const extraPages = [
+  '/digital-products',
+  '/products/standard',
   '/pricing',
   '/uses',
   '/founders',
