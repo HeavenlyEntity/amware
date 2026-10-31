@@ -78,21 +78,9 @@ describe('catalog cards', () => {
       whopPlanId: null,
       creemProductId: 'prod_1',
     }
-    const { unmount: unmountNoFile } = render(
-      <ul>
-        <ProductCard product={digital} index={0} />
-      </ul>
-    )
-    // A Creem id with nothing to deliver is not on sale either.
-    expect(screen.getByText('Details')).toBeInTheDocument()
-    unmountNoFile()
-
     render(
       <ul>
-        <ProductCard
-          product={{ ...digital, downloadUrl: 'https://x/y.pdf' }}
-          index={0}
-        />
+        <ProductCard product={digital} index={0} />
       </ul>
     )
     expect(screen.getByText('View spec')).toBeInTheDocument()

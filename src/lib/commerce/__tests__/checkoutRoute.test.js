@@ -14,26 +14,9 @@ describe('checkoutRoute', () => {
     ).toBe(null)
   })
 
-  it('sends a digital product with a Creem id and a deliverable to Creem', () => {
-    expect(
-      checkoutRoute({
-        type: 'digital',
-        creemProductId: 'prod_1',
-        downloadUrl: 'https://x/y.pdf',
-      })
-    ).toBe('creem')
-    expect(
-      checkoutRoute({
-        type: 'digital',
-        creemProductId: 'prod_1',
-        downloadFile: 7,
-      })
-    ).toBe('creem')
-  })
-
-  it('does not put a digital product on sale with nothing to deliver', () => {
+  it('sends a digital product with a Creem id to Creem, which delivers the file', () => {
     expect(checkoutRoute({ type: 'digital', creemProductId: 'prod_1' })).toBe(
-      null
+      'creem'
     )
   })
 

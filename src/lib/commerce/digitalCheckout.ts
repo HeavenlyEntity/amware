@@ -5,7 +5,6 @@ import { redirect } from 'next/navigation'
 import { getPayloadClient } from '../getPayloadClient'
 import { CreemError, createCheckoutSession } from './creem'
 import { checkoutRoute } from './checkoutRoute'
-import { assertDigitalDeliveryConfigured } from './deliverySecrets'
 
 /* A 'use server' module may only export async functions, so the initial state
  * lives with the component that owns it. Types are erased, so the type export
@@ -62,16 +61,18 @@ export async function startDigitalCheckout(
   const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
   if (!site) throw new Error('NEXT_PUBLIC_SITE_URL is not configured')
 
-  // Before Creem is called: a charge that cannot be delivered is worse than
-  // an error page.
-  assertDigitalDeliveryConfigured()
+  // Before Creem is called: without this secret every webhook is rejected, so
+  // a paid order would never be recorded here.
+  if (!process.env.CREEM_WEBHOOK_SECRET) {
+    throw new Error('CREEM_WEBHOOK_SECRET is required to record a purchase')
+  }
 
   const requestId = crypto.randomUUID()
 
   /* The success page gets the request id, unsigned. It uses it for one thing:
      to report the sale to the ads pixel with its real amount. It grants
-     nothing -- delivery is the signed access link the webhook emails -- so it
-     needs no signature, and a guessed id (a UUID) would reveal only that a
+     nothing -- Creem delivers the file through its own email and portal -- so
+     it needs no signature, and a guessed id (a UUID) would reveal only that a
      sale of some amount happened. */
   const successUrl = `${site}/checkout/success?r=${requestId}`
 

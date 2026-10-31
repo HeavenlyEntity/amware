@@ -158,6 +158,13 @@ In order, after deploy:
    break the Creem webhook's idempotency lookup. Likewise keep `creemProductId` on `products`,
    `creem.ts`, `/webhooks/creem`, `/access/[token]` and `/checkout/success`. Rewrite Task 10 before
    anyone runs it. **Task 11** (preflight) is unaffected.
+
+   Creem delivers digital products: the file is attached to the product in Creem's dashboard (File
+   Downloads) and reaches the buyer through Creem's purchase email and customer portal. A published
+   `digital` product with a `creemProductId` is on sale, and nothing here can see whether Creem has a
+   file, so confirm that in the same Creem mode as the production key before publishing. The webhook
+   records these sales as `not_required` and sends no access link, so a digital sale needs
+   `CREEM_WEBHOOK_SECRET` but not `ACCESS_LINK_SECRET`.
 4. **The community plan** (`2026-09-20-whop-community.md`), which needs two more columns.
 5. **Kit repositories:** `LICENSE.md` in each (Lite permissive, Pro commercial and lawyer-reviewed),
    the Turborepo restructure, and a decision on `warekit-react-netsuite`, which does not exist — React

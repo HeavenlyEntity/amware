@@ -230,26 +230,31 @@ export const Products: CollectionConfig = {
       },
     },
     { name: 'demoUrl', type: 'text' },
-    /* The deliverable is what a buyer pays for, so these two fields are closed
-       to anyone who is not signed in, even though collection read access is
-       public for published rows (REST and GraphQL included). Local API calls
-       override access by default, so the product page, the checkout action
-       and the access page still see them. This only closes the relationship
-       field: a file uploaded to the public media collection is still
-       listed at /api/media and served from its URL, so a paid file belongs
-       behind downloadUrl or a private store, not in public media. */
+    /* Paid digital products do not use these: the file is attached in Creem's
+       dashboard, and Creem delivers it. They remain for purchases that already
+       hold an access link, so both are closed to anyone who is not signed in,
+       even though collection read access is public for published rows (REST
+       and GraphQL included). Local API calls override access by default, so
+       the access page still sees them. This only closes the relationship
+       field: a file uploaded to the public media collection is still listed
+       at /api/media and served from its URL, so never upload a paid file. */
     {
       name: 'downloadFile',
       type: 'upload',
       relationTo: 'media',
       access: { read: ({ req: { user } }) => Boolean(user) },
-      admin: { description: 'Deliverable for digital downloads.' },
+      admin: {
+        description:
+          'Legacy. Do not upload paid files here: media is public. Attach them in Creem.',
+      },
     },
     {
       name: 'downloadUrl',
       type: 'text',
       access: { read: ({ req: { user } }) => Boolean(user) },
-      admin: { description: 'Alternative external deliverable URL.' },
+      admin: {
+        description: 'Legacy. Attach paid files to the product in Creem.',
+      },
     },
     { name: 'featured', type: 'checkbox', defaultValue: false },
     { name: 'order', type: 'number', defaultValue: 0 },

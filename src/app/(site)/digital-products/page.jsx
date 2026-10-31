@@ -19,7 +19,7 @@ export const metadata = withSocialImage(
 const GUIDE_SLUG = 'switch-clone-quick-key-rotation-guide'
 
 /* The route is decided here and only this reduced shape crosses: the row's
-   Creem id and deliverable stay on this side of the boundary. A failed read,
+   Creem id and description stay on this side of the boundary. A failed read,
    or no row, leaves `guide` null: the page renders with the guide not on
    sale and no price. */
 export default async function DigitalProductsPage() {

@@ -10,8 +10,10 @@ import { planId, type WhopEnvironment } from './whopEnv'
  * This file is imported by a client component, so it stays free of server
  * imports: only `planId`, which is itself client-safe.
  *
- * A Creem id with nothing to deliver is not on sale. Taking the money first
- * and finding there is no file second is the failure this guards against.
+ * A digital product needs only its Creem id. The paid file is attached to the
+ * product in Creem's dashboard, and Creem delivers it through its purchase
+ * email and customer portal, so nothing on this side can say whether a file
+ * is there. Confirm that in Creem before publishing a product.
  */
 export type CheckoutRoute = 'whop' | 'creem'
 
@@ -20,8 +22,6 @@ type Sellable = {
   whopPlanId?: string | null
   whopSandboxPlanId?: string | null
   creemProductId?: string | null
-  downloadFile?: unknown
-  downloadUrl?: string | null
 }
 
 export function checkoutRoute(
@@ -30,8 +30,7 @@ export function checkoutRoute(
 ): CheckoutRoute | null {
   if (!product) return null
   if (product.type === 'digital') {
-    const deliverable = product.downloadFile || product.downloadUrl
-    return product.creemProductId && deliverable ? 'creem' : null
+    return product.creemProductId ? 'creem' : null
   }
   return planId(product, env) ? 'whop' : null
 }

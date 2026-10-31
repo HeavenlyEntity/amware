@@ -428,7 +428,7 @@ export interface Product {
       }[]
     | null
   /**
-   * Creem prod_… id. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.
+   * Creem prod_… id. Creem sells digital products only; kits sell through Whop. A published digital product with an id is on sale, so attach its file in Creem first. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.
    */
   creemProductId?: string | null
   whopPlanId?: string | null
@@ -460,11 +460,11 @@ export interface Product {
   githubRepo?: string | null
   demoUrl?: string | null
   /**
-   * Deliverable for digital downloads.
+   * Legacy. Do not upload paid files here: media is public. Attach them in Creem.
    */
   downloadFile?: (number | null) | Media
   /**
-   * Alternative external deliverable URL.
+   * Legacy. Attach paid files to the product in Creem.
    */
   downloadUrl?: string | null
   featured?: boolean | null
@@ -501,7 +501,7 @@ export interface Course {
   coverImage?: (number | null) | Media
   level?: ('beginner' | 'intermediate' | 'advanced') | null
   /**
-   * Creem prod_… id. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.
+   * Creem prod_… id. Creem sells digital products only; kits sell through Whop. A published digital product with an id is on sale, so attach its file in Creem first. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.
    */
   creemProductId?: string | null
   whopPlanId?: string | null

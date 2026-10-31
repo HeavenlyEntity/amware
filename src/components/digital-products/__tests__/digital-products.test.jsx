@@ -43,7 +43,7 @@ import { DigitalProducts } from '../digital-products'
 
 const SLUG = 'switch-clone-quick-key-rotation-guide'
 const onSale = { price: 12, pageCount: 16, route: 'creem', slug: SLUG }
-const noFile = { price: 12, pageCount: 16, route: null, slug: SLUG }
+const noCreemId = { price: 12, pageCount: 16, route: null, slug: SLUG }
 
 const buyBlock = () => document.querySelector('.gd-buy')
 const card = (name) => screen.getByRole('heading', { name }).closest('article')
@@ -107,20 +107,11 @@ describe('the /digital-products read', () => {
     expect(await guide()).toEqual(onSale)
   })
 
-  // Review Focus 1
-  it('reads a Creem id with nothing to deliver as not on sale', async () => {
+  it('reads a row with no Creem id as not on sale', async () => {
     payload.find.mockResolvedValue({
-      docs: [
-        {
-          slug: SLUG,
-          type: 'digital',
-          price: 12,
-          pageCount: 16,
-          creemProductId: 'prod_secret',
-        },
-      ],
+      docs: [{ slug: SLUG, type: 'digital', price: 12, pageCount: 16 }],
     })
-    expect(await guide()).toEqual(noFile)
+    expect(await guide()).toEqual(noCreemId)
   })
 
   it('passes null when the row is absent', async () => {
@@ -173,7 +164,7 @@ describe('buying the playbook', () => {
 
   // Review Focus 1
   it('offers no Buy button with no route, and says why', () => {
-    render(<DigitalProducts guide={noFile} />)
+    render(<DigitalProducts guide={noCreemId} />)
     expect(screen.queryByTestId('buy')).toBeNull()
     expect(screen.queryByRole('button', { name: /buy/i })).toBeNull()
     expect(buyBlock()).toHaveTextContent('Not on sale yet')
@@ -181,7 +172,7 @@ describe('buying the playbook', () => {
 
   // Review Focus 5
   it('does not call the guide a one-time purchase while it is not on sale', () => {
-    render(<DigitalProducts guide={noFile} />)
+    render(<DigitalProducts guide={noCreemId} />)
     expect(buyBlock()).not.toHaveTextContent('One-time')
     expect(card('The 15-Minute Key Rotation Playbook')).not.toHaveTextContent(
       'One-time'

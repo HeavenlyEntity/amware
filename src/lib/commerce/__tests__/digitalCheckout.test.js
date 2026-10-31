@@ -39,7 +39,6 @@ const guide = {
   type: 'digital',
   status: 'published',
   creemProductId: 'prod_guide',
-  downloadUrl: 'https://example.com/guide.pdf',
 }
 
 const form = (fields) => {
@@ -60,8 +59,8 @@ const run = (fields = { slug: guide.slug }) =>
 beforeEach(() => {
   vi.clearAllMocks()
   process.env.NEXT_PUBLIC_SITE_URL = 'https://example.com/'
-  process.env.ACCESS_LINK_SECRET = 'test-link-secret'
   process.env.CREEM_WEBHOOK_SECRET = 'test-webhook-secret'
+  delete process.env.ACCESS_LINK_SECRET
   delete process.env.ACCESS_TOKEN_SECRET
   createCheckoutSession.mockResolvedValue({
     checkoutUrl: 'https://creem.io/pay/abc',
@@ -91,12 +90,6 @@ describe('startDigitalCheckout', () => {
 
   it('returns the not-on-sale error for a non-digital product', async () => {
     withDoc({ ...guide, type: 'boilerplate' })
-    expect(await run()).toEqual(NOT_ON_SALE)
-    expect(createCheckoutSession).not.toHaveBeenCalled()
-  })
-
-  it('returns the not-on-sale error for a product with nothing to deliver', async () => {
-    withDoc({ ...guide, downloadUrl: null, downloadFile: null })
     expect(await run()).toEqual(NOT_ON_SALE)
     expect(createCheckoutSession).not.toHaveBeenCalled()
   })
@@ -159,18 +152,8 @@ describe('startDigitalCheckout', () => {
     expect(createCheckoutSession).not.toHaveBeenCalled()
   })
 
-  it('throws before calling Creem when the access-link secret is missing', async () => {
+  it('sells without an access-link secret, because Creem delivers the file', async () => {
     withDoc(guide)
-    delete process.env.ACCESS_LINK_SECRET
-    await expect(run()).rejects.toThrow('ACCESS_LINK_SECRET')
-    expect(createCheckoutSession).not.toHaveBeenCalled()
-    expect(redirect).not.toHaveBeenCalled()
-  })
-
-  it('accepts the legacy access-link secret name', async () => {
-    withDoc(guide)
-    delete process.env.ACCESS_LINK_SECRET
-    process.env.ACCESS_TOKEN_SECRET = 'legacy'
     await expect(run()).rejects.toThrow('NEXT_REDIRECT')
     expect(createCheckoutSession).toHaveBeenCalledTimes(1)
   })
