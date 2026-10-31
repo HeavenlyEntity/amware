@@ -24,7 +24,7 @@ const product = {
   tagline: 'Auth, billing, CMS. Wired.',
   price: 149,
   currency: 'USD',
-  creemProductId: 'prod_1',
+  whopPlanId: 'plan_kit',
   heroImage: { url: '/img/kit.webp' },
   techStack: [{ tech: 'Next.js' }, { tech: 'Payload' }],
 }
@@ -49,6 +49,53 @@ describe('catalog cards', () => {
     expect(screen.getByRole('list', { name: 'Stack' })).toHaveTextContent(
       'Next.js'
     )
+  })
+
+  it('product card pill says View spec only when a checkout route exists', () => {
+    const { unmount } = render(
+      <ul>
+        <ProductCard product={product} index={0} />
+      </ul>
+    )
+    expect(screen.getByText('View spec')).toBeInTheDocument()
+    unmount()
+
+    // A kit with only a Creem id is not on sale: kits sell through Whop.
+    const { unmount: unmountCreemKit } = render(
+      <ul>
+        <ProductCard
+          product={{ ...product, whopPlanId: null, creemProductId: 'prod_1' }}
+          index={0}
+        />
+      </ul>
+    )
+    expect(screen.getByText('Details')).toBeInTheDocument()
+    unmountCreemKit()
+
+    const digital = {
+      ...product,
+      type: 'digital',
+      whopPlanId: null,
+      creemProductId: 'prod_1',
+    }
+    const { unmount: unmountNoFile } = render(
+      <ul>
+        <ProductCard product={digital} index={0} />
+      </ul>
+    )
+    // A Creem id with nothing to deliver is not on sale either.
+    expect(screen.getByText('Details')).toBeInTheDocument()
+    unmountNoFile()
+
+    render(
+      <ul>
+        <ProductCard
+          product={{ ...digital, downloadUrl: 'https://x/y.pdf' }}
+          index={0}
+        />
+      </ul>
+    )
+    expect(screen.getByText('View spec')).toBeInTheDocument()
   })
 
   it('product card without a price says pricing soon', () => {

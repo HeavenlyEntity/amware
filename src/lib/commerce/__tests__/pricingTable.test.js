@@ -19,7 +19,8 @@ const kit = (over = {}) => ({
   tier: 'pro',
   price: 499,
   seats: 1,
-  creemProductId: 'prod_x',
+  type: 'boilerplate',
+  whopPlanId: 'plan_x',
   ...over,
 })
 
@@ -60,8 +61,8 @@ describe('seatLine', () => {
 })
 
 describe('cta', () => {
-  it('offers a free kit without needing a Creem product', () => {
-    expect(cta(kit({ price: 0, creemProductId: null }))).toEqual({
+  it('offers a free kit without needing a Whop plan', () => {
+    expect(cta(kit({ price: 0, whopPlanId: null }))).toEqual({
       label: 'Get it free',
       live: true,
       soon: false,
@@ -72,14 +73,14 @@ describe('cta', () => {
     /* It still belongs on the table -- hiding it makes the stack look
        half-finished -- but the checkout could not complete and there is no
        repository to invite anyone to, so it must never say Buy. */
-    expect(cta(kit({ creemProductId: null }))).toEqual({
+    expect(cta(kit({ whopPlanId: null }))).toEqual({
       label: 'In development',
       live: false,
       soon: true,
     })
   })
 
-  it('offers a paid kit that has a product', () => {
+  it('offers a paid kit that has a Whop plan', () => {
     expect(cta(kit())).toEqual({
       label: 'Buy this kit',
       live: true,
@@ -87,9 +88,20 @@ describe('cta', () => {
     })
   })
 
-  it('never marks a free kit as coming soon, product or not', () => {
+  it('does not treat a Creem id as a way to buy a kit', () => {
+    expect(cta(kit({ whopPlanId: null, creemProductId: 'prod_x' })).live).toBe(
+      false
+    )
+  })
+
+  it('reads the sandbox plan only when the environment asks for it', () => {
+    const sandboxOnly = kit({ whopPlanId: null, whopSandboxPlanId: 'plan_sbx' })
+    expect(cta(sandboxOnly).live).toBe(false)
+  })
+
+  it('never marks a free kit as coming soon, plan or not', () => {
     // Free needs nothing to charge against; it is claimable today.
-    expect(cta(kit({ price: 0, creemProductId: null })).soon).toBe(false)
+    expect(cta(kit({ price: 0, whopPlanId: null })).soon).toBe(false)
   })
 })
 

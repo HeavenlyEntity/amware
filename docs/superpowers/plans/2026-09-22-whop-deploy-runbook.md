@@ -144,12 +144,20 @@ In order, after deploy:
 1. **Migration Task 1**, updated for Elements: Whop plans for Next Lite/Pro/Team and React Lite with a
    `GitHub username` custom field, plan ids into Payload, and the custom-field capture (the hosted
    checkout in the sandbox still works for that).
-2. **Migration Task 9, corrected**, and its first step is non-negotiable: repoint the buy-button gates
-   off `creemProductId` (`products/[slug]/page.tsx:227`, `courses/[slug]/page.tsx:73`,
-   `catalog-cards.jsx:311`). Until then no kit renders a checkout at all. Keep `access/seats/`,
-   `access/resend/` and `accessToken.ts`; repoint resend to `/access/seats/<token>` for multi-seat
-   purchases; delete `completeOnboarding`.
-3. **Migration Task 10** (drop the Creem columns, keep `accessTokenJti`) and **Task 11** (preflight).
+2. **Migration Task 9, corrected.** The buy-button gates are done: `products/[slug]/page.tsx`,
+   `catalog-cards.jsx` and the pricing table's `cta()` branch on `checkoutRoute(product)` (kits to
+   Whop, digital products to Creem via `DigitalBuyButton`), and `courses/[slug]/page.tsx` reads `planId(course)`. The `ServiceAction` gate
+   still reads `creemProductId` on purpose: a service's `whopPlanId` is its deposit plan, so gating on
+   it would replace the reservation CTA. Still to do: keep `access/seats/`, `access/resend/` and
+   `accessToken.ts`; repoint resend to `/access/seats/<token>` for multi-seat purchases; delete
+   `completeOnboarding`.
+3. **Migration Task 10 does not run as written, and neither does its `DELETE FROM purchases;`.** Digital
+   products sell through Creem, so every `purchases` Creem column stays: `provider`, `creemProductId`,
+   `creemOrderId`, `creemSubscriptionId`, `creemTransactionId`, `creemRequestId`. So do `licenseKey`
+   and `accessTokenJti`. Deleting the rows would erase real sales, and dropping `creemOrderId` would
+   break the Creem webhook's idempotency lookup. Likewise keep `creemProductId` on `products`,
+   `creem.ts`, `/webhooks/creem`, `/access/[token]` and `/checkout/success`. Rewrite Task 10 before
+   anyone runs it. **Task 11** (preflight) is unaffected.
 4. **The community plan** (`2026-09-20-whop-community.md`), which needs two more columns.
 5. **Kit repositories:** `LICENSE.md` in each (Lite permissive, Pro commercial and lawyer-reviewed),
    the Turborepo restructure, and a decision on `warekit-react-netsuite`, which does not exist — React

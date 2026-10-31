@@ -4,9 +4,11 @@
  * Pulled out of the page because this is the part that can be wrong in a way
  * that costs money: a tier shown at the wrong price, a seat count that does
  * not match what the seat page enforces, or a "Buy" button on something with
- * no Creem product behind it. A server component that awaits a database is
+ * no checkout behind it. A server component that awaits a database is
  * awkward to test; these are plain functions over plain data.
  */
+
+import { checkoutRoute } from './checkoutRoute'
 
 export type PricingKit = {
   id: number | string
@@ -18,7 +20,9 @@ export type PricingKit = {
   stack?: string | null
   tier?: string | null
   popular?: boolean | null
-  creemProductId?: string | null
+  type?: string | null
+  whopPlanId?: string | null
+  whopSandboxPlanId?: string | null
   pricingHighlights?: { highlight?: string | null }[] | null
 }
 
@@ -66,16 +70,16 @@ export function seatLine(kit: { seats?: number | null }): string {
    never carry a Buy button, because the checkout could not complete and the
    repository does not exist to invite anyone to.
  *
- * The absence of a Creem product is what marks it, rather than a flag someone
- * has to remember to unset: a kit becomes buyable at the moment there is
- * something to charge against, and not before. Free kits need no product. */
+ * The absence of a checkout route is what marks it, rather than a flag someone
+ * has to remember to unset: a kit becomes buyable at the moment its Whop plan
+ * exists for this environment, and not before. Free kits need no plan. */
 export function cta(kit: PricingKit): {
   label: string
   live: boolean
   soon: boolean
 } {
   if (kit.price === 0) return { label: 'Get it free', live: true, soon: false }
-  if (!kit.creemProductId) {
+  if (!checkoutRoute(kit)) {
     return { label: 'In development', live: false, soon: true }
   }
   return { label: 'Buy this kit', live: true, soon: false }
