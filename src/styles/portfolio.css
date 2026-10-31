@@ -1,6 +1,6 @@
 /* =========================================================================
-   Shared tokens and primitives for the redesigned Projects and Courses
-   pages, ported from the approved designs
+   Shared tokens and primitives for the redesigned Projects, Courses and
+   Products pages, ported from the approved designs
    (docs/design/2026-10-27-portfolio-upgrade/reference/*.design.html).
 
    Dark is the designed state. Every surface reads the --pj-* tokens below,
@@ -13,7 +13,8 @@
    ========================================================================= */
 
 .pj,
-.co {
+.co,
+.pr {
   --pj-t1: var(--amw-ink);
   --pj-t2: #4a5557;
   --pj-t3: #5b6667;
@@ -47,8 +48,10 @@
 
 :where(.dark) .pj,
 :where(.dark) .co,
+:where(.dark) .pr,
 .pj .pj-dark,
-.co .pj-dark {
+.co .pj-dark,
+.pr .pj-dark {
   --pj-t1: #f3f6f6;
   --pj-t2: #a9b4b5;
   --pj-t3: #84908f;
@@ -77,7 +80,8 @@
 }
 
 .pj,
-.co {
+.co,
+.pr {
   color: var(--pj-t1);
 }
 
