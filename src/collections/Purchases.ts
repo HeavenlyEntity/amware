@@ -180,6 +180,7 @@ export const Purchases: CollectionConfig = {
     {
       name: 'licenseKey',
       type: 'text',
+      index: true,
       admin: {
         description:
           'Issued by Creem, when the product has license keys enabled. Empty ' +
@@ -211,11 +212,10 @@ export const Purchases: CollectionConfig = {
       labels: { singular: 'Seat', plural: 'Seats' },
       admin: {
         description:
-          'Every GitHub account this licence has granted, including the ' +
-          'purchaser. The length is the seats used; the limit lives on the ' +
-          'product. Rows are appended, never replaced, so removing someone ' +
-          'here does not take their repository access away — do that on ' +
-          'GitHub.',
+          'Legacy: new seats live on the license. Every GitHub account this ' +
+          'purchase granted before licenses existed, including the ' +
+          'purchaser. Kept so no history is lost; nothing new is written ' +
+          'here.',
       },
       fields: [
         { name: 'githubUsername', type: 'text', required: true },
@@ -226,6 +226,44 @@ export const Purchases: CollectionConfig = {
           admin: { date: { pickerAppearance: 'dayAndTime' } },
         },
       ],
+    },
+    {
+      name: 'license',
+      type: 'relationship',
+      relationTo: 'licenses',
+      admin: {
+        description:
+          'The license this purchase belongs to. An upgrade is a second ' +
+          'purchase on the same license.',
+      },
+    },
+    {
+      name: 'grantsTier',
+      type: 'select',
+      options: [
+        { label: 'Lite', value: 'lite' },
+        { label: 'Pro', value: 'pro' },
+        { label: 'Team', value: 'team' },
+      ],
+      admin: {
+        description:
+          'The tier this row gives. The license takes the highest tier ' +
+          'among its paid rows.',
+      },
+    },
+    {
+      name: 'creemEnvironment',
+      type: 'select',
+      options: [
+        { label: 'Production', value: 'production' },
+        { label: 'Sandbox', value: 'sandbox' },
+      ],
+      defaultValue: 'production',
+      admin: {
+        description:
+          'Sandbox rows are Creem test-mode payments. They are kept so the ' +
+          'whole flow can be checked, and left out of the revenue figures.',
+      },
     },
     { name: 'accessTokenJti', type: 'text' },
     {

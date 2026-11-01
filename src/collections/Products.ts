@@ -199,6 +199,42 @@ export const Products: CollectionConfig = {
           'so it is the licence, not a label.',
       },
     },
+    {
+      name: 'netsuiteAccounts',
+      type: 'number',
+      min: 1,
+      admin: {
+        description:
+          'How many NetSuite accounts this tier may report. 1 for Pro, 3 ' +
+          'for Team. Empty means 1, the same rule as seats. Reported, not ' +
+          'enforced: nothing in a kit is blocked at the limit.',
+      },
+    },
+    {
+      name: 'creemUpgradeProductId',
+      type: 'text',
+      admin: {
+        description:
+          'On a Team row: the Creem product for upgrading Pro to Team on ' +
+          'this stack. It issues no license key of its own.',
+      },
+    },
+    {
+      name: 'creemSandboxProductId',
+      type: 'text',
+      admin: {
+        description:
+          'The same product in Creem test mode, which has its own ids. ' +
+          'Used when Creem is in sandbox.',
+      },
+    },
+    {
+      name: 'creemUpgradeSandboxProductId',
+      type: 'text',
+      admin: {
+        description: 'The test-mode id of the upgrade product.',
+      },
+    },
     { name: 'currency', type: 'text', defaultValue: 'USD' },
     {
       name: 'priceLabel',

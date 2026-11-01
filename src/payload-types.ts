@@ -77,6 +77,7 @@ export interface Config {
     services: Service
     'contact-submissions': ContactSubmission
     purchases: Purchase
+    licenses: License
     'payload-kv': PayloadKv
     'payload-locked-documents': PayloadLockedDocument
     'payload-preferences': PayloadPreference
@@ -96,6 +97,7 @@ export interface Config {
       | ContactSubmissionsSelect<false>
       | ContactSubmissionsSelect<true>
     purchases: PurchasesSelect<false> | PurchasesSelect<true>
+    licenses: LicensesSelect<false> | LicensesSelect<true>
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>
     'payload-locked-documents':
       | PayloadLockedDocumentsSelect<false>
@@ -438,6 +440,22 @@ export interface Product {
    * How many GitHub accounts this licence may invite. 1 for Lite and Pro, 5 for Team. The seat page refuses the seat past this number, so it is the licence, not a label.
    */
   seats?: number | null
+  /**
+   * How many NetSuite accounts this tier may report. 1 for Pro, 3 for Team. Empty means 1, the same rule as seats. Reported, not enforced: nothing in a kit is blocked at the limit.
+   */
+  netsuiteAccounts?: number | null
+  /**
+   * On a Team row: the Creem product for upgrading Pro to Team on this stack. It issues no license key of its own.
+   */
+  creemUpgradeProductId?: string | null
+  /**
+   * The same product in Creem test mode, which has its own ids. Used when Creem is in sandbox.
+   */
+  creemSandboxProductId?: string | null
+  /**
+   * The test-mode id of the upgrade product.
+   */
+  creemUpgradeSandboxProductId?: string | null
   currency?: string | null
   /**
    * e.g. "one-time", "from"
@@ -705,7 +723,7 @@ export interface Purchase {
    */
   githubInviteUrl?: string | null
   /**
-   * Every GitHub account this licence has granted, including the purchaser. The length is the seats used; the limit lives on the product. Rows are appended, never replaced, so removing someone here does not take their repository access away — do that on GitHub.
+   * Legacy: new seats live on the license. Every GitHub account this purchase granted before licenses existed, including the purchaser. Kept so no history is lost; nothing new is written here.
    */
   seatMembers?:
     | {
@@ -715,6 +733,18 @@ export interface Purchase {
         id?: string | null
       }[]
     | null
+  /**
+   * The license this purchase belongs to. An upgrade is a second purchase on the same license.
+   */
+  license?: (number | null) | License
+  /**
+   * The tier this row gives. The license takes the highest tier among its paid rows.
+   */
+  grantsTier?: ('lite' | 'pro' | 'team') | null
+  /**
+   * Sandbox rows are Creem test-mode payments. They are kept so the whole flow can be checked, and left out of the revenue figures.
+   */
+  creemEnvironment?: ('production' | 'sandbox') | null
   accessTokenJti?: string | null
   status?: ('paid' | 'refunded') | null
   /**
@@ -734,6 +764,83 @@ export interface Purchase {
   fulfillmentStatus?:
     | ('pending' | 'pending_invite' | 'sent' | 'failed' | 'not_required')
     | null
+  updatedAt: string
+  createdAt: string
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "licenses".
+ */
+export interface License {
+  id: number
+  /**
+   * Stored lowercase.
+   */
+  ownerEmail: string
+  /**
+   * Which kit family this license is for.
+   */
+  stack: 'react-netsuite' | 'next-netsuite'
+  /**
+   * Derived: the highest tier among this license’s paid purchases, recomputed whenever one changes. Empty means nothing is paid.
+   */
+  tier?: ('lite' | 'pro' | 'team' | 'enterprise') | null
+  /**
+   * Developers allowed. Empty except on Enterprise, where it is required; every other tier takes its limit from the product.
+   */
+  seatOverride?: number | null
+  /**
+   * NetSuite accounts allowed. Empty except on Enterprise, where it is required; every other tier takes its limit from the product.
+   */
+  accountOverride?: number | null
+  /**
+   * Every GitHub account this license has granted, including the purchaser. The length is the seats used; the limit comes from the tier. Rows are appended, never replaced, so removing someone here does not take their repository access away. Do that on GitHub.
+   */
+  seatMembers?:
+    | {
+        githubUsername: string
+        inviteUrl?: string | null
+        addedAt?: string | null
+        id?: string | null
+      }[]
+    | null
+  /**
+   * NetSuite accounts that have reported using this license. An over-limit row is the upgrade signal; nothing is blocked.
+   */
+  accounts?:
+    | {
+        accountId: string
+        status: 'active' | 'over_limit'
+        /**
+         * Creem’s activation id for this account. Empty until Creem accepts it; the report route retries.
+         */
+        creemInstanceId?: string | null
+        firstSeenAt?: string | null
+        lastSeenAt?: string | null
+        /**
+         * When the owner was emailed about this account.
+         */
+        notifiedAt?: string | null
+        id?: string | null
+      }[]
+    | null
+  /**
+   * The private Creem product for an Enterprise quote. Empty on every other license.
+   */
+  quoteCreemProductId?: string | null
+  /**
+   * Set for disputes, partial refunds, an overpaid upgrade and anything else a person should look at. Clear it when handled.
+   */
+  needsReview?: boolean | null
+  tierChangedAt?: string | null
+  /**
+   * When the license page link was last emailed.
+   */
+  lastLinkSentAt?: string | null
+  /**
+   * Sandbox licenses come from Creem test-mode purchases and are deleted when the test ends.
+   */
+  creemEnvironment?: ('production' | 'sandbox') | null
   updatedAt: string
   createdAt: string
 }
@@ -800,6 +907,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'purchases'
         value: number | Purchase
+      } | null)
+    | ({
+        relationTo: 'licenses'
+        value: number | License
       } | null)
   globalSlug?: string | null
   user: {
@@ -1018,6 +1129,10 @@ export interface ProductsSelect<T extends boolean = true> {
   whopSandboxPlanId?: T
   price?: T
   seats?: T
+  netsuiteAccounts?: T
+  creemUpgradeProductId?: T
+  creemSandboxProductId?: T
+  creemUpgradeSandboxProductId?: T
   currency?: T
   priceLabel?: T
   heroImage?: T
@@ -1152,10 +1267,50 @@ export interface PurchasesSelect<T extends boolean = true> {
         addedAt?: T
         id?: T
       }
+  license?: T
+  grantsTier?: T
+  creemEnvironment?: T
   accessTokenJti?: T
   status?: T
   subscriptionStatus?: T
   fulfillmentStatus?: T
+  updatedAt?: T
+  createdAt?: T
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "licenses_select".
+ */
+export interface LicensesSelect<T extends boolean = true> {
+  ownerEmail?: T
+  stack?: T
+  tier?: T
+  seatOverride?: T
+  accountOverride?: T
+  seatMembers?:
+    | T
+    | {
+        githubUsername?: T
+        inviteUrl?: T
+        addedAt?: T
+        id?: T
+      }
+  accounts?:
+    | T
+    | {
+        accountId?: T
+        status?: T
+        creemInstanceId?: T
+        firstSeenAt?: T
+        lastSeenAt?: T
+        notifiedAt?: T
+        id?: T
+      }
+  quoteCreemProductId?: T
+  needsReview?: T
+  tierChangedAt?: T
+  lastLinkSentAt?: T
+  creemEnvironment?: T
   updatedAt?: T
   createdAt?: T
 }
