@@ -70,6 +70,13 @@ const world = ({
       if (!row) throw Object.assign(new Error('Not Found'), { status: 404 })
       return row
     }),
+    // Writes land on the stored row, so the next request reads them back.
+    update: vi.fn(async ({ collection, id, data }) => {
+      const row =
+        collection === 'licenses' ? licenses.find((l) => l.id === id) : null
+      Object.assign(row, data)
+      return row
+    }),
   }
   getPayloadClient.mockResolvedValue(db)
   return db
@@ -309,5 +316,105 @@ describe('resend answers every email the same way', () => {
     const answer = await submit(OWNER)
     expect(answer.done).toBe(false)
     expect(answer.error).toMatch(/try again/i)
+  })
+})
+
+describe('resend and the ten-minute window', () => {
+  const MINUTE = 60 * 1000
+  const DONE = { done: true, error: null }
+  const license = (lastLinkSentAt) => ({
+    id: 9,
+    ownerEmail: OWNER,
+    tier: 'pro',
+    ...(lastLinkSentAt ? { lastLinkSentAt } : {}),
+  })
+  const ago = (minutes) => new Date(Date.now() - minutes * MINUTE).toISOString()
+
+  it('sends a second resend nothing inside ten minutes, with the same answer', async () => {
+    world({ purchases: [kitRow()] })
+    const first = await submit(OWNER)
+    const second = await submit(OWNER)
+
+    expect(sendLicenseLinkEmail).toHaveBeenCalledTimes(1)
+    expect(second).toEqual(first)
+    expect(second).toEqual(DONE)
+  })
+
+  it('sends again once ten minutes have passed', async () => {
+    world({ purchases: [kitRow()], licenses: [license(ago(11))] })
+    expect(await submit(OWNER)).toEqual(DONE)
+    expect(sendLicenseLinkEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds the line at nine minutes, and writes nothing', async () => {
+    const db = world({ purchases: [kitRow()], licenses: [license(ago(9))] })
+    expect(await submit(OWNER)).toEqual(DONE)
+    expect(sendLicenseLinkEmail).not.toHaveBeenCalled()
+    expect(db.update).not.toHaveBeenCalled()
+  })
+
+  it('shares the window with the expired-link button, which writes lastLinkSentAt', async () => {
+    // A mail from the license page's button, a minute ago.
+    world({ purchases: [kitRow()], licenses: [license(ago(1))] })
+    await submit(OWNER)
+    expect(sendLicenseLinkEmail).not.toHaveBeenCalled()
+  })
+
+  it('records the send before the mail goes', async () => {
+    const db = world({ purchases: [kitRow()] })
+    await submit(OWNER)
+    expect(db.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'licenses',
+        id: 9,
+        data: { lastLinkSentAt: expect.any(String) },
+      })
+    )
+    expect(db.update.mock.invocationCallOrder[0]).toBeLessThan(
+      sendLicenseLinkEmail.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('is per license: another license is not held back', async () => {
+    world({
+      purchases: [
+        kitRow(),
+        kitRow({ id: 50, email: 'other@acme.com', license: 10 }),
+      ],
+      licenses: [
+        license(ago(1)),
+        { id: 10, ownerEmail: 'other@acme.com', tier: 'pro' },
+      ],
+    })
+    await submit(OWNER)
+    expect(sendLicenseLinkEmail).not.toHaveBeenCalled()
+    await submit('other@acme.com')
+    expect(sendLicenseLinkEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives the window back when the mail fails, so a retry is not blocked', async () => {
+    world({ purchases: [kitRow()], licenses: [license(ago(30))] })
+    const before = (await getPayloadClient()).findByID
+    sendLicenseLinkEmail.mockRejectedValueOnce(new Error('resend is down'))
+    expect(await submit(OWNER)).toEqual(DONE)
+    expect(await submit(OWNER)).toEqual(DONE)
+    expect(before).toBeDefined()
+    expect(sendLicenseLinkEmail).toHaveBeenCalledTimes(2)
+  })
+
+  it('sends nothing, and still answers the same, when it cannot record the send', async () => {
+    const db = world({ purchases: [kitRow()] })
+    db.update.mockRejectedValue(new Error('write failed'))
+    expect(await submit(OWNER)).toEqual(DONE)
+    expect(sendLicenseLinkEmail).not.toHaveBeenCalled()
+  })
+
+  it('does not apply the window to a non-kit purchase', async () => {
+    world({
+      purchases: [kitRow({ id: 12, license: null, itemType: 'course' })],
+    })
+    await submit(OWNER)
+    await submit(OWNER)
+    expect(sendAccessLinkEmail).toHaveBeenCalledTimes(2)
   })
 })

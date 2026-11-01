@@ -329,3 +329,60 @@ export async function licenseFromClaims(payload, claims) {
 
   return { license, purchase, product }
 }
+
+/*
+ * The window between license-link mails.
+ *
+ * One license is mailed a fresh link at most once in ten minutes, whichever
+ * door asked: the expired-link button on the license page and `/access/resend`
+ * share this, so neither can be used to mail-bomb an owner whose address
+ * someone knows. The record is `lastLinkSentAt` on the license, so a second
+ * link, tab or browser shares it.
+ *
+ * Here, in a plain module, and not in `addSeat.ts` or `resendLink.js`: both of
+ * those are 'use server', and every export of such a file is a public
+ * endpoint.
+ *
+ * It is a read, then a write, not one atomic update. Two requests inside the
+ * same few milliseconds can each pass `linkWindowOpen` and send one mail
+ * apiece. Two mails to the owner's own inbox is an acceptable worst case.
+ */
+export const LINK_INTERVAL_MS = 10 * 60 * 1000
+
+/** True when no link was mailed in the last ten minutes. A timestamp from the
+    future does not block: it would otherwise lock a license until then. */
+export function linkWindowOpen(license, now = Date.now()) {
+  const last = Date.parse(String(license?.lastLinkSentAt ?? ''))
+  if (!Number.isFinite(last)) return true
+  const elapsed = now - last
+  return !(elapsed >= 0 && elapsed < LINK_INTERVAL_MS)
+}
+
+/** Take the window, before the mail goes. Returns what `lastLinkSentAt` was,
+    to hand to `releaseLinkWindow`. Throws if it cannot be recorded, and the
+    caller must then send nothing. */
+export async function claimLinkWindow(payload, license) {
+  const previous = license.lastLinkSentAt ?? null
+  await payload.update({
+    collection: 'licenses',
+    id: license.id,
+    overrideAccess: true,
+    data: { lastLinkSentAt: new Date().toISOString() },
+  })
+  return previous
+}
+
+/** Give the window back after a mail that did not go out, to what it was.
+    Best effort: a failure here is logged and never thrown. */
+export async function releaseLinkWindow(payload, license, previous) {
+  try {
+    await payload.update({
+      collection: 'licenses',
+      id: license.id,
+      overrideAccess: true,
+      data: { lastLinkSentAt: previous ?? null },
+    })
+  } catch (err) {
+    console.error('Could not give the link window back', license.id, err)
+  }
+}

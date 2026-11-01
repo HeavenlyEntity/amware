@@ -3,6 +3,11 @@
 import { getPayloadClient } from '../getPayloadClient'
 import { tryCreateAccessToken } from './accessToken'
 import { sendAccessLinkEmail, sendLicenseLinkEmail } from './fulfillment'
+import {
+  claimLinkWindow,
+  linkWindowOpen,
+  releaseLinkWindow,
+} from './licenseRecord'
 
 /*
  * "Resend my link", for /access/resend.
@@ -23,6 +28,11 @@ import { sendAccessLinkEmail, sendLicenseLinkEmail } from './fulfillment'
  *    payment was an upgrade. The license id goes in the token, so the page
  *    opens the license whichever row it was minted from.
  *  - Anything else keeps the old `/access/<token>` mail.
+ *
+ * A license is mailed at most once in ten minutes, the window the expired-link
+ * button on the license page shares (`lastLinkSentAt`, in licenseRecord.js).
+ * Inside it nothing is sent and the answer is the same, so anyone who knows
+ * an owner's address cannot use this page to flood their inbox.
  *
  * The license link goes to the license's stored owner, and only when the
  * address typed is that owner. Someone else who paid on a license, such as a
@@ -98,10 +108,11 @@ export async function resendLink(_prevState, formData) {
   if (!email) return { done: false, error: 'Enter the email you bought with.' }
   const reason = formData.get('intent') === 'upgrade' ? 'upgrade' : 'link'
 
+  let payload
   let kit
   let download = null
   try {
-    const payload = await getPayloadClient()
+    payload = await getPayloadClient()
     kit = await ownedKitPurchase(payload, email)
     /* Rows on a license are never offered the old link. A licensed purchase
        that was not mailed above (its owner is someone else) must not leak
@@ -139,13 +150,26 @@ export async function resendLink(_prevState, formData) {
         console.error('Resend: could not sign a license link —', signed.reason)
       } else if (!site) {
         console.error('Resend: NEXT_PUBLIC_SITE_URL is not set')
+      } else if (!linkWindowOpen(kit.license)) {
+        /* A link went to this license in the last ten minutes, from here or
+           from the expired-link button. Skipped without a word: the answer
+           below is the same, so the window cannot be used to tell which
+           addresses are real. */
       } else {
-        await sendLicenseLinkEmail({
-          to: kit.license.ownerEmail,
-          itemName: 'WareKit',
-          url: `${site}/access/seats/${signed.token}`,
-          reason,
-        })
+        // Recorded before the mail goes, as the expired-link button does.
+        const previous = await claimLinkWindow(payload, kit.license)
+        try {
+          await sendLicenseLinkEmail({
+            to: kit.license.ownerEmail,
+            itemName: 'WareKit',
+            url: `${site}/access/seats/${signed.token}`,
+            reason,
+          })
+        } catch (err) {
+          // Nothing went out, so the ten minutes are not spent.
+          await releaseLinkWindow(payload, kit.license, previous)
+          throw err
+        }
       }
     } else if (download) {
       const signed = tryCreateAccessToken({

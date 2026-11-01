@@ -340,6 +340,34 @@ describe('emailFreshLicenseLink', () => {
       })
     })
 
+    it('reports a mail Resend refused as not sent, and gives the window back', async () => {
+      // The real helper, over a Resend that answers { data: null, error }.
+      const send = vi.fn().mockResolvedValue({
+        data: null,
+        error: { name: 'invalid_from_address', message: 'Bad from address' },
+      })
+      vi.doMock('resend', () => ({
+        Resend: class {
+          emails = { send }
+        },
+      }))
+      vi.resetModules()
+      const fresh = await vi.importActual('@/lib/commerce/fulfillment')
+      sendLicenseLinkEmail.mockImplementation(fresh.sendLicenseLinkEmail)
+
+      world({ license: { lastLinkSentAt: '2026-01-01T00:00:00.000Z' } })
+      const state = await ask(expired())
+      vi.doUnmock('resend')
+
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(state.status).toBe('failed')
+      expect(state.message).toMatch(/nothing was sent/i)
+      expect(state.message).not.toMatch(/I sent a new link/i)
+      expect(update.mock.calls.at(-1)[0].data).toEqual({
+        lastLinkSentAt: '2026-01-01T00:00:00.000Z',
+      })
+    })
+
     it('does not throw when putting the window back fails too', async () => {
       world()
       sendLicenseLinkEmail.mockRejectedValue(new Error('resend is down'))

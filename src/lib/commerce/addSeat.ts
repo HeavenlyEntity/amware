@@ -14,7 +14,13 @@ import {
   checkGithubUsername,
   usernameMessage,
 } from '@/lib/commerce/githubUsername'
-import { currentKey, licenseFromClaims } from '@/lib/commerce/licenseRecord'
+import {
+  claimLinkWindow,
+  currentKey,
+  licenseFromClaims,
+  linkWindowOpen,
+  releaseLinkWindow,
+} from '@/lib/commerce/licenseRecord'
 import { licenseLimits, upgradeReturn } from '@/lib/commerce/license'
 import {
   canAddSeat,
@@ -579,8 +585,6 @@ export async function removeAccount(
  *    mail is said plainly and gives the ten minutes back.
  * ---------------------------------------------------------------------- */
 
-const LINK_INTERVAL_MS = 10 * 60 * 1000
-
 export type FreshLinkState = {
   status: 'idle' | 'sent' | 'limited' | 'failed' | 'retry' | 'invalid'
   message: string | null
@@ -645,9 +649,7 @@ export async function emailFreshLicenseLink(
   // For the answers only. Never the address itself.
   const to = maskEmail(owner) ?? 'the address on the license'
 
-  const lastSent = Date.parse(String(license.lastLinkSentAt ?? ''))
-  const elapsed = Date.now() - lastSent
-  if (Number.isFinite(lastSent) && elapsed >= 0 && elapsed < LINK_INTERVAL_MS) {
+  if (!linkWindowOpen(license)) {
     return linkState(
       'limited',
       `A new link was sent to ${to} a few minutes ago. Check that inbox, including spam, and try again in 10 minutes if it has not arrived.`
@@ -678,14 +680,9 @@ export async function emailFreshLicenseLink(
     upgraded ? `?upgraded=${upgraded}` : ''
   }`
 
-  const previous = license.lastLinkSentAt ?? null
+  let previous: string | null
   try {
-    await payload.update({
-      collection: 'licenses',
-      id: license.id,
-      overrideAccess: true,
-      data: { lastLinkSentAt: new Date().toISOString() },
-    })
+    previous = await claimLinkWindow(payload, license)
   } catch (err) {
     console.error('Fresh license link: could not record the send', err)
     return linkState(
@@ -703,17 +700,8 @@ export async function emailFreshLicenseLink(
     })
   } catch (err) {
     console.error('Fresh license link email failed', license.id, err)
-    // Nothing went out, so the ten minutes are not spent. Best effort.
-    await payload
-      .update({
-        collection: 'licenses',
-        id: license.id,
-        overrideAccess: true,
-        data: { lastLinkSentAt: previous },
-      })
-      .catch((e: unknown) =>
-        console.error('Fresh license link: could not give the window back', e)
-      )
+    // Nothing went out, so the ten minutes are not spent.
+    await releaseLinkWindow(payload, license, previous)
     return linkState(
       'failed',
       'I could not send the email just now, and nothing was sent. Please try again in a moment, or get in touch.'

@@ -12,6 +12,7 @@ vi.mock('resend', () => ({
 }))
 
 import {
+  sendAccessLinkEmail,
   sendBoilerplateConfirmationEmail,
   sendLicenseLinkEmail,
   notifyManualFulfilment,
@@ -347,5 +348,78 @@ describe('license link email', () => {
         reason: 'link',
       })
     ).rejects.toThrow('resend is down')
+  })
+})
+
+/* Resend's SDK does not throw on a refused send: a rate limit or a bad from
+   address resolves as `{ data: null, error }`. Each helper must turn that
+   into a throw, or a caller reports a mail that never left as sent. */
+describe('a send Resend refuses', () => {
+  const refused = {
+    data: null,
+    error: {
+      name: 'rate_limit_exceeded',
+      message: 'Too many requests',
+      statusCode: 429,
+    },
+  }
+  const url = 'https://example.com/access/seats/signed-token'
+
+  const calls = {
+    sendLicenseLinkEmail: () =>
+      sendLicenseLinkEmail({
+        to: 'owner@acme.com',
+        itemName: 'WareKit',
+        url,
+        reason: 'link',
+      }),
+    sendAccessLinkEmail: () =>
+      sendAccessLinkEmail({
+        to: 'buyer@example.com',
+        itemName: 'A guide',
+        token: 'tok',
+      }),
+    sendBoilerplateConfirmationEmail: () =>
+      sendBoilerplateConfirmationEmail({
+        to: 'buyer@example.com',
+        itemName: 'SaaS Kit',
+        githubUsername: 'octocat',
+      }),
+    notifyManualFulfilment: () => {
+      process.env.CONTACT_NOTIFY_TO = 'owner@example.com'
+      return notifyManualFulfilment({
+        email: 'buyer@example.com',
+        itemName: 'A guide',
+        amount: 1200,
+        currency: 'usd',
+        paymentId: 'pay_1',
+      })
+    },
+  }
+
+  afterEach(() => {
+    delete process.env.CONTACT_NOTIFY_TO
+  })
+
+  it.each(Object.keys(calls))(
+    '%s throws when Resend answers with an error',
+    async (name) => {
+      send.mockResolvedValueOnce(refused)
+      await expect(calls[name]()).rejects.toThrow(/rate_limit_exceeded/)
+    }
+  )
+
+  it.each(Object.keys(calls))(
+    '%s resolves when Resend accepts the email',
+    async (name) => {
+      send.mockResolvedValueOnce({ data: { id: 'em_1' }, error: null })
+      await expect(calls[name]()).resolves.toBeUndefined()
+    }
+  )
+
+  it('does not put the recipient in the error it throws', async () => {
+    send.mockResolvedValueOnce(refused)
+    const err = await calls.sendLicenseLinkEmail().catch((e) => e)
+    expect(err.message).not.toContain('owner@acme.com')
   })
 })

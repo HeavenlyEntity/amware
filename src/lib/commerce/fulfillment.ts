@@ -7,17 +7,38 @@ function getResend(): Resend {
   return resend
 }
 const FROM = process.env.RESEND_FROM || 'Amware <hello@amware.dev>'
-const SITE = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || ''
+/* Read at call time, like the signing secret: a value captured at import is
+   whatever the environment held then. */
+const site = () => process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || ''
+
+/* Resend's SDK does not throw on a refused send. A non-2xx answer (a rate
+ * limit, a bad from address, a quota) resolves as `{ data: null, error }`, so
+ * a bare `await emails.send(...)` reads as success when nothing went out.
+ * Every helper here goes through this, so "a failed send throws" is true and
+ * each caller's own catch decides what a failure means. The error is rethrown
+ * with Resend's name and message, which carry no recipient address. */
+type Message = Parameters<Resend['emails']['send']>[0]
+async function deliver(message: Message): Promise<void> {
+  const { error } = (await getResend().emails.send(message)) ?? {}
+  if (error) {
+    throw new Error(
+      `Resend refused the email${error.name ? ` (${error.name})` : ''}: ${
+        error.message ?? 'no detail'
+      }`
+    )
+  }
+}
 
 export async function sendAccessLinkEmail(args: {
   to: string
   itemName: string
   token: string
 }): Promise<void> {
+  const SITE = site()
   if (!SITE)
     throw new Error('NEXT_PUBLIC_SITE_URL is required to send access links')
   const url = `${SITE}/access/${args.token}`
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to: args.to,
     subject: `Your access to ${args.itemName}`,
@@ -41,11 +62,12 @@ export async function sendLicenseLinkEmail(args: {
       difference", so the mail says what the link is for. */
   reason: 'link' | 'upgrade'
 }): Promise<void> {
+  const SITE = site()
   const lapse = `This link is personal to you and expires in 30 days. If it has lapsed, open it and I will email a new one${
     SITE ? `, or ask for one at ${SITE}/access/resend` : ''
   }.`
   const upgrade = args.reason === 'upgrade'
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to: args.to,
     subject: upgrade
@@ -188,7 +210,7 @@ ${args.setupUrl}
 Keep that link — it is how you get back to the page.`
   }
 
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to: args.to,
     subject: `Your purchase of ${args.itemName}`,
@@ -228,7 +250,7 @@ export async function sendDepositReceivedEmail(args: {
   const booking = args.bookingUrl
     ? `\n\nIf we have not spoken yet, book the intro call here and we will start from there:\n${args.bookingUrl}`
     : ''
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to: args.to,
     subject: `Your ${money(args.amount, args.currency)} deposit for ${
@@ -258,7 +280,7 @@ export async function notifyDepositReceived(args: {
 }): Promise<void> {
   const to = process.env.CONTACT_NOTIFY_TO
   if (!to) return
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to,
     replyTo: args.email,
@@ -286,7 +308,7 @@ export async function notifyManualFulfilment(args: {
 }): Promise<void> {
   const to = process.env.CONTACT_NOTIFY_TO
   if (!to) return
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to,
     replyTo: args.email,
