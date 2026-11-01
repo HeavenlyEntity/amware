@@ -7,6 +7,8 @@ import {
   nextAction,
   normalizeAccountId,
   tierRank,
+  upgradeCost,
+  upgradeReturn,
 } from '../license'
 
 /* The rules a license follows, kept pure so the webhook, the admin, the
@@ -309,5 +311,57 @@ describe('nextAction', () => {
       urgent: false,
     })
     expect(nextAction({})).toEqual({ kind: null, urgent: false })
+  })
+})
+
+describe('upgradeCost', () => {
+  it('is the Team price less the Pro price', () => {
+    expect(upgradeCost(499, 999)).toBe(500)
+  })
+
+  it('has no number when a price is missing or not a number', () => {
+    expect(upgradeCost(undefined, 999)).toBeNull()
+    expect(upgradeCost(499, null)).toBeNull()
+    expect(upgradeCost('499', 999)).toBeNull()
+    expect(upgradeCost(499, NaN)).toBeNull()
+  })
+
+  it('has no number when Team does not cost more than Pro', () => {
+    expect(upgradeCost(999, 999)).toBeNull()
+    expect(upgradeCost(999, 499)).toBeNull()
+  })
+})
+
+describe('upgradeReturn', () => {
+  it('is confirming while the license is below the tier named', () => {
+    expect(upgradeReturn('pro', 'team')).toEqual({
+      target: 'team',
+      phase: 'confirming',
+    })
+    expect(upgradeReturn(null, 'enterprise')).toEqual({
+      target: 'enterprise',
+      phase: 'confirming',
+    })
+  })
+
+  it('is done once the license is on the tier named', () => {
+    expect(upgradeReturn('team', 'team')).toEqual({
+      target: 'team',
+      phase: 'done',
+    })
+  })
+
+  it('ignores a license already past the tier named', () => {
+    expect(upgradeReturn('enterprise', 'team')).toBeNull()
+  })
+
+  it('ignores anything that is not an upgrade target', () => {
+    expect(upgradeReturn('pro', undefined)).toBeNull()
+    expect(upgradeReturn('pro', '')).toBeNull()
+    expect(upgradeReturn('pro', 'gold')).toBeNull()
+    expect(upgradeReturn('pro', 'pro')).toBeNull()
+    expect(upgradeReturn('lite', ['team'])).toBeNull()
+    expect(upgradeReturn('pro', 'constructor')).toBeNull()
+    expect(upgradeReturn('pro', '__proto__')).toBeNull()
   })
 })

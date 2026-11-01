@@ -113,3 +113,38 @@ export function nextAction({
   if (tier === 'team' && urgent) return { kind: 'enterprise-contact', urgent }
   return { kind: null, urgent }
 }
+
+/**
+ * What a Pro license pays to move to Team: the Team price less the Pro price,
+ * or null when there is no honest number to show. A missing row, a price that
+ * is not a number, or a Team price that is not above Pro's all mean the page
+ * must not name an amount, so it offers no button.
+ */
+export function upgradeCost(proPrice, teamPrice) {
+  if (!Number.isFinite(proPrice) || !Number.isFinite(teamPrice)) return null
+  const cost = teamPrice - proPrice
+  return cost > 0 ? cost : null
+}
+
+const UPGRADE_TARGETS = ['team', 'enterprise']
+
+/**
+ * The state of a buyer who has come back from Creem, read from the
+ * `?upgraded=` the checkout was told to return with.
+ *
+ * That parameter is anyone's to write, so it only picks wording: the tier it
+ * names is compared with the tier the database says the license holds, and
+ * nothing is granted by it. An unknown value, or a license already past the
+ * tier named, is ignored (null). A license below it is still `confirming`:
+ * the webhook has not landed. A license exactly on it is `done`.
+ */
+export function upgradeReturn(tier, upgraded) {
+  if (typeof upgraded !== 'string' || !UPGRADE_TARGETS.includes(upgraded)) {
+    return null
+  }
+  const have = tierRank(tier)
+  const want = tierRank(upgraded)
+  if (have < want) return { target: upgraded, phase: 'confirming' }
+  if (have === want) return { target: upgraded, phase: 'done' }
+  return null
+}

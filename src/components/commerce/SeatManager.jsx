@@ -21,17 +21,36 @@ import { GithubAccountField } from '@/components/commerce/GithubAccountField'
    The count lives here, not in the panel around it, because it is the one
    number on the page that changes without a reload. The rest of the usage
    (NetSuite accounts) arrives as `children` and renders in the same card, so
-   the page reads as one block of usage. */
+   the page reads as one block of usage.
+
+   `afterUsage` is the page's one thing to do about the license, such as paying
+   for a higher tier. It is a second slot, after the usage card and before the
+   add form, so the page reads kit and tier, usage, then the action.
+
+   `focusAdd` moves focus to the add-developer field. It is an effect on the
+   prop, not a one-time flag read on first render, because the page that owns
+   this component is server-rendered and refreshed in place: the prop turns
+   true on a refresh that keeps this component mounted, and it has to work
+   there as well as on a fresh load. */
 
 /**
  * @param {{
  *   token: string,
  *   initialSeats: { used: string[], limit: number },
  *   repo?: string | null,
+ *   afterUsage?: import('react').ReactNode,
+ *   focusAdd?: boolean,
  *   children?: import('react').ReactNode,
  * }} props
  */
-export function SeatManager({ token, initialSeats, repo, children }) {
+export function SeatManager({
+  token,
+  initialSeats,
+  repo,
+  afterUsage,
+  focusAdd = false,
+  children,
+}) {
   const [state, formAction, isPending] = useActionState(
     (prev, formData) =>
       formData.get('intent') === 'remove'
@@ -55,6 +74,10 @@ export function SeatManager({ token, initialSeats, repo, children }) {
   useEffect(() => {
     if (fieldError) usernameRef.current?.focus()
   }, [fieldError])
+
+  useEffect(() => {
+    if (focusAdd) usernameRef.current?.focus()
+  }, [focusAdd])
 
   return (
     <div>
@@ -208,6 +231,8 @@ export function SeatManager({ token, initialSeats, repo, children }) {
           )}
         </div>
       )}
+
+      {afterUsage && <div className="mt-8">{afterUsage}</div>}
 
       <form action={formAction} className="mt-8">
         <input type="hidden" name="intent" value="add" />

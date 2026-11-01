@@ -1,11 +1,40 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 
 /* SeatManager imports addSeat, which imports these through the `@/` alias. */
 vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
 vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
 
+/* The upgrade action is stubbed so the button's states can be driven without
+   Creem or the CMS. Its own behaviour is tested in licenseUpgrade.test.js. */
+const startUpgrade = vi.fn()
+vi.mock('@/lib/commerce/licenseUpgrade', () => ({
+  startUpgrade: (...args) => startUpgrade(...args),
+}))
+
+/* The router is recorded so the page's own re-check URL can be read back. */
+let replace
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace, push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/access/seats/signed-tok',
+  useSearchParams: () => new URLSearchParams(),
+}))
+
 import { LicensePanel } from '../LicensePanel'
+import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
+
+beforeEach(() => {
+  replace = vi.fn()
+  startUpgrade.mockReset()
+  startUpgrade.mockResolvedValue({ error: null })
+})
 
 const KEY = 'WAREKIT-ABCD-EFGH-IJKL-1234'
 
@@ -24,9 +53,15 @@ const pro = {
   limits: { seats: 1, accounts: 1 },
   keyValue: KEY,
   action: { kind: 'upgrade-team', urgent: true },
+  // Team $999 less Pro $499, and what Team's row says it allows.
+  upgrade: { cost: 500, seats: 5, accounts: 3 },
 }
 
+const MOVE = 'Move to Team · $500.00'
+const CONFIRMING = "Confirming your upgrade. You don't need to pay again."
+
 const panel = (over = {}) => render(<LicensePanel {...pro} {...over} />)
+const cleanupAll = () => (document.body.innerHTML = '')
 
 describe('LicensePanel', () => {
   it('leads with kit and tier, then usage, then one action', () => {
@@ -36,14 +71,19 @@ describe('LicensePanel', () => {
       name: 'WareKit Next NetSuite (Pro)',
     })
     const usage = screen.getByText('1 / 1 developers')
-    // The one action today is adding a developer; the upgrade button joins it.
-    const action = screen.getByRole('button', { name: /add to the license/i })
+    const upgrade = screen.getByRole('button', { name: MOVE })
+    const add = screen.getByRole('button', { name: /add to the license/i })
 
     const before = (a, b) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
     expect(screen.getByText('Pro license')).toBeInTheDocument()
     expect(before(heading, usage)).toBe(true)
-    expect(before(usage, action)).toBe(true)
+    // Between the usage card and the add form, and after the account usage.
+    expect(before(usage, upgrade)).toBe(true)
+    expect(before(screen.getByText('1 / 1 NetSuite accounts'), upgrade)).toBe(
+      true
+    )
+    expect(before(upgrade, add)).toBe(true)
   })
 
   it('shows 1 / 1 developers and 1 / 1 NetSuite accounts', () => {
@@ -170,9 +210,280 @@ describe('LicensePanel', () => {
     expect(container.textContent).not.toMatch(/licence/i)
     expect(container.textContent).not.toMatch(/GitHub accounts/i)
   })
+})
 
-  it('renders no upgrade button yet', () => {
+describe('LicensePanel upgrade', () => {
+  it('shows Move to Team with the live price difference', () => {
+    // Team $999, Pro $499.
+    panel({ upgrade: { cost: 999 - 499, seats: 5, accounts: 3 } })
+    expect(screen.getByRole('button', { name: MOVE })).toBeInTheDocument()
+    // Computed from the data: another price gives another number.
+    panel({ upgrade: { cost: 250.5, seats: 5, accounts: 3 } })
+    expect(
+      screen.getByRole('button', { name: 'Move to Team · $250.50' })
+    ).toBeInTheDocument()
+  })
+
+  it('makes the button teal only when urgent', () => {
+    panel({ action: { kind: 'upgrade-team', urgent: true } })
+    expect(screen.getByRole('button', { name: MOVE })).toHaveClass('amw-cta')
+    cleanupAll()
+
+    panel({ action: { kind: 'upgrade-team', urgent: false } })
+    const quiet = screen.getByRole('button', { name: MOVE })
+    expect(quiet).not.toHaveClass('amw-cta')
+    // Quieter, not hidden, and still a full-size target.
+    expect(quiet).toHaveClass('min-h-11')
+  })
+
+  it('says the code, repo and key stay the same, with limits from the data', () => {
     panel()
+    expect(
+      screen.getByText(
+        'Your code, repo and key stay the same. You get 5 developers and 3 NetSuite accounts.'
+      )
+    ).toBeInTheDocument()
+    cleanupAll()
+
+    panel({ upgrade: { cost: 500, seats: 8, accounts: 1 } })
+    expect(
+      screen.getByText(
+        'Your code, repo and key stay the same. You get 8 developers and 1 NetSuite account.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('posts the signed link and the target, and nothing else', () => {
+    const { container } = panel()
+    const form = screen.getByRole('button', { name: MOVE }).closest('form')
+    expect([...new FormData(form).entries()]).toEqual([
+      ['token', 'signed-tok'],
+      ['target', 'team'],
+    ])
+    expect(container.querySelector('input[name="price"]')).toBeNull()
+  })
+
+  it('labels the button while opening checkout, and shows an error in place', async () => {
+    let resolve
+    startUpgrade.mockReturnValue(new Promise((r) => (resolve = r)))
+    panel()
+    fireEvent.submit(screen.getByRole('button', { name: MOVE }).closest('form'))
+
+    const pending = await screen.findByRole('button', {
+      name: 'Opening checkout',
+    })
+    expect(pending).toBeDisabled()
+
+    await act(async () => {
+      resolve({
+        error: {
+          message: 'Nothing was charged. Try again or get in touch.',
+        },
+      })
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Nothing was charged. Try again or get in touch.'
+    )
+    // The button is back, so it can be tried again.
+    expect(screen.getByRole('button', { name: MOVE })).toBeEnabled()
+  })
+
+  it('offers nothing to upgrade on Team, Lite or Enterprise', () => {
+    for (const tier of ['team', 'lite', 'enterprise']) {
+      panel({
+        license: { ...pro.license, tier },
+        action: { kind: null, urgent: false },
+        upgrade: null,
+      })
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      cleanupAll()
+    }
+  })
+
+  it('shows no button when there is no price to name', () => {
+    panel({ upgrade: null })
     expect(screen.queryByRole('button', { name: /move to team/i })).toBeNull()
+    // The page still works: developers can be added.
+    expect(
+      screen.getByRole('button', { name: /add to the license/i })
+    ).toBeInTheDocument()
+  })
+
+  it('does not draw an upgrade for a quote or a Team limit yet', () => {
+    for (const kind of ['enterprise-quote', 'enterprise-contact']) {
+      panel({ action: { kind, urgent: true } })
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      cleanupAll()
+    }
+  })
+
+  describe('returning from Creem', () => {
+    it('shows no upgrade button while confirming', () => {
+      panel({ upgraded: 'team', attempt: 0 })
+      expect(screen.getByText(CONFIRMING)).toBeInTheDocument()
+      expect(screen.getByText(CONFIRMING)).toHaveAttribute('role', 'status')
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      expect(screen.queryByRole('button', { name: /opening/i })).toBeNull()
+    })
+
+    it('checks again with the upgrade kept and the attempt moved on', () => {
+      vi.useFakeTimers()
+      try {
+        panel({ upgraded: 'team', attempt: 2 })
+        act(() => {
+          vi.advanceTimersByTime(5000)
+        })
+        expect(replace).toHaveBeenCalledTimes(1)
+        const url = new URL(replace.mock.calls[0][0], 'https://amware.dev')
+        expect(url.pathname).toBe('/access/seats/signed-tok')
+        expect([...url.searchParams]).toEqual([
+          ['upgraded', 'team'],
+          ['attempt', '3'],
+        ])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('confirms the upgrade once the tier changes', async () => {
+      panel({
+        license: { ...pro.license, tier: 'team' },
+        upgraded: 'team',
+        action: { kind: null, urgent: false },
+        upgrade: null,
+        limits: { seats: 5, accounts: 3 },
+      })
+      expect(screen.getByText("You're on Team.")).toHaveAttribute(
+        'role',
+        'status'
+      )
+      expect(screen.queryByText(CONFIRMING)).toBeNull()
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          screen.getByPlaceholderText('your-github-username')
+        )
+      )
+    })
+
+    it('moves focus to the add-developer field when the refresh brings the tier', async () => {
+      // The page is refreshed in place: the same panel gets new props, so
+      // focus cannot depend on the first render.
+      const teamed = {
+        ...pro,
+        license: { ...pro.license, tier: 'team' },
+        action: { kind: null, urgent: false },
+        upgrade: null,
+        limits: { seats: 5, accounts: 3 },
+        upgraded: 'team',
+      }
+      const { rerender } = render(
+        <LicensePanel {...pro} upgraded="team" attempt={1} />
+      )
+      const field = screen.getByPlaceholderText('your-github-username')
+      expect(document.activeElement).not.toBe(field)
+
+      rerender(<LicensePanel {...teamed} />)
+      await waitFor(() => expect(document.activeElement).toBe(field))
+      expect(screen.getByText("You're on Team.")).toBeInTheDocument()
+    })
+
+    it('does not steal focus on an ordinary visit', () => {
+      panel({ license: { ...pro.license, tier: 'team' } })
+      expect(document.activeElement).toBe(document.body)
+    })
+
+    it('gives a refresh link and contact when the checks run out', () => {
+      vi.useFakeTimers()
+      try {
+        panel({ upgraded: 'team', attempt: MAX_ATTEMPTS })
+        expect(screen.getByText(CONFIRMING)).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+        expect(
+          screen.getByRole('link', { name: 'Refresh the page' })
+        ).toHaveAttribute('href', '/access/seats/signed-tok?upgraded=team')
+        expect(
+          screen.getByRole('link', { name: 'get in touch' })
+        ).toHaveAttribute('href', '/contact')
+        // The automatic re-check has stopped.
+        act(() => {
+          vi.advanceTimersByTime(60000)
+        })
+        expect(replace).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps the automatic re-check while checks remain', () => {
+      panel({ upgraded: 'team', attempt: MAX_ATTEMPTS - 1 })
+      expect(
+        screen.getByText(/checks again automatically/i)
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('link', { name: 'Refresh the page' })
+      ).toBeNull()
+    })
+
+    it('ignores an upgraded value that is not an upgrade target', () => {
+      for (const upgraded of ['gold', '', 'pro', '__proto__', undefined]) {
+        panel({ upgraded })
+        expect(screen.queryByText(CONFIRMING)).toBeNull()
+        expect(screen.queryByText(/you're on/i)).toBeNull()
+        expect(screen.getByRole('button', { name: MOVE })).toBeInTheDocument()
+        cleanupAll()
+      }
+    })
+
+    it('does not unlock or confirm anything for a license that has not moved', () => {
+      // upgraded=team on a Pro license only says the page is waiting.
+      panel({ upgraded: 'team' })
+      expect(screen.queryByText("You're on Team.")).toBeNull()
+      expect(screen.getByText('Pro license')).toBeInTheDocument()
+    })
+
+    it('says "You\'re on" only for the tier the license holds', () => {
+      // A Team license opened with upgraded=enterprise is still confirming.
+      panel({
+        license: { ...pro.license, tier: 'team' },
+        upgraded: 'enterprise',
+        action: { kind: null, urgent: false },
+        upgrade: null,
+      })
+      expect(screen.getByText(CONFIRMING)).toBeInTheDocument()
+      expect(screen.queryByText(/you're on/i)).toBeNull()
+      cleanupAll()
+
+      // A license already past the tier named shows the normal page.
+      panel({
+        license: { ...pro.license, tier: 'enterprise' },
+        upgraded: 'team',
+        action: { kind: null, urgent: false },
+        upgrade: null,
+      })
+      expect(screen.queryByText(/you're on/i)).toBeNull()
+      expect(screen.queryByText(CONFIRMING)).toBeNull()
+    })
+
+    it('is confirming, not refunded, for a new license waiting on its first payment', () => {
+      panel({
+        license: { ...pro.license, tier: null },
+        product: null,
+        limits: { seats: 1, accounts: null },
+        upgraded: 'enterprise',
+      })
+      expect(screen.getByText(CONFIRMING)).toBeInTheDocument()
+      expect(screen.queryByText(/was refunded/i)).toBeNull()
+    })
+
+    it('still says refunded for a null tier with nothing pending', () => {
+      panel({
+        license: { ...pro.license, tier: null },
+        product: null,
+        limits: { seats: 1, accounts: null },
+        upgraded: 'bogus',
+      })
+      expect(screen.getByText(/this license was refunded/i)).toBeInTheDocument()
+    })
   })
 })

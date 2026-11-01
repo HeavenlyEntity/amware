@@ -2,8 +2,12 @@ import Link from 'next/link'
 import { Container } from '@/components/Container'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { verifyAccessToken } from '@/lib/commerce/accessToken'
-import { currentKey, licenseFromClaims } from '@/lib/commerce/licenseRecord'
-import { licenseLimits, nextAction } from '@/lib/commerce/license'
+import {
+  currentKey,
+  licenseFromClaims,
+  teamProductFor,
+} from '@/lib/commerce/licenseRecord'
+import { licenseLimits, nextAction, upgradeCost } from '@/lib/commerce/license'
 import { listSeats } from '@/lib/commerce/seats'
 import { LicensePanel } from '@/components/commerce/LicensePanel'
 
@@ -12,6 +16,8 @@ export const metadata = {
   title: 'Your license',
   robots: { index: false },
 }
+
+const firstParam = (value) => (Array.isArray(value) ? value[0] : value)
 
 const linkClass =
   'text-teal-700 underline underline-offset-4 dark:text-teal-300'
@@ -64,15 +70,22 @@ function GetInTouch({ title, children }) {
   )
 }
 
-export default async function LicensePage({ params }) {
+export default async function LicensePage({ params, searchParams }) {
   const { token } = await params
   const claims = verifyAccessToken(token)
   if (!claims) return <InvalidLink />
 
+  /* Both come from the URL, so both are only wording: `upgraded` says which
+     tier a buyer just paid for, `attempt` counts the page's own re-checks. */
+  const query = (await searchParams) ?? {}
+  const upgraded = firstParam(query.upgraded) || null
+  const attempt = Math.max(0, parseInt(firstParam(query.attempt), 10) || 0)
+
+  let payload
   let found
   let keyValue = null
   try {
-    const payload = await getPayloadClient()
+    payload = await getPayloadClient()
     found = await licenseFromClaims(payload, claims)
     if (found) keyValue = await currentKey(payload, found.license.id)
   } catch (err) {
@@ -124,6 +137,34 @@ export default async function LicensePage({ params }) {
     accountLimit: limits.accounts,
   })
 
+  /* What moving to Team costs, from the two kit rows: Team's price less
+     this tier's. A failed read, a missing row or a price that is not a number
+     leaves no amount to show, and the panel then shows no button. That is
+     logged, because a Pro owner who cannot find the upgrade is a fault here,
+     and the rest of the license still loads. */
+  let upgrade = null
+  if (action.kind === 'upgrade-team') {
+    try {
+      const team = await teamProductFor(payload, license.stack)
+      const cost = upgradeCost(product?.price, team?.price)
+      if (cost == null) {
+        console.error('No upgrade price to show', {
+          license: license.id,
+          hasTeamRow: Boolean(team),
+        })
+      } else {
+        const teamLimits = licenseLimits({ tier: 'team' }, team)
+        upgrade = {
+          cost,
+          seats: teamLimits.seats,
+          accounts: teamLimits.accounts,
+        }
+      }
+    } catch (err) {
+      console.error('Upgrade price lookup failed', err)
+    }
+  }
+
   return (
     <Container className="mt-16 sm:mt-32">
       <div className="amw mx-auto max-w-xl">
@@ -134,6 +175,9 @@ export default async function LicensePage({ params }) {
           limits={limits}
           keyValue={keyValue}
           action={action}
+          upgrade={upgrade}
+          upgraded={upgraded}
+          attempt={attempt}
           repo={product?.githubRepo || purchase?.githubRepo}
         />
       </div>

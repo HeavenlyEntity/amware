@@ -7,6 +7,7 @@ import {
   licenseFromClaims,
   licenseIdFrom,
   recomputeTier,
+  teamProductFor,
 } from '../licenseRecord'
 
 /* A fake Payload client over canned rows. `find` answers by collection, so a
@@ -567,5 +568,39 @@ describe('expectedProductIds', () => {
 
   it('is empty for a missing item', () => {
     expect(expectedProductIds({ item: null, env: 'production' })).toEqual([])
+  })
+})
+
+describe('teamProductFor', () => {
+  it('asks for the published Team row of the stack', async () => {
+    const payload = fakePayload({
+      products: [{ id: 60, stack: 'next-netsuite', tier: 'team' }],
+    })
+    await expect(teamProductFor(payload, 'next-netsuite')).resolves.toEqual({
+      id: 60,
+      stack: 'next-netsuite',
+      tier: 'team',
+    })
+    const query = payload.find.mock.calls[0][0]
+    expect(query.collection).toBe('products')
+    expect(query.where.and).toEqual([
+      { stack: { equals: 'next-netsuite' } },
+      { tier: { equals: 'team' } },
+      { status: { equals: 'published' } },
+    ])
+  })
+
+  it('is null when the stack has no Team row, or no stack is named', async () => {
+    const payload = fakePayload({ products: [] })
+    await expect(teamProductFor(payload, 'next-netsuite')).resolves.toBeNull()
+    await expect(teamProductFor(payload, null)).resolves.toBeNull()
+    expect(payload.find).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws when the database cannot be read', async () => {
+    const payload = { find: vi.fn().mockRejectedValue(new Error('down')) }
+    await expect(teamProductFor(payload, 'next-netsuite')).rejects.toThrow(
+      'down'
+    )
   })
 })

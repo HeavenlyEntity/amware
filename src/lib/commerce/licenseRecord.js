@@ -242,6 +242,32 @@ export async function currentKey(payload, licenseId) {
   return newest?.licenseKey ?? null
 }
 
+/**
+ * The Team row of a stack: the item an upgrade to Team is bought against, and
+ * the price the difference is worked out from. Only a published row counts,
+ * the same gate a normal purchase passes. Null when the stack has none.
+ *
+ * Reads the database and throws on a failure, as `licenseFromClaims` does, so
+ * a caller can tell "no Team row" from "could not look".
+ */
+export async function teamProductFor(payload, stack) {
+  if (!stack) return null
+  const found = await payload.find({
+    collection: 'products',
+    where: {
+      and: [
+        { stack: { equals: stack } },
+        { tier: { equals: 'team' } },
+        { status: { equals: 'published' } },
+      ],
+    },
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+  })
+  return found?.docs?.[0] ?? null
+}
+
 /* Payload throws with status 404 for a document that is not there. That is
    the only failure that means "not found"; a dropped connection or a timeout
    says nothing about whether the row exists. */
