@@ -36,6 +36,14 @@ const update = vi.fn()
 const members = (...names) =>
   names.map((githubUsername) => ({ githubUsername }))
 
+/* Seats this license invited itself: only `inviteToRepo` returning a link
+   puts one on the row. */
+const invited = (...names) =>
+  names.map((githubUsername) => ({
+    githubUsername,
+    inviteUrl: `https://github.com/${REPO}/invitations`,
+  }))
+
 /* The database as addSeat sees it: a license, the purchase that opened it and
    the kit row for its stack and tier. */
 const world = ({
@@ -442,7 +450,7 @@ describe('removeSeat', () => {
   })
 
   it('frees the seat after GitHub removes the person', async () => {
-    world({ license: { seatMembers: members('owner', 'octocat') } })
+    world({ license: { seatMembers: invited('owner', 'octocat') } })
     const state = await remove('octocat')
 
     expect(removeFromRepo).toHaveBeenCalledWith({
@@ -460,7 +468,7 @@ describe('removeSeat', () => {
   })
 
   it('keeps the seat and says so when GitHub refuses', async () => {
-    world({ license: { seatMembers: members('owner', 'octocat') } })
+    world({ license: { seatMembers: invited('owner', 'octocat') } })
     removeFromRepo.mockResolvedValue({ ok: false, reason: 'forbidden' })
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const state = await remove('octocat')
@@ -494,7 +502,7 @@ describe('removeSeat', () => {
   })
 
   it('acts on the stored spelling and on the token repo, not the form', async () => {
-    world({ license: { seatMembers: members('owner', 'OctoCat') } })
+    world({ license: { seatMembers: invited('owner', 'OctoCat') } })
     await remove('octocat', undefined, { repo: 'someone/else' })
     expect(removeFromRepo).toHaveBeenCalledWith({
       repo: REPO,
@@ -503,7 +511,7 @@ describe('removeSeat', () => {
   })
 
   it('lets the last developer go: an owner may be swapping themselves out', async () => {
-    world({ license: { seatMembers: members('owner') } })
+    world({ license: { seatMembers: invited('owner') } })
     const state = await remove('owner')
     expect(state.error).toBeNull()
     expect(state.seats).toEqual({ used: [], limit: 5 })
@@ -512,7 +520,7 @@ describe('removeSeat', () => {
 
   it('leaves repository access alone when another paid license holds the person', async () => {
     world({
-      license: { seatMembers: members('owner', 'octocat') },
+      license: { seatMembers: invited('owner', 'octocat') },
       others: [
         {
           id: 31,
@@ -536,7 +544,7 @@ describe('removeSeat', () => {
   })
 
   it('asks for other licenses of this stack only, and never this one', async () => {
-    world({ license: { seatMembers: members('owner', 'octocat') } })
+    world({ license: { seatMembers: invited('owner', 'octocat') } })
     await remove('octocat')
     const payload = await getPayloadClient()
     const call = payload.find.mock.calls
@@ -554,14 +562,10 @@ describe('removeSeat', () => {
   it.each([
     ['a refunded license', { id: 31, tier: null }],
     ['a free Lite license', { id: 32, tier: 'lite' }],
-    [
-      'a sandbox license',
-      { id: 33, tier: 'team', creemEnvironment: 'sandbox' },
-    ],
     ['this license itself', { id: 9, tier: 'team' }],
   ])('does not treat %s as cover', async (_label, other) => {
     world({
-      license: { seatMembers: members('owner', 'octocat') },
+      license: { seatMembers: invited('owner', 'octocat') },
       others: [
         { stack: 'next-netsuite', seatMembers: members('octocat'), ...other },
       ],
@@ -570,9 +574,82 @@ describe('removeSeat', () => {
     expect(removeFromRepo).toHaveBeenCalled()
   })
 
+  it.each([
+    ['a sandbox license covers a production one', 'production', 'sandbox'],
+    ['a production license covers a sandbox one', 'sandbox', 'production'],
+  ])('%s: they share the real repo', async (_label, mine, theirs) => {
+    world({
+      license: {
+        creemEnvironment: mine,
+        seatMembers: invited('owner', 'octocat'),
+      },
+      others: [
+        {
+          id: 31,
+          stack: 'next-netsuite',
+          tier: 'team',
+          creemEnvironment: theirs,
+          seatMembers: members('octocat'),
+        },
+      ],
+    })
+    const state = await remove('octocat')
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(state.removed).toMatchObject({ accessKept: true, unsaved: false })
+    expect(state.seats.used).toEqual(['owner'])
+  })
+
+  it('frees a seat that has no invite link without calling GitHub', async () => {
+    // No link means inviteToRepo said "already a collaborator" (or it failed):
+    // this license did not create that access, so it must not take it away.
+    world({
+      license: { seatMembers: members('owner', 'someone-elses-customer') },
+    })
+    const state = await remove('someone-elses-customer')
+
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(state.error).toBeNull()
+    expect(state.removed).toEqual({
+      username: 'someone-elses-customer',
+      accessKept: true,
+      unsaved: false,
+    })
+    expect(state.seats.used).toEqual(['owner'])
+    expect(writtenSeats().map((m) => m.githubUsername)).toEqual(['owner'])
+  })
+
+  it('does not look for cover when it is not going to remove anyone', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    await remove('octocat')
+    const payload = await getPayloadClient()
+    const searched = payload.find.mock.calls.some(
+      ([arg]) => arg.collection === 'licenses'
+    )
+    expect(searched).toBe(false)
+  })
+
+  it('makes no GitHub call on a Lite license, even for a seat with an invite link', async () => {
+    world({
+      license: { tier: 'lite', seatMembers: invited('owner') },
+      product: { id: 5, name: 'Lite kit', seats: 1, githubRepo: REPO },
+    })
+    const state = await remove('owner')
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(state.removed).toMatchObject({ accessKept: true, unsaved: false })
+    expect(state.seats.used).toEqual([])
+  })
+
+  it('makes no GitHub call on a refunded license, and frees nothing', async () => {
+    world({ license: { tier: null, seatMembers: invited('owner') } })
+    const state = await remove('owner')
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(state.error?.message).toMatch(/no longer active/i)
+    expect(update).not.toHaveBeenCalled()
+  })
+
   it('does not match on a longer name that contains the username', async () => {
     world({
-      license: { seatMembers: members('owner', 'cat') },
+      license: { seatMembers: invited('owner', 'cat') },
       others: [
         {
           id: 31,
@@ -587,7 +664,7 @@ describe('removeSeat', () => {
   })
 
   it('removes nothing when the cover check cannot run', async () => {
-    world({ license: { seatMembers: members('owner', 'octocat') } })
+    world({ license: { seatMembers: invited('owner', 'octocat') } })
     const payload = await getPayloadClient()
     payload.find.mockImplementation(async ({ collection }) => {
       if (collection === 'licenses') throw new Error('connection terminated')
@@ -603,7 +680,7 @@ describe('removeSeat', () => {
   })
 
   it('says the seat is not freed when GitHub let go but the write failed', async () => {
-    world({ license: { seatMembers: members('owner', 'octocat') } })
+    world({ license: { seatMembers: invited('owner', 'octocat') } })
     update.mockRejectedValue(new Error('write failed'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const state = await remove('octocat')
@@ -614,7 +691,7 @@ describe('removeSeat', () => {
   })
 
   it('keeps a developer added while GitHub was being called', async () => {
-    world({ license: { seatMembers: members('owner', 'octocat') } })
+    world({ license: { seatMembers: invited('owner', 'octocat') } })
     const payload = await getPayloadClient()
     const stored = payload.findByID.getMockImplementation()
     let reads = 0
@@ -812,7 +889,7 @@ describe('SeatManager remove buttons', () => {
   })
 
   it('removes a developer through the form and shows the server count', async () => {
-    world({ license: { seatMembers: members('owner', 'octocat') } })
+    world({ license: { seatMembers: invited('owner', 'octocat') } })
     render(<SeatManager token={token()} repo={REPO} initialSeats={seats} />)
 
     await act(async () => {
@@ -826,7 +903,7 @@ describe('SeatManager remove buttons', () => {
   })
 
   it('says the seat is kept when GitHub refuses', async () => {
-    world({ license: { seatMembers: members('owner', 'octocat') } })
+    world({ license: { seatMembers: invited('owner', 'octocat') } })
     removeFromRepo.mockResolvedValue({ ok: false, reason: 'forbidden' })
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     render(<SeatManager token={token()} repo={REPO} initialSeats={seats} />)
@@ -840,9 +917,59 @@ describe('SeatManager remove buttons', () => {
     expect(screen.getByText('2 / 5 developers')).toBeInTheDocument()
   })
 
+  it('says access was left as it is, and offers contact, when this license did not create it', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    render(<SeatManager token={token()} repo={REPO} initialSeats={seats} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove @octocat' }))
+    })
+    const status = await screen.findByRole('status')
+    expect(status).toHaveTextContent(/seat is free/i)
+    expect(status).toHaveTextContent(/repository access was left as it is/i)
+    expect(status).not.toHaveTextContent(/lost access/i)
+    expect(status).not.toHaveTextContent(/access is gone/i)
+    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
+      'href',
+      '/contact'
+    )
+    expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
+  })
+
+  it('does not claim access was lost when it was kept and the seat could not be freed', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    update.mockRejectedValue(new Error('write failed'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<SeatManager token={token()} repo={REPO} initialSeats={seats} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove @octocat' }))
+    })
+    error.mockRestore()
+    const status = await screen.findByRole('status')
+    expect(status).not.toHaveTextContent(/lost access/i)
+    expect(status).toHaveTextContent(/could not free the seat/i)
+    expect(status).toHaveTextContent(/press remove again/i)
+    expect(status).toHaveTextContent(/repository access was not changed/i)
+    expect(screen.getByText('2 / 5 developers')).toBeInTheDocument()
+  })
+
+  it('tells the owner to press Remove again when access went but the seat stayed', async () => {
+    world({ license: { seatMembers: invited('owner', 'octocat') } })
+    update.mockRejectedValue(new Error('write failed'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<SeatManager token={token()} repo={REPO} initialSeats={seats} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove @octocat' }))
+    })
+    error.mockRestore()
+    const status = await screen.findByRole('status')
+    expect(status).toHaveTextContent(/@octocat lost access on GitHub/i)
+    expect(status).toHaveTextContent(/press remove again/i)
+    expect(status).toHaveTextContent(/safe to repeat/i)
+  })
+
   it('says repository access was left alone when another license covers the person', async () => {
     world({
-      license: { seatMembers: members('owner', 'octocat') },
+      license: { seatMembers: invited('owner', 'octocat') },
       others: [
         {
           id: 31,
@@ -857,7 +984,7 @@ describe('SeatManager remove buttons', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove @octocat' }))
     })
     expect(await screen.findByRole('status')).toHaveTextContent(
-      /repository access was left as it was/i
+      /repository access was left as it is/i
     )
     expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
   })

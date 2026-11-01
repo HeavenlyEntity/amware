@@ -51,8 +51,8 @@ export type AddSeatState = {
   /** Set by `removeSeat` only. */
   removed?: {
     username: string
-    /** True when another paid license still covers the person, so their
-        repository access was left alone. */
+    /** True when their repository access was left as it is: this license did
+        not create it, or another paid license still covers the person. */
     accessKept: boolean
     /** True when GitHub let them go but the seat could not be freed.
         `seats` then still includes the account. */
@@ -269,20 +269,17 @@ const sameName = (a?: string | null, b?: string | null) =>
    on someone's Lite license is not access to this one. */
 const PAID_TIERS = ['pro', 'team', 'enterprise']
 
-/* Does another paid license, in the same Creem environment, also hold this
-   person? Pro and Team share a repository, so removing them there would
-   take away what the other license still pays for. The same check runs
+/* Does another paid license also hold this person? Pro and Team share a
+   repository, and a sandbox license and a live one share the real repo, so
+   the Creem environment is deliberately not compared: removing them there
+   would take away what the other license still gives. The same check runs
    whichever of the two licenses the owner opens.
 
    `like` only narrows the search (it is a case-insensitive contains); the
    decision is made on the exact name here. */
 async function coveredByAnotherLicense(
   payload: Payload,
-  license: {
-    id: number | string
-    stack?: string | null
-    creemEnvironment?: string | null
-  },
+  license: { id: number | string; stack?: string | null },
   username: string
 ): Promise<boolean> {
   const found = await payload.find({
@@ -299,17 +296,14 @@ async function coveredByAnotherLicense(
     pagination: false,
     overrideAccess: true,
   })
-  const env = license.creemEnvironment || 'production'
   return (found.docs ?? []).some(
     (other: {
       id: number | string
       tier?: string | null
-      creemEnvironment?: string | null
       seatMembers?: SeatMember[] | null
     }) =>
       other.id !== license.id &&
       PAID_TIERS.includes(other.tier ?? '') &&
-      (other.creemEnvironment || 'production') === env &&
       hasSeat(other.seatMembers, username)
   )
 }
@@ -355,17 +349,33 @@ export async function removeSeat(
     )
   }
 
-  let covered: boolean
-  try {
-    covered = await coveredByAnotherLicense(payload, license, username)
-  } catch (err) {
-    console.error('Seat removal coverage check failed', license.id, err)
-    return fail(null, lookupFailed, snapshot)
+  /* Repository access is taken away only when this license is known to have
+     created it. A seat row carries an `inviteUrl` only when `inviteToRepo`
+     returned one, and it returns none for someone who was already a
+     collaborator (state `already-a-collaborator`, url null). So a row with no
+     link may be an existing collaborator, perhaps another customer, that an
+     owner typed in; pressing Remove on it must not revoke them. A Lite
+     license never removes anyone from a repo, and a person another paid
+     license still covers keeps what that license gives. In every such case
+     the seat is freed and GitHub is left alone. */
+  const row = members.find((m: SeatMember) =>
+    sameName(m.githubUsername, username)
+  )
+  const mayRevoke = PAID_TIERS.includes(license.tier) && Boolean(row?.inviteUrl)
+
+  let accessKept = !mayRevoke
+  if (mayRevoke) {
+    try {
+      accessKept = await coveredByAnotherLicense(payload, license, username)
+    } catch (err) {
+      console.error('Seat removal coverage check failed', license.id, err)
+      return fail(null, lookupFailed, snapshot)
+    }
   }
 
   /* GitHub first. If it refuses, the seat stays: freeing it would let the
      owner add someone else while the old account still reads the code. */
-  if (!covered) {
+  if (!accessKept) {
     const gone = await removeFromRepo({ repo, username })
     if (!gone.ok) {
       console.error('Seat removal failed', {
@@ -413,7 +423,7 @@ export async function removeSeat(
   return {
     error: null,
     ok: null,
-    removed: { username, accessKept: covered, unsaved: !saved },
+    removed: { username, accessKept, unsaved: !saved },
     seats: { used, limit },
   }
 }

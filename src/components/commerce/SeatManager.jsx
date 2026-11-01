@@ -130,20 +130,35 @@ export function SeatManager({ token, initialSeats, repo, children }) {
           className="mt-6 rounded-md border border-zinc-900/10 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800/40"
         >
           <p className="text-zinc-700 dark:text-zinc-300">
-            {state.removed.unsaved ? (
+            {state.removed.accessKept ? (
+              state.removed.unsaved ? (
+                <>
+                  @{state.removed.username} is still on your license: I could
+                  not free the seat. Press Remove again, or{' '}
+                  <a href="/contact" className="underline">
+                    get in touch
+                  </a>
+                  . Their repository access was not changed.
+                </>
+              ) : (
+                <>
+                  @{state.removed.username} is off this license and the seat is
+                  free. Their repository access was left as it is.{' '}
+                  <a href="/contact" className="underline">
+                    Get in touch
+                  </a>{' '}
+                  if it should go.
+                </>
+              )
+            ) : state.removed.unsaved ? (
               <>
                 @{state.removed.username} lost access on GitHub, but I could not
-                free the seat on your license. Refresh the page to check. If @
-                {state.removed.username} still shows,{' '}
+                free the seat on your license. Press Remove again to finish,
+                which is safe to repeat. If it keeps failing,{' '}
                 <a href="/contact" className="underline">
                   get in touch
                 </a>
                 .
-              </>
-            ) : state.removed.accessKept ? (
-              <>
-                @{state.removed.username} is off this license. Their repository
-                access was left as it was.
               </>
             ) : (
               <>
