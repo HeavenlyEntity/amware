@@ -103,7 +103,17 @@ export const PurchaseLedger = async () => {
     )
 
     const [pending, failed, free, freeRecent, paidRecent] = await Promise.all([
-      count({ fulfillmentStatus: { equals: 'pending_invite' } }),
+      /* Owed an invitation means an account to send it to. A kit row sits at
+         'pending_invite' from the moment it is paid until its buyer names
+         one, and nobody is owed anything in that time; a failed invitation
+         keeps the account, so it is the row that counts. */
+      count({
+        and: [
+          { fulfillmentStatus: { equals: 'pending_invite' } },
+          { githubUsername: { exists: true } },
+          { githubUsername: { not_equals: '' } },
+        ],
+      }),
       count({ fulfillmentStatus: { equals: 'failed' } }),
       count({ amount: { equals: 0 } }),
       count({

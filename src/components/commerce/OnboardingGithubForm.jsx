@@ -24,7 +24,7 @@ export function OnboardingGithubForm({
   requestId,
   signature,
   initialUsername = '',
-  licenseUrl,
+  retryUsername = '',
 }) {
   const [state, formAction, isPending] = useActionState(completeOnboarding, {
     error: null,
@@ -98,10 +98,10 @@ export function OnboardingGithubForm({
           </>
         )}
 
-        {licenseUrl && (
+        {state.ok.licenseUrl && (
           <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
             Last step: add your key to <code className="amw-mono">.env</code>.{' '}
-            <a href={licenseUrl} className="font-medium underline">
+            <a href={state.ok.licenseUrl} className="font-medium underline">
               Open your license page
             </a>{' '}
             for <code className="amw-mono">WAREKIT_LICENSE_KEY</code>.
@@ -113,6 +113,39 @@ export function OnboardingGithubForm({
           does sometimes land in spam.
         </p>
       </div>
+    )
+  }
+
+  /* The invitation to an account already on file did not send. The account is
+     fixed -- the action refuses any other -- so there is nothing to type, only
+     the same call to repeat. The by-hand promise stays as the fallback. */
+  if (retryUsername) {
+    return (
+      <form action={formAction} className="mt-6">
+        <input type="hidden" name="r" value={requestId} />
+        <input type="hidden" name="s" value={signature} />
+        <input type="hidden" name="githubUsername" value={retryUsername} />
+
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          The invitation to{' '}
+          <span className="font-medium">@{retryUsername}</span> could not be
+          sent just now. Your payment and your account are safe. Try again, or
+          leave it with me: I will send it by hand within one business day.
+        </p>
+
+        {formError && (
+          <p
+            role="alert"
+            className="mt-3 text-sm text-red-700 dark:text-red-400"
+          >
+            {formError}
+          </p>
+        )}
+
+        <button type="submit" className="amw-cta mt-4" disabled={isPending}>
+          {isPending ? 'Sending invitation…' : 'Try again'}
+        </button>
+      </form>
     )
   }
 

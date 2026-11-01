@@ -53,6 +53,7 @@ function Step({ n, title, done, children }) {
  *   delivered: boolean,
  *   seats?: number,
  *   licenseUrl?: string | null,
+ *   licenseExpired?: boolean,
  * }} props
  */
 export function OnboardingSteps({
@@ -66,6 +67,7 @@ export function OnboardingSteps({
   delivered,
   seats = 1,
   licenseUrl,
+  licenseExpired,
 }) {
   return (
     <>
@@ -116,7 +118,7 @@ export function OnboardingSteps({
               {maskedLicenseKey && (
                 <>
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {licenseUrl
+                    {licenseUrl || licenseExpired
                       ? 'Your license key, masked for this page. The full key is on your license page.'
                       : 'Your license key, masked for this page. The full key is in your receipt email.'}
                   </p>
@@ -140,8 +142,9 @@ export function OnboardingSteps({
             </Step>
 
             {/* The last thing between a buyer and a working kit. Rendered only
-                when there is a license page to send them to. */}
-            {licenseUrl && (
+                when there is a license page to send them to, or, once the purchase is too
+                old for a fresh link, the route that emails one. */}
+            {(licenseUrl || licenseExpired) && (
               <Step n={discordUrl ? '4' : '3'} title="Add your key to .env">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   Your license page has the full key. Copy{' '}
@@ -150,10 +153,12 @@ export function OnboardingSteps({
                   <code className="amw-mono">NS_ACCOUNT_ID</code>.
                 </p>
                 <a
-                  href={licenseUrl}
+                  href={licenseUrl || '/access/resend'}
                   className="border-[var(--amw-line)] hover:border-[var(--amw-accent)] hover:text-[var(--amw-accent)] mt-4 inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-zinc-700 transition-colors dark:text-zinc-300"
                 >
-                  Open your license page
+                  {licenseUrl
+                    ? 'Open your license page'
+                    : 'Email me a new license link'}
                 </a>
               </Step>
             )}

@@ -121,4 +121,18 @@ describe('OnboardingSteps', () => {
       screen.getByText(/full key is on your license page/i)
     ).toBeInTheDocument()
   })
+
+  it('sends a buyer whose purchase is too old for a fresh link to the resend route', () => {
+    render(<OnboardingSteps {...base} delivered licenseExpired />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Add your key to .env' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /email me a new license link/i })
+    ).toHaveAttribute('href', '/access/resend')
+    expect(
+      screen.queryByRole('link', { name: /open your license page/i })
+    ).toBeNull()
+  })
 })

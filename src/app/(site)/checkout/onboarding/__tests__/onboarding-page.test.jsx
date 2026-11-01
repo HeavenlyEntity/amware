@@ -579,6 +579,7 @@ describe('Onboarding page for a Creem kit buyer', () => {
     row({
       id: 99,
       creemRequestId: REQUEST_ID,
+      createdAt: new Date().toISOString(),
       githubUsername: null,
       githubRepo: null,
       licenseKey: null,
@@ -904,5 +905,134 @@ describe('Onboarding page for a Creem kit buyer', () => {
     expect(
       screen.getByRole('heading', { name: /your purchase is confirmed/i })
     ).toBeInTheDocument()
+  })
+
+  describe('the license link', () => {
+    const DAY = 24 * 60 * 60 * 1000
+    const answered = (over = {}) =>
+      creemRow({
+        fulfillmentStatus: 'sent',
+        githubUsername: 'octocat',
+        githubInviteUrl: 'https://github.com/invite/1',
+        ...over,
+      })
+
+    it('is not minted, or sent to the browser, while the row is unanswered', async () => {
+      const { container } = await renderPage(link())
+
+      expect(screen.getByLabelText(/github username/i)).toBeInTheDocument()
+      expect(container.innerHTML).not.toContain('/access/seats/')
+      expect(container.innerHTML).not.toContain('/access/resend')
+    })
+
+    it('is minted once the row is answered and the purchase is young', async () => {
+      purchases = [
+        answered({ createdAt: new Date(Date.now() - 29 * DAY).toISOString() }),
+      ]
+      await renderPage(link())
+
+      expect(
+        screen.getByRole('link', { name: /open your license page/i })
+      ).toHaveAttribute('href', expect.stringMatching(/^\/access\/seats\//))
+    })
+
+    it('is replaced by the resend route once the purchase is older than 30 days', async () => {
+      purchases = [
+        answered({ createdAt: new Date(Date.now() - 31 * DAY).toISOString() }),
+      ]
+      const { container } = await renderPage(link())
+
+      expect(
+        screen.getByRole('link', { name: /email me a new license link/i })
+      ).toHaveAttribute('href', '/access/resend')
+      expect(container.innerHTML).not.toContain('/access/seats/')
+    })
+
+    it('is not minted for a purchase with no creation date', async () => {
+      purchases = [answered({ createdAt: undefined })]
+      const { container } = await renderPage(link())
+      expect(container.innerHTML).not.toContain('/access/seats/')
+    })
+  })
+
+  describe('a license with no seat left', () => {
+    const fullMembers = ['a', 'b', 'c', 'd', 'e'].map((n) => ({
+      githubUsername: n,
+    }))
+
+    it('shows no form it would refuse, and points at the receipt email', async () => {
+      database({ licenseDoc: { ...license, seatMembers: fullMembers } })
+      const { container } = await renderPage(link())
+
+      expect(screen.queryByLabelText(/github username/i)).toBeNull()
+      expect(
+        screen.queryByRole('button', { name: /send my invitation/i })
+      ).toBeNull()
+      expect(container.textContent).toMatch(
+        /covers 5 developers and all of them are in use/i
+      )
+      expect(container.textContent).toMatch(
+        /license link in your receipt email/i
+      )
+    })
+
+    it('still shows the form while a seat is free', async () => {
+      database({
+        licenseDoc: { ...license, seatMembers: fullMembers.slice(0, 4) },
+      })
+      await renderPage(link())
+      expect(screen.getByLabelText(/github username/i)).toBeInTheDocument()
+    })
+
+    it('still offers a retry to an account that already holds a seat', async () => {
+      database({
+        licenseDoc: {
+          ...license,
+          seatMembers: [
+            ...fullMembers.slice(0, 4),
+            { githubUsername: 'OctoCat' },
+          ],
+        },
+      })
+      purchases = [creemRow({ githubUsername: 'octocat' })]
+      await renderPage(link())
+      expect(
+        screen.getByRole('button', { name: /try again/i })
+      ).toBeInTheDocument()
+    })
+
+    it('does not offer a retry to an account that would be one past the limit', async () => {
+      database({ licenseDoc: { ...license, seatMembers: fullMembers } })
+      purchases = [creemRow({ githubUsername: 'octocat' })]
+      await renderPage(link())
+      expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
+    })
+  })
+
+  describe('after an invitation that failed', () => {
+    it('offers Try again with the account fixed, and no field to change it', async () => {
+      purchases = [creemRow({ githubUsername: 'octocat' })]
+      const { container } = await renderPage(link())
+
+      expect(
+        screen.getByRole('button', { name: /try again/i })
+      ).toBeInTheDocument()
+      expect(screen.queryByLabelText(/github username/i)).toBeNull()
+      expect(
+        container.querySelector('input[name="githubUsername"]')
+      ).toHaveValue('octocat')
+      expect(container.textContent).toMatch(/by hand within one business day/i)
+    })
+
+    it('does not offer it once an invitation link exists', async () => {
+      purchases = [
+        creemRow({
+          githubUsername: 'octocat',
+          githubInviteUrl: 'https://github.com/invite/1',
+        }),
+      ]
+      await renderPage(link())
+      expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
+    })
   })
 })

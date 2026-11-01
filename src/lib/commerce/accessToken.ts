@@ -46,7 +46,7 @@ const secret = () => {
   }
   return legacy || ''
 }
-const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+export const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 function b64url(input: Buffer | string): string {
   return Buffer.from(input)

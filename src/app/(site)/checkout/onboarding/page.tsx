@@ -16,9 +16,9 @@ import {
    page would get a 'use client' export as a client reference, not the
    number, and every attempt would compare as done. */
 import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
-import { seatLimit } from '@/lib/commerce/seats'
 import { validCheckoutRef } from '@/lib/commerce/whop'
-import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
+import { licenseLinkFor } from '@/lib/commerce/licenseLink'
+import { hasSeat, listSeats, seatLimit } from '@/lib/commerce/seats'
 import { licenseLimits } from '@/lib/commerce/license'
 import { currentKey, licenseFromClaims } from '@/lib/commerce/licenseRecord'
 import { verifyOnboardingLink } from '@/lib/commerce/onboardingLink'
@@ -401,12 +401,20 @@ export default async function OnboardingPage({
     )
   }
 
+  const stored = purchase.githubUsername || ''
+  const unanswered = !stored && purchase.fulfillmentStatus === 'pending_invite'
+  /* An invitation that failed: the account is kept, the row is still
+     'pending_invite' and there is no invite link. The same account may be
+     submitted again, which the action allows and nothing else. */
+  const retry =
+    Boolean(stored) &&
+    purchase.fulfillmentStatus === 'pending_invite' &&
+    !purchase.githubInviteUrl
+
   /* A row a person is finishing by hand. The action refuses it too, so the
      form is not offered: asking a question whose answer will be refused is
      worse than saying so. */
-  const needsAnswer =
-    !purchase.githubUsername && purchase.fulfillmentStatus === 'pending_invite'
-  if (!purchase.githubUsername && purchase.fulfillmentStatus === 'failed') {
+  if (!stored && purchase.fulfillmentStatus === 'failed') {
     return (
       <Shell title="Your payment is safe">
         <p className="mt-6 text-zinc-600 dark:text-zinc-400">
@@ -420,7 +428,16 @@ export default async function OnboardingPage({
     )
   }
 
-  const setup = await creemSetup(purchase, itemDoc, needsAnswer)
+  const setup = await creemSetup(purchase, itemDoc, unanswered)
+
+  /* The action refuses an account that would be one past the license's limit
+     (unless it already holds a seat), so a form for it is not offered. */
+  const seatsFull =
+    setup.members != null &&
+    listSeats(setup.members).length >= setup.seats &&
+    !hasSeat(setup.members, stored)
+  const needsAnswer = unanswered && !seatsFull
+  const canRetry = retry && !seatsFull
 
   return (
     <Shell title={`${itemName} is yours`}>
@@ -440,7 +457,13 @@ export default async function OnboardingPage({
           : 'One more step and the repository is in your hands.'}
       </p>
 
-      {needsAnswer ? (
+      {(unanswered || retry) && seatsFull ? (
+        <p className="mt-12 text-sm text-zinc-700 dark:text-zinc-300">
+          {`This license covers ${setup.seats} ${
+            setup.seats === 1 ? 'developer' : 'developers'
+          } and all of them are in use, so I have not sent a repository invitation. Open the license link in your receipt email to see the options.`}
+        </p>
+      ) : needsAnswer ? (
         <>
           <h2 className="mt-12 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
             Which GitHub account should get the repository?
@@ -449,7 +472,17 @@ export default async function OnboardingPage({
             requestId={link.r}
             signature={link.s}
             initialUsername={setup.liteUsername}
-            licenseUrl={setup.licenseUrl}
+          />
+        </>
+      ) : canRetry ? (
+        <>
+          <h2 className="mt-12 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            The invitation did not go through
+          </h2>
+          <OnboardingGithubForm
+            requestId={link.r}
+            signature={link.s}
+            retryUsername={stored}
           />
         </>
       ) : (
@@ -466,6 +499,7 @@ export default async function OnboardingPage({
           delivered={delivered}
           seats={setup.seats}
           licenseUrl={setup.licenseUrl}
+          licenseExpired={setup.licenseExpired}
         />
       )}
 
@@ -490,17 +524,22 @@ type KitDoc = {
 async function creemSetup(
   purchase: Purchase,
   itemDoc: KitDoc,
-  needsAnswer: boolean
+  unanswered: boolean
 ) {
   const out: {
     seats: number
+    /** The license's seats, or null when there is no license to read. */
+    members: Array<{ githubUsername?: string | null }> | null
     licenseKey: string | null
     licenseUrl: string | null
+    licenseExpired: boolean
     liteUsername: string
   } = {
     seats: licenseLimits(null, itemDoc).seats,
+    members: null,
     licenseKey: null,
     licenseUrl: null,
+    licenseExpired: false,
     liteUsername: '',
   }
 
@@ -513,9 +552,10 @@ async function creemSetup(
     if (found?.license) {
       licenseId = found.license.id
       out.seats = licenseLimits(found.license, found.product ?? itemDoc).seats
+      out.members = found.license.seatMembers ?? []
       out.licenseKey = await currentKey(payload, found.license.id)
 
-      if (needsAnswer) {
+      if (unanswered) {
         const lite = await payload.find({
           collection: 'purchases',
           where: {
@@ -538,19 +578,20 @@ async function creemSetup(
     console.error('Onboarding license lookup failed', purchase.id, err)
   }
 
-  /* The license page lives at the existing seats route until it becomes the
-     license page. A token that cannot be signed leaves the step out rather
-     than linking nowhere. */
-  const signed =
-    itemDoc?.id == null
-      ? null
-      : tryCreateAccessToken({
-          purchaseId: purchase.id,
-          ...(licenseId != null ? { licenseId } : {}),
-          itemType: 'product',
-          itemId: itemDoc.id,
-        })
-  if (signed?.ok) out.licenseUrl = `/access/seats/${signed.token}`
+  /* The license page link is minted only once the buyer has answered, and
+     only while the purchase is young. The onboarding link never expires, so
+     without both limits every visit to it would hand out a fresh 30-day link.
+     Past the window the step points at the resend route instead. The page
+     lives at the existing seats route until it becomes the license page. */
+  if (purchase.githubUsername) {
+    const minted = licenseLinkFor({
+      purchase,
+      licenseId: licenseId ?? undefined,
+      itemId: itemDoc?.id,
+    })
+    out.licenseUrl = minted.url
+    out.licenseExpired = minted.expired
+  }
 
   return out
 }

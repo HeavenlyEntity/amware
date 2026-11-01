@@ -10,7 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
    be tested without a database. */
 vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
 vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
-vi.mock('@/lib/commerce/licenseRecord', () => ({ attachPurchase: vi.fn() }))
+vi.mock('@/lib/commerce/licenseRecord', () => ({
+  attachPurchase: vi.fn(),
+  licenseFromClaims: vi.fn(),
+}))
 vi.mock('@/lib/commerce/purchaseClaim', () => ({
   claimGithubUsername: vi.fn(),
 }))
@@ -20,10 +23,11 @@ vi.mock('@/lib/commerce/fulfillment', () => ({
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
-import { attachPurchase } from '@/lib/commerce/licenseRecord'
+import { attachPurchase, licenseFromClaims } from '@/lib/commerce/licenseRecord'
 import { claimGithubUsername } from '@/lib/commerce/purchaseClaim'
 import { sendBoilerplateConfirmationEmail } from '@/lib/commerce/fulfillment'
 import { onboardingPath } from '@/lib/commerce/onboardingLink'
+import { verifyAccessToken } from '@/lib/commerce/accessToken'
 import { completeOnboarding } from '@/lib/commerce/onboarding'
 
 const REQUEST_ID = '6f1c1d7e-2b1a-4c57-9a52-0f1f5d1a1111'
@@ -82,6 +86,7 @@ beforeEach(() => {
     githubUsername: null,
     license: 5,
     creemRequestId: REQUEST_ID,
+    createdAt: new Date().toISOString(),
     item: { relationTo: 'products', value: kit },
   }
   licenseDoc = { id: 5, stack: 'next-netsuite', tier: 'team', seatMembers: [] }
@@ -92,7 +97,12 @@ beforeEach(() => {
     .mockImplementation(({ collection }) =>
       collection === 'licenses' ? Promise.resolve(licenseDoc) : Promise.reject()
     )
-  update = vi.fn().mockResolvedValue({})
+  /* The row keeps what is written to it, so a second submission meets the
+     state the first one left. */
+  update = vi.fn().mockImplementation(async ({ collection, data }) => {
+    if (collection === 'purchases') Object.assign(row, data)
+    return {}
+  })
   getPayloadClient.mockResolvedValue({ find, findByID, update })
 
   claimGithubUsername.mockImplementation(async (_payload, _id, name) => {
@@ -106,6 +116,13 @@ beforeEach(() => {
     state: 'invited',
   })
   attachPurchase.mockResolvedValue({ id: 5 })
+  /* What the action reads to check the seat limit: the license and the
+     product that sets its limit (Team: five developers). */
+  licenseFromClaims.mockImplementation(async (_payload, claims) =>
+    claims.licenseId === licenseDoc.id
+      ? { license: licenseDoc, product: { seats: 5 } }
+      : null
+  )
   sendBoilerplateConfirmationEmail.mockResolvedValue(undefined)
   vi.stubGlobal(
     'fetch',
@@ -391,5 +408,180 @@ describe('completeOnboarding', () => {
     error.mockRestore()
 
     expect(state.ok).not.toBeNull()
+  })
+
+  describe('the license seat limit', () => {
+    const fullLicense = () => {
+      licenseDoc.seatMembers = [
+        { githubUsername: 'a' },
+        { githubUsername: 'b' },
+        { githubUsername: 'c' },
+        { githubUsername: 'd' },
+        { githubUsername: 'e' },
+      ]
+    }
+
+    it('refuses an account past the limit, and sends and claims nothing', async () => {
+      fullLicense()
+      const state = await submit({ githubUsername: 'newcomer' })
+
+      expect(state.ok).toBeNull()
+      expect(state.error.message).toMatch(/covers 5 developers/i)
+      expect(state.error.message).toMatch(/license/i)
+      expect(claimGithubUsername).not.toHaveBeenCalled()
+      expect(inviteToRepo).not.toHaveBeenCalled()
+      expect(fetch).not.toHaveBeenCalled()
+      expect(row.githubUsername).toBeNull()
+    })
+
+    it('uses the limit the license carries, not the purchased product', async () => {
+      licenseDoc.seatOverride = 1
+      licenseDoc.seatMembers = [{ githubUsername: 'a' }]
+      const state = await submit({ githubUsername: 'newcomer' })
+      expect(state.error.message).toMatch(
+        /covers 1 developer and all 1 is in use/i
+      )
+      expect(inviteToRepo).not.toHaveBeenCalled()
+    })
+
+    it('accepts an account that already holds a seat, without adding it twice', async () => {
+      fullLicense()
+      licenseDoc.seatMembers[2] = { githubUsername: 'OctoCat' }
+      const state = await submit({ githubUsername: 'octocat' })
+
+      expect(state.error).toBeNull()
+      expect(inviteToRepo).toHaveBeenCalledTimes(1)
+      expect(updatesTo('licenses')).toHaveLength(0)
+    })
+
+    it('does not look at a limit when the purchase has no license', async () => {
+      row.license = null
+      attachPurchase.mockRejectedValue(new Error('no'))
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const state = await submit()
+      error.mockRestore()
+      expect(state.ok).not.toBeNull()
+      expect(licenseFromClaims).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('retrying a failed invitation', () => {
+    beforeEach(() => {
+      row.githubUsername = 'octocat'
+      row.fulfillmentStatus = 'pending_invite'
+      row.githubInviteUrl = null
+    })
+
+    it('repeats the invitation for the same account, without claiming again', async () => {
+      const state = await submit({ githubUsername: 'octocat' })
+
+      expect(state.error).toBeNull()
+      expect(state.ok).toMatchObject({ username: 'octocat', manual: false })
+      expect(claimGithubUsername).not.toHaveBeenCalled()
+      expect(inviteToRepo).toHaveBeenCalledWith({
+        repo: 'amwaredotdev/warekit-next-netsuite',
+        username: 'octocat',
+      })
+      expect(updatesTo('purchases')[0].data.fulfillmentStatus).toBe('sent')
+    })
+
+    it('matches the account without regard to case, and invites the stored spelling', async () => {
+      row.githubUsername = 'OctoCat'
+      await submit({ githubUsername: 'octocat' })
+      expect(inviteToRepo).toHaveBeenCalledWith(
+        expect.objectContaining({ username: 'OctoCat' })
+      )
+    })
+
+    it('never lets the name change on a retry', async () => {
+      const state = await submit({ githubUsername: 'someone-else' })
+
+      expect(state.ok).toBeNull()
+      expect(state.error.message).toMatch(/already set up/i)
+      expect(inviteToRepo).not.toHaveBeenCalled()
+      expect(row.githubUsername).toBe('octocat')
+    })
+
+    it('stays pending, and keeps the account, when it fails again', async () => {
+      inviteToRepo.mockResolvedValue({ ok: false, reason: 'github-down' })
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const state = await submit({ githubUsername: 'octocat' })
+      error.mockRestore()
+
+      expect(state.ok).toMatchObject({ manual: true, username: 'octocat' })
+      expect(updatesTo('purchases')[0].data.fulfillmentStatus).toBe(
+        'pending_invite'
+      )
+    })
+
+    it('is not a retry once an invitation exists', async () => {
+      row.githubInviteUrl = 'https://github.com/invite/1'
+      const state = await submit({ githubUsername: 'octocat' })
+      expect(state.error.message).toMatch(/already set up/i)
+      expect(inviteToRepo).not.toHaveBeenCalled()
+    })
+
+    it('is not a retry for a row already sent', async () => {
+      row.fulfillmentStatus = 'sent'
+      const state = await submit({ githubUsername: 'octocat' })
+      expect(state.error.message).toMatch(/already set up/i)
+      expect(inviteToRepo).not.toHaveBeenCalled()
+    })
+
+    it('still respects the seat limit', async () => {
+      licenseDoc.seatMembers = ['a', 'b', 'c', 'd', 'e'].map((n) => ({
+        githubUsername: n,
+      }))
+      const state = await submit({ githubUsername: 'octocat' })
+      expect(state.ok).toBeNull()
+      expect(inviteToRepo).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when the database fails', () => {
+    it('does not throw if the client cannot be had, and sends nothing', async () => {
+      getPayloadClient.mockRejectedValue(new Error('db down'))
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const state = await submit()
+      error.mockRestore()
+
+      expect(state.ok).toBeNull()
+      expect(state.error.message).toMatch(/nothing was sent.*try again/i)
+      expect(inviteToRepo).not.toHaveBeenCalled()
+    })
+
+    it('does not throw if the purchase lookup fails', async () => {
+      find.mockRejectedValue(new Error('db down'))
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const state = await submit()
+      error.mockRestore()
+
+      expect(state.error.message).toMatch(/nothing was sent.*try again/i)
+      expect(claimGithubUsername).not.toHaveBeenCalled()
+      expect(inviteToRepo).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('the license link it returns', () => {
+    it('is minted for a young purchase and opens this license', async () => {
+      const state = await submit()
+      const token = state.ok.licenseUrl.split('/').pop()
+
+      expect(state.ok.licenseUrl).toMatch(/^\/access\/seats\//)
+      expect(verifyAccessToken(token)).toMatchObject({
+        purchaseId: 99,
+        licenseId: 5,
+        itemId: 7,
+      })
+    })
+
+    it('is not minted for a purchase older than the 30 days a link lives', async () => {
+      row.createdAt = new Date(
+        Date.now() - 31 * 24 * 60 * 60 * 1000
+      ).toISOString()
+      const state = await submit()
+      expect(state.ok).not.toBeNull()
+      expect(state.ok.licenseUrl).toBeNull()
+    })
   })
 })

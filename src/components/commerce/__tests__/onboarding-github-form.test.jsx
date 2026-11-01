@@ -85,11 +85,10 @@ describe('OnboardingGithubForm', () => {
         inviteUrl: 'https://github.com/invite/1',
         alreadyHadAccess: false,
         manual: false,
+        licenseUrl: '/access/seats/tok',
       },
     })
-    const { container } = render(
-      <OnboardingGithubForm {...props} licenseUrl="/access/seats/tok" />
-    )
+    const { container } = render(<OnboardingGithubForm {...props} />)
     fireEvent.change(screen.getByLabelText(/github username/i), {
       target: { value: 'octocat' },
     })
@@ -160,5 +159,94 @@ describe('OnboardingGithubForm', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('GitHub has no account.')
     expect(input).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('leaves out the license page when none was minted', async () => {
+    completeOnboarding.mockResolvedValue({
+      error: null,
+      ok: {
+        username: 'octocat',
+        repo: 'amwaredotdev/warekit-next-netsuite',
+        inviteUrl: 'https://github.com/invite/1',
+        alreadyHadAccess: false,
+        manual: false,
+        licenseUrl: null,
+      },
+    })
+    const { container } = render(<OnboardingGithubForm {...props} />)
+    fireEvent.change(screen.getByLabelText(/github username/i), {
+      target: { value: 'octocat' },
+    })
+    fireEvent.submit(container.querySelector('form'))
+
+    await screen.findByRole('status')
+    expect(screen.queryByRole('link', { name: /license page/i })).toBeNull()
+  })
+
+  describe('retrying a failed invitation', () => {
+    it('fixes the account and offers only a Try again button', () => {
+      const { container } = render(
+        <OnboardingGithubForm {...props} retryUsername="octocat" />
+      )
+
+      expect(screen.queryByLabelText(/github username/i)).toBeNull()
+      expect(
+        container.querySelector('input[name="githubUsername"]')
+      ).toHaveValue('octocat')
+      expect(
+        container.querySelector('input[name="githubUsername"]')
+      ).toHaveAttribute('type', 'hidden')
+      expect(screen.getByRole('button', { name: /try again/i })).toBeEnabled()
+      // The by-hand promise stays as the fallback.
+      expect(container.textContent).toMatch(/by hand within one business day/i)
+    })
+
+    it('posts the same signed link and the fixed account', async () => {
+      completeOnboarding.mockResolvedValue({ error: null, ok: null })
+      const { container } = render(
+        <OnboardingGithubForm {...props} retryUsername="octocat" />
+      )
+      fireEvent.submit(container.querySelector('form'))
+
+      await waitFor(() => expect(completeOnboarding).toHaveBeenCalled())
+      const sent = completeOnboarding.mock.calls[0][1]
+      expect(sent.get('r')).toBe('req-1')
+      expect(sent.get('s')).toBe('sig-1')
+      expect(sent.get('githubUsername')).toBe('octocat')
+    })
+
+    it('shows the result when the retry works', async () => {
+      completeOnboarding.mockResolvedValue({
+        error: null,
+        ok: {
+          username: 'octocat',
+          repo: 'amwaredotdev/warekit-next-netsuite',
+          inviteUrl: 'https://github.com/invite/1',
+          alreadyHadAccess: false,
+          manual: false,
+          licenseUrl: null,
+        },
+      })
+      const { container } = render(
+        <OnboardingGithubForm {...props} retryUsername="octocat" />
+      )
+      fireEvent.submit(container.querySelector('form'))
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        /invitation for/i
+      )
+    })
+
+    it('shows why a retry was refused', async () => {
+      completeOnboarding.mockResolvedValue({
+        error: { field: null, message: 'This license covers 1 developer.' },
+        ok: null,
+      })
+      const { container } = render(
+        <OnboardingGithubForm {...props} retryUsername="octocat" />
+      )
+      fireEvent.submit(container.querySelector('form'))
+      expect(await screen.findByRole('alert')).toHaveTextContent(/covers 1/)
+    })
   })
 })
