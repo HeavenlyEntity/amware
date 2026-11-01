@@ -27,6 +27,7 @@ import { CreemError, createCheckoutSession } from '../creem'
 import { redirect } from 'next/navigation'
 import { createAccessToken } from '../accessToken'
 import { startUpgrade } from '../licenseUpgrade'
+import { expectedProductIds, licenseIdFrom } from '../licenseRecord'
 
 const STACK = 'next-netsuite'
 
@@ -396,4 +397,62 @@ describe('startUpgrade: Enterprise', () => {
       error: { message: NOTHING_CHARGED },
     })
   })
+})
+
+/* The two ends of an upgrade never meet in a unit test, and a key renamed on
+   one side fails only on a real payment. So the action's real output goes
+   through the same functions the webhook reads it with. */
+describe('startUpgrade output, read the way the webhook reads it', () => {
+  const quoted = { tier: 'team', quoteCreemProductId: 'prod_quote' }
+
+  const checkout = async (fields, license) => {
+    world({ license })
+    await expect(run(fields)).rejects.toThrow('NEXT_REDIRECT')
+    return createCheckoutSession.mock.calls[0][0]
+  }
+  const webhookView = ({ productId, metadata }, license, env) => ({
+    licenseId: licenseIdFrom(metadata.licenseId),
+    expected: expectedProductIds({
+      item: teamRow,
+      license: { id: 9, stack: STACK, ...license },
+      upgrade: metadata.upgrade,
+      env,
+    }),
+    productId,
+    itemId: metadata.itemId,
+    itemType: metadata.itemType,
+  })
+
+  it.each([
+    ['production', 'prod_upgrade_live'],
+    ['sandbox', 'prod_upgrade_test'],
+  ])('lines a Team upgrade up in %s', async (env, productId) => {
+    process.env.CREEM_ENV = env
+    const license = { tier: 'pro', creemEnvironment: env }
+
+    const seen = webhookView(await checkout({}, license), license, env)
+
+    expect(seen.productId).toBe(productId)
+    expect(seen.expected).toEqual([productId])
+    expect(seen.licenseId).toBe(9)
+    expect(seen.itemId).toBe(String(teamRow.id))
+    expect(seen.itemType).toBe('product')
+  })
+
+  it.each(['production', 'sandbox'])(
+    'lines an Enterprise quote up in %s',
+    async (env) => {
+      process.env.CREEM_ENV = env
+      const license = { ...quoted, creemEnvironment: env }
+
+      const session = await checkout({ target: 'enterprise' }, license)
+      const seen = webhookView(session, license, env)
+
+      expect(session.metadata.upgrade).toBe('enterprise')
+      expect(seen.productId).toBe('prod_quote')
+      expect(seen.expected).toEqual(['prod_quote'])
+      expect(seen.licenseId).toBe(9)
+      expect(seen.itemId).toBe(String(teamRow.id))
+    }
+  )
 })

@@ -20,7 +20,7 @@ vi.mock('next/script', () => ({
     useEffect(() => {
       scripts(props)
       window.whop = { track }
-    }, [])
+    }, [props])
     return null
   },
 }))

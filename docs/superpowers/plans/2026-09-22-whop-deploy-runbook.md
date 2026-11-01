@@ -194,6 +194,9 @@ them, and a kit with no live Creem product id is off sale whatever its status.
       shared database, so end by deleting them.
 - [ ] **First live sale with Alec,** small, then a refund. Test mode cannot show the live key and webhook
       pair.
+- [ ] **Vercel Firewall rate limit on `/licenses/*`.** The license routes are public and have no limit
+      in code (`src/lib/commerce/licenseReport.js` leaves it to this rule), so add the rule before a kit
+      ships with a key. TODO(alec): choose the requests-per-minute figure and record it here.
 - [ ] **`WAREKIT_REVOKE_ON_DEACTIVATE` still unset** at launch. It stays off until the refund test above
       has been read; see "Owner decisions".
 - [ ] **React Pro and Team stay off sale.** `warekit-react-netsuite` does not exist.
