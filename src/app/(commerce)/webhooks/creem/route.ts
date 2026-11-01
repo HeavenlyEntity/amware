@@ -10,6 +10,7 @@ import {
   licenseIdFrom,
   quoteProductIdFor,
   recomputeTier,
+  relationId,
 } from '@/lib/commerce/licenseRecord'
 import { revokeLicenseAccess } from '@/lib/commerce/licenseRevoke'
 import { listSeats } from '@/lib/commerce/seats'
@@ -102,9 +103,6 @@ const idFrom = (value: any): string | null => {
 const amountFrom = (value: any): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null
 
-const relationIdOf = (value: any) =>
-  value && typeof value === 'object' ? value.id : value
-
 async function purchaseForOrder(payload, orderId: string) {
   const found = await payload.find({
     collection: 'purchases',
@@ -169,7 +167,7 @@ async function handleRefund(event) {
     return new Response('ignored (unknown order)', { status: 200 })
   }
 
-  const licenseId = relationIdOf(purchase.license) ?? null
+  const licenseId = relationId(purchase.license) ?? null
 
   if (!full) {
     console.warn('Partial refund, tier unchanged', {
@@ -321,7 +319,7 @@ async function handleDispute(event) {
     return new Response('ignored (unknown order)', { status: 200 })
   }
 
-  const licenseId = relationIdOf(purchase.license) ?? null
+  const licenseId = relationId(purchase.license) ?? null
   console.warn('Dispute opened, tier unchanged', {
     orderId,
     purchase: purchase.id,

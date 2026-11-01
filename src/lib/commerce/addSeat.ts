@@ -349,7 +349,12 @@ export async function removeSeat(
     try {
       accessKept = await coveredByAnotherLicense(payload, license, username)
     } catch (err) {
-      console.error('Seat removal coverage check failed', license.id, err)
+      // Code or name only: a database error's message carries the username.
+      console.error(
+        'Seat removal coverage check failed',
+        license.id,
+        err?.code ?? err?.name
+      )
       return fail(null, lookupFailed, snapshot)
     }
   }

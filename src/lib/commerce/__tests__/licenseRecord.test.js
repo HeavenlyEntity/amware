@@ -711,17 +711,77 @@ describe('syncTierAfterChange', () => {
     expect(updatesTo(payload, 'licenses')).toHaveLength(1)
   })
 
-  it('never throws, and hands the document back', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  it('recomputes the license a row moves to and the one it left', async () => {
+    const payload = fakePayload({
+      licenses: [
+        { id: 5, tier: 'team' },
+        { id: 6, tier: null },
+      ],
+    })
+    const before = { id: 1, license: 5, status: 'paid', grantsTier: 'team' }
+    await run({ doc: { ...before, license: 6 }, previousDoc: before }, payload)
+      .done
+
+    const read = payload.findByID.mock.calls.map(([arg]) => arg.id)
+    expect(read.sort()).toEqual([5, 6])
+  })
+
+  it('recomputes the old license when the relation is cleared', async () => {
+    const payload = fakePayload({ licenses: [{ id: 5, tier: 'team' }] })
+    const before = { id: 1, license: { id: 5 }, status: 'paid' }
+    await run(
+      { doc: { ...before, license: null }, previousDoc: before },
+      payload
+    ).done
+
+    expect(payload.findByID.mock.calls.map(([arg]) => arg.id)).toEqual([5])
+  })
+
+  it('does not recompute for an unchanged populated relation', async () => {
     const payload = fakePayload({ licenses: [{ id: 5 }] })
-    payload.find.mockRejectedValue(new Error('db down'))
+    const row = { id: 1, license: 5, status: 'paid' }
+    await run(
+      { doc: { ...row, license: { id: 5 } }, previousDoc: row },
+      payload
+    ).done
+    expect(payload.find).not.toHaveBeenCalled()
+  })
+
+  describe('when the recompute fails', () => {
     const row = { id: 1, license: 5, status: 'paid' }
     const doc = { ...row, status: 'refunded' }
+    const fail = () => {
+      const payload = fakePayload({ licenses: [{ id: 5 }] })
+      payload.find.mockRejectedValue(new Error('db down'))
+      return payload
+    }
 
-    await expect(run({ doc, previousDoc: row }, payload).done).resolves.toBe(
-      doc
-    )
-    expect(error).toHaveBeenCalled()
-    error.mockRestore()
+    it('rethrows once the query has killed the transaction', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const payload = fail()
+      // A failed query given `req` makes Payload delete the id.
+      const req = { payload, transactionID: 'tx_1' }
+      payload.find.mockImplementation(async () => {
+        delete req.transactionID
+        throw new Error('db down')
+      })
+
+      await expect(
+        syncTierAfterChange({ doc, previousDoc: row, operation: 'update', req })
+      ).rejects.toThrow('db down')
+      error.mockRestore()
+    })
+
+    it('swallows and logs while the transaction is still alive', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const req = { payload: fail(), transactionID: 'tx_1' }
+
+      await expect(
+        syncTierAfterChange({ doc, previousDoc: row, operation: 'update', req })
+      ).resolves.toBe(doc)
+      expect(req.transactionID).toBe('tx_1')
+      expect(error).toHaveBeenCalled()
+      error.mockRestore()
+    })
   })
 })

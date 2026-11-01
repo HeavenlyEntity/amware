@@ -97,8 +97,14 @@ export async function revokeLicenseAccess(payload, license) {
         continue
       }
     } catch (err) {
-      // Cannot tell, so cannot take the access away.
-      console.error('Revocation coverage check failed', license.id, err)
+      /* Cannot tell, so cannot take the access away. Only the error's code
+         or name is logged: a database error's message carries the query
+         parameters, and the cover query's is the username. */
+      console.error(
+        'Revocation coverage check failed',
+        license.id,
+        err?.code ?? err?.name
+      )
       unproven += 1
       continue
     }

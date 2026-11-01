@@ -282,4 +282,32 @@ describe('revokeLicenseAccess', () => {
       revokeLicenseAccess(payload, refunded())
     ).resolves.toBeUndefined()
   })
+
+  it('keeps a username out of the log when the coverage query fails', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    const payload = fakePayload()
+    const find = payload.find.getMockImplementation()
+    payload.find.mockImplementation(async (args) => {
+      if (args.collection === 'licenses') {
+        // As drizzle words it: the query parameters are in the message.
+        throw Object.assign(
+          new Error('Failed query: select ... params: %buyer%,next-netsuite'),
+          { name: 'DrizzleQueryError' }
+        )
+      }
+      return find(args)
+    })
+
+    await revokeLicenseAccess(payload, refunded())
+
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    const text = logged(info, warn, error).toLowerCase()
+    expect(text).not.toContain('buyer')
+    expect(text).not.toContain('teammate')
+    expect(error).toHaveBeenCalledWith(
+      'Revocation coverage check failed',
+      41,
+      'DrizzleQueryError'
+    )
+  })
 })

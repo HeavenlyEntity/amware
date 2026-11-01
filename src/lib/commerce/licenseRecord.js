@@ -31,7 +31,7 @@ export function licenseIdFrom(value) {
   return Number.isSafeInteger(n) && n > 0 ? n : null
 }
 
-const relationId = (value) =>
+export const relationId = (value) =>
   value && typeof value === 'object' ? value.id : value
 
 /**
@@ -126,15 +126,26 @@ export async function recomputeTier(payload, licenseId, options = {}) {
 
 /**
  * The `afterChange` hook on Purchases: keep a license's tier from going
- * stale. An admin who flips a row to refunded, or edits what it grants, and
- * the dormant Whop path both change a purchase without the Creem webhook
- * knowing, and the tier is derived from exactly those two fields.
+ * stale. An admin who flips a row to refunded, edits what it grants or moves
+ * it to another license, and the dormant Whop path, all change a purchase
+ * without the Creem webhook knowing, and the tier is derived from exactly
+ * those fields.
  *
- * Only a change to `status` or `grantsTier` on a row that has a license does
- * anything. It writes to licenses, never to purchases, so it cannot trigger
- * itself. It passes `req` through (see `recomputeTier`), and it never throws:
- * a failed recompute is logged, and the next change or the webhook's own
- * call puts it right.
+ * A change to `status`, `grantsTier` or `license` on a row recomputes the
+ * license it now belongs to; a move recomputes the one it left too, or that
+ * license would keep a tier nobody paid for and still count as cover for the
+ * people on it. It writes to licenses, never to purchases, so it cannot
+ * trigger itself, and it passes `req` through (see `recomputeTier`).
+ *
+ * A failure is swallowed only while the transaction is still alive. A query
+ * given `req` that fails kills the shared transaction: Payload rolls it back
+ * and deletes `req.transactionID`, and the save that triggered this hook is
+ * then lost while the outer commit returns quietly. Swallowing that would
+ * report a write that no longer exists, so with no `transactionID` left the
+ * error is rethrown and the caller (the Creem webhook answers 500, so Creem
+ * redelivers) finds out. With a live transaction nothing was undone, the
+ * error is logged, and the next change or the webhook's own recompute puts
+ * the tier right.
  */
 export async function syncTierAfterChange({
   doc,
@@ -143,15 +154,24 @@ export async function syncTierAfterChange({
   req,
 }) {
   try {
-    const licenseId = relationId(doc?.license)
-    if (licenseId == null) return doc
+    const next = relationId(doc?.license) ?? null
+    const previous = relationId(previousDoc?.license) ?? null
+    const moved = String(next) !== String(previous)
     const changed =
       operation === 'create' ||
-      doc.status !== previousDoc?.status ||
-      (doc.grantsTier ?? null) !== (previousDoc?.grantsTier ?? null)
+      moved ||
+      doc?.status !== previousDoc?.status ||
+      (doc?.grantsTier ?? null) !== (previousDoc?.grantsTier ?? null)
     if (!changed) return doc
-    await recomputeTier(req.payload, licenseId, { req })
+
+    const ids = []
+    if (next != null) ids.push(next)
+    if (moved && previous != null) ids.push(previous)
+    for (const id of ids) {
+      await recomputeTier(req.payload, id, { req })
+    }
   } catch (err) {
+    if (!req?.transactionID) throw err
     console.error('Tier recompute after a purchase change failed', err)
   }
   return doc
