@@ -17,7 +17,7 @@ const freeLite = {
   type: 'boilerplate',
   price: 0,
   status: 'published',
-  whopPlanId: 'plan_secret',
+  creemProductId: 'prod_secret',
 }
 
 beforeEach(() => {
@@ -44,7 +44,7 @@ describe('/products/standard', () => {
           price: 499,
           seats: 1,
           status: 'published',
-          whopPlanId: 'plan_secret',
+          creemProductId: 'prod_secret',
         },
       ],
     })

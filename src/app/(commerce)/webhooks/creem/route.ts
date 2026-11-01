@@ -332,8 +332,21 @@ async function handleCheckout(event) {
     (upgradeTarget || expected.length > 0) &&
     !expected.includes(creemProductId)
 
+  /* A license named in metadata is usable only if it is on the stack being
+     sold and in the Creem world we are in. Otherwise a sandbox payment could
+     raise a production license, or a kit of one stack a license of the
+     other. The buyer's email is deliberately not compared: someone else's
+     card can legitimately pay for a named upgrade. */
+  const namedLicenseUnusable =
+    isBoilerplate &&
+    metaLicenseId != null &&
+    !(
+      license &&
+      license.stack === item?.stack &&
+      (license.creemEnvironment || 'production') === env
+    )
   // An upgrade only means something on the license it names.
-  const upgradeWithoutLicense = isUpgrade && !license
+  const upgradeWithoutLicense = namedLicenseUnusable || (isUpgrade && !license)
 
   // Create the Purchase first (need its id to sign the access token).
   let purchase
@@ -399,10 +412,11 @@ async function handleCheckout(event) {
     // Neither needs delivery from here. A retainer is scheduled with the
     // client out of band, and Creem sends a digital product's file itself.
   } else if (upgradeWithoutLicense) {
-    /* The money is in, but the license it was meant for cannot be found.
-       Granting a tier here would start a fresh license for the price of the
-       difference, so it is left for a person. */
-    console.error('Upgrade names no usable license for order', orderId, {
+    /* The money is in, but the license it names cannot be found, or belongs
+       to another stack or Creem environment. Granting a tier here would raise
+       the wrong license, or start a fresh one for the price of a difference,
+       so it is left for a person. */
+    console.error('Purchase names no usable license for order', orderId, {
       licenseId: meta.licenseId,
     })
     await payload
@@ -428,6 +442,16 @@ async function handleCheckout(event) {
       })
     } catch (err) {
       console.error('License attach failed for order', orderId, err)
+      /* The row was created 'not_required', which reads as nothing owed, and
+         a redelivery stops at the duplicate check. Say so on the row. */
+      await payload
+        .update({
+          collection: 'purchases',
+          id: purchase.id,
+          overrideAccess: true,
+          data: { fulfillmentStatus: 'failed' },
+        })
+        .catch(() => {})
     }
   } else if (isBoilerplate) {
     const repo = typeof item?.githubRepo === 'string' ? item.githubRepo : null

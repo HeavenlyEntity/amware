@@ -134,6 +134,27 @@ export async function attachPurchase(
   const env = environment ?? creemEnvironment()
   const named = licenseIdFrom(licenseId)
 
+  /* A named license must be on this stack and in this Creem environment,
+     whoever calls. The caller's own check is not the only line of defence:
+     this is the function that writes the tier. The buyer's email is not
+     compared, because someone else's card can pay for a named upgrade. */
+  if (named != null) {
+    const target = await payload.findByID({
+      collection: 'licenses',
+      id: named,
+      depth: 0,
+      overrideAccess: true,
+    })
+    if (
+      target?.stack !== stack ||
+      (target?.creemEnvironment || 'production') !== env
+    ) {
+      throw new Error(
+        `License ${named} is not a ${stack} license in ${env}; purchase not attached`
+      )
+    }
+  }
+
   let candidates = []
   if (named == null) {
     const found = await payload.find({

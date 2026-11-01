@@ -358,6 +358,58 @@ describe('Creem checkout.completed for a kit', () => {
       expect(res.status).toBe(200)
       expect(payload.create).toHaveBeenCalledTimes(1)
       expect(error).toHaveBeenCalled()
+      // 'not_required' would read as nothing owed, and a redelivery stops at
+      // the duplicate check, so the row has to say the sale needs a person.
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          collection: 'purchases',
+          id: 99,
+          data: { fulfillmentStatus: 'failed' },
+        })
+      )
+      error.mockRestore()
+    })
+
+    it('fails a sandbox payment that names a production license', async () => {
+      process.env.CREEM_ENV = 'sandbox'
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const payload = withItem(team, { license: ownerLicense })
+
+      const res = await POST(
+        completed(upgrade({ productId: 'prod_upgrade_sb' }))
+      )
+
+      expect(res.status).toBe(200)
+      expect(failedUpdate(payload)).toBe(true)
+      expect(attachPurchase).not.toHaveBeenCalled()
+      error.mockRestore()
+    })
+
+    it('fails an upgrade that names a license on another stack', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const payload = withItem(team, {
+        license: { ...ownerLicense, stack: 'react-netsuite' },
+      })
+
+      const res = await POST(completed(upgrade()))
+
+      expect(res.status).toBe(200)
+      expect(failedUpdate(payload)).toBe(true)
+      expect(attachPurchase).not.toHaveBeenCalled()
+      error.mockRestore()
+    })
+
+    it('fails a plain purchase that names a mismatched license', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const payload = withItem(pro, {
+        license: { ...ownerLicense, creemEnvironment: 'sandbox' },
+      })
+
+      await POST(completed(kit({ metadata: { licenseId: '41' } })))
+
+      expect(failedUpdate(payload)).toBe(true)
+      expect(attachPurchase).not.toHaveBeenCalled()
+      expect(inviteToRepo).not.toHaveBeenCalled()
       error.mockRestore()
     })
 

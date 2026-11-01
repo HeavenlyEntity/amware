@@ -204,7 +204,7 @@ describe('attachPurchase', () => {
 
   it('does not flag an upgrade that named its license', async () => {
     const payload = fakePayload({
-      licenses: [{ id: 31, tier: 'pro' }],
+      licenses: [{ id: 31, tier: 'pro', stack: 'next-netsuite' }],
       purchases: [{ id: 7, status: 'paid', grantsTier: 'team', license: 31 }],
     })
 
@@ -222,6 +222,69 @@ describe('attachPurchase', () => {
     expect(
       updatesTo(payload, 'licenses').some((u) => 'needsReview' in u.data)
     ).toBe(false)
+  })
+
+  describe('a named license', () => {
+    const named = (over) => ({
+      id: 31,
+      tier: 'pro',
+      stack: 'next-netsuite',
+      ...over,
+    })
+
+    it('refuses a sandbox payment naming a production license', async () => {
+      const payload = fakePayload({ licenses: [named()] })
+
+      await expect(
+        attachPurchase(payload, {
+          ...sale,
+          grantsTier: 'team',
+          licenseId: 31,
+          environment: 'sandbox',
+        })
+      ).rejects.toThrow(/not attached/)
+      expect(payload.update).not.toHaveBeenCalled()
+      expect(payload.create).not.toHaveBeenCalled()
+    })
+
+    it('refuses a production payment naming a sandbox license', async () => {
+      const payload = fakePayload({
+        licenses: [named({ creemEnvironment: 'sandbox' })],
+      })
+      await expect(
+        attachPurchase(payload, { ...sale, grantsTier: 'team', licenseId: 31 })
+      ).rejects.toThrow(/not attached/)
+      expect(payload.update).not.toHaveBeenCalled()
+    })
+
+    it('refuses a license on another stack', async () => {
+      const payload = fakePayload({
+        licenses: [named({ stack: 'react-netsuite' })],
+      })
+      await expect(
+        attachPurchase(payload, { ...sale, grantsTier: 'team', licenseId: 31 })
+      ).rejects.toThrow(/not attached/)
+      expect(payload.update).not.toHaveBeenCalled()
+    })
+
+    it('refuses a license that does not exist', async () => {
+      const payload = fakePayload({ licenses: [] })
+      await expect(
+        attachPurchase(payload, { ...sale, grantsTier: 'team', licenseId: 31 })
+      ).rejects.toThrow()
+      expect(payload.update).not.toHaveBeenCalled()
+    })
+
+    it('does not compare the buyer’s email with the owner’s', async () => {
+      const payload = fakePayload({
+        licenses: [named({ ownerEmail: 'owner@example.com' })],
+        purchases: [{ id: 7, status: 'paid', grantsTier: 'team', license: 31 }],
+      })
+      // `sale.email` is someone else's card paying for the owner's upgrade.
+      await expect(
+        attachPurchase(payload, { ...sale, grantsTier: 'team', licenseId: 31 })
+      ).resolves.toMatchObject({ id: 31 })
+    })
   })
 
   it('ignores a license id that is not a positive integer', async () => {
