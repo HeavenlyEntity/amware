@@ -12,6 +12,9 @@
  * `r` and `s` are a bearer link of their own, so Analytics gets the address
  * without them.
  *
+ * Both also send the `Referrer-Policy` set in next.config.mjs, so the page a
+ * buyer moves to next never holds these addresses in `document.referrer`.
+ *
  * Pure, with no imports, so the engine test project can load it.
  */
 
