@@ -3,7 +3,7 @@ import { getPayloadClient } from '@/lib/getPayloadClient'
 import { verifyCreemSignature } from '@/lib/commerce/creem'
 import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
 import { creemEnvironment } from '@/lib/commerce/creemEnv'
-import { licenseLimits, tierRank } from '@/lib/commerce/license'
+import { activeAccounts, licenseLimits, tierRank } from '@/lib/commerce/license'
 import {
   attachPurchase,
   expectedProductIds,
@@ -87,8 +87,8 @@ export async function POST(req) {
  * tier is recomputed from what is still paid, and when nothing paid is left
  * the repository access this license created is taken back (see
  * `revokeLicenseAccess`, which is flagged off by default). Creem does not
- * touch the license key on a refund; the report route treats a license with
- * no tier as invalid, so the key needs no action here.
+ * touch the license key on a refund; the report route treats a license below
+ * Pro as invalid, so the key needs no action here.
  * ---------------------------------------------------------------------- */
 
 /* An id from a value that is either the id itself or an object carrying it.
@@ -249,37 +249,42 @@ async function moveLicenseDown(payload, licenseId, before) {
     return
   }
 
-  /* A paid tier is left. If the tier fell, an upgrade was refunded and the
-     seats stay as they are, so a person looks only when they are over the
-     new limit. If it did not fall, the refunded row was not the one setting
-     the tier -- the original Pro, with the upgrade still paid. Alec refunds
-     both or neither, so this is rare, and it is flagged rather than linked. */
+  /* A paid tier is left. If it did not fall, the refunded row was not the one
+     setting the tier -- the original Pro, with the upgrade still paid. Alec
+     refunds both or neither, so this is rare, and it is flagged rather than
+     linked. */
   const fell = before != null && tierRank(tier) < tierRank(before.tier)
   if (!fell) {
     await flagForReview(payload, licenseId)
     return
   }
 
-  let product = null
-  if (tier !== 'enterprise') {
-    const found = await payload.find({
-      collection: 'products',
-      where: {
-        and: [{ stack: { equals: license.stack } }, { tier: { equals: tier } }],
-      },
-      depth: 0,
-      limit: 1,
-      overrideAccess: true,
-    })
-    product = found.docs?.[0] ?? null
+  /* An override was agreed for the tier just lost, so whether it still holds
+     is a person's call, however little of it is in use. */
+  if (license.seatOverride != null || license.accountOverride != null) {
+    await flagForReview(payload, licenseId)
+    return
   }
-  /* A tier with no kit row has no limit to read. Over-flagging is the safe
+
+  /* An upgrade was refunded and the seats and accounts stay as they are, so a
+     person looks only when either is over what the new tier's kit row allows.
+     A tier with no kit row has no limit to read. Over-flagging is the safe
      side, so that case is treated as over the limit. */
-  const unknownLimit = !product && tier !== 'enterprise'
-  const used = listSeats(license.seatMembers).length
+  const found = await payload.find({
+    collection: 'products',
+    where: {
+      and: [{ stack: { equals: license.stack } }, { tier: { equals: tier } }],
+    },
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+  })
+  const product = found.docs?.[0] ?? null
+  const limits = licenseLimits({ tier }, product)
   if (
-    unknownLimit ||
-    used > licenseLimits({ ...license, tier }, product).seats
+    !product ||
+    listSeats(license.seatMembers).length > limits.seats ||
+    activeAccounts(license.accounts) > limits.accounts
   ) {
     await flagForReview(payload, licenseId)
   }

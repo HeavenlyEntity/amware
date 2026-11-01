@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  activeAccounts,
   highestTier,
   joinDecision,
   licenseLimits,
@@ -14,6 +15,23 @@ import {
 /* The rules a license follows, kept pure so the webhook, the admin, the
    account page and the kit all read the same answer. A refunded license has
    a null tier, so every function has to cope with that without throwing. */
+
+describe('activeAccounts', () => {
+  it('counts active rows only', () => {
+    expect(
+      activeAccounts([
+        { status: 'active' },
+        { status: 'over_limit' },
+        { status: 'active' },
+      ])
+    ).toBe(2)
+  })
+
+  it('reads a missing list as none', () => {
+    expect(activeAccounts(null)).toBe(0)
+    expect(activeAccounts(undefined)).toBe(0)
+  })
+})
 
 describe('tierRank', () => {
   it('orders the tiers', () => {

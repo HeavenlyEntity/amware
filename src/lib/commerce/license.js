@@ -71,6 +71,14 @@ export function licenseLimits(license, product) {
   return { seats, accounts }
 }
 
+/** The rows that count against a license's accounts. An `over_limit` row is
+    a signal, not a use. */
+export function activeAccounts(rows) {
+  return Array.isArray(rows)
+    ? rows.filter((row) => row?.status === 'active').length
+    : 0
+}
+
 /**
  * The account number a buyer typed, reduced to the one Oracle issued.
  * Sandbox (`_SB1`, `-sb2`) and Release Preview (`_RP`) accounts share their

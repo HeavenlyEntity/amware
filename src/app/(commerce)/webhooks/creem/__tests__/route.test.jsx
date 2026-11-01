@@ -993,6 +993,114 @@ describe('Creem refund.created', () => {
     expect(needsReview(tables)).toBe(false)
   })
 
+  describe('what a refunded upgrade is checked against', () => {
+    const accounts = (...statuses) =>
+      statuses.map((status, i) => ({ accountId: `${i + 1}`, status }))
+    const proLimits = { ...proKit, seats: 1, netsuiteAccounts: 1 }
+    const teamToPro = (license) =>
+      database({
+        purchases: [
+          kitPurchase(),
+          kitPurchase({ id: 2, grantsTier: 'team', creemOrderId: 'ord_up' }),
+        ],
+        licenses: [
+          {
+            id: 41,
+            stack: 'next-netsuite',
+            tier: 'team',
+            seatMembers: members('one'),
+            ...license,
+          },
+        ],
+        products: [proLimits],
+      })
+
+    it('flags Team to Pro with 1 developer and 3 accounts', async () => {
+      const { tables } = teamToPro({
+        accounts: accounts('active', 'active', 'active'),
+      })
+
+      await POST(refund({ orderId: 'ord_up' }))
+
+      expect(tables.licenses[0].tier).toBe('pro')
+      expect(needsReview(tables)).toBe(true)
+    })
+
+    it('does not count an over-limit account against the new tier', async () => {
+      const { tables } = teamToPro({
+        accounts: accounts('active', 'over_limit', 'over_limit'),
+      })
+
+      await POST(refund({ orderId: 'ord_up' }))
+
+      expect(needsReview(tables)).toBe(false)
+    })
+
+    it('flags an override however few are in use', async () => {
+      const { tables } = teamToPro({ seatOverride: 9 })
+
+      await POST(refund({ orderId: 'ord_up' }))
+
+      expect(needsReview(tables)).toBe(true)
+    })
+
+    it('flags an account override without needing a kit row', async () => {
+      const { payload, tables } = teamToPro({ accountOverride: 5 })
+
+      await POST(refund({ orderId: 'ord_up' }))
+
+      expect(needsReview(tables)).toBe(true)
+      expect(
+        payload.find.mock.calls.some(([arg]) => arg.collection === 'products')
+      ).toBe(false)
+    })
+
+    it('flags an Enterprise refund that falls back to Team', async () => {
+      const { tables } = database({
+        purchases: [
+          kitPurchase({ grantsTier: 'team' }),
+          kitPurchase({
+            id: 2,
+            grantsTier: 'enterprise',
+            creemOrderId: 'ord_quote',
+          }),
+        ],
+        licenses: [
+          {
+            id: 41,
+            stack: 'next-netsuite',
+            tier: 'enterprise',
+            seatOverride: 20,
+            accountOverride: 10,
+            seatMembers: members('one'),
+          },
+        ],
+        products: [{ ...proLimits, tier: 'team', seats: 5 }],
+      })
+
+      await POST(refund({ orderId: 'ord_quote' }))
+
+      expect(tables.licenses[0].tier).toBe('team')
+      expect(needsReview(tables)).toBe(true)
+      expect(revokeLicenseAccess).not.toHaveBeenCalled()
+    })
+
+    it('flags a tier with no kit row to read a limit from', async () => {
+      const { tables } = database({
+        purchases: [
+          kitPurchase(),
+          kitPurchase({ id: 2, grantsTier: 'team', creemOrderId: 'ord_up' }),
+        ],
+        licenses: [{ id: 41, stack: 'next-netsuite', tier: 'team' }],
+        products: [],
+      })
+
+      await POST(refund({ orderId: 'ord_up' }))
+
+      expect(needsReview(tables)).toBe(true)
+    })
+  })
+
   it('keeps Team and flags review when the original Pro is refunded', async () => {
     const { tables } = database({
       purchases: [
