@@ -4,6 +4,9 @@ vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
 vi.mock('@/lib/commerce/creem', () => ({
   verifyCreemSignature: vi.fn(() => true),
 }))
+vi.mock('@/lib/commerce/licenseRevoke', () => ({
+  revokeLicenseAccess: vi.fn(),
+}))
 vi.mock('@/lib/commerce/accessToken', () => ({
   tryCreateAccessToken: vi.fn(() => ({ ok: true, token: 'tok', jti: 'jti' })),
 }))
@@ -22,6 +25,8 @@ vi.mock('@/lib/commerce/fulfillment', () => ({
 }))
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
+import { verifyCreemSignature } from '@/lib/commerce/creem'
+import { revokeLicenseAccess } from '@/lib/commerce/licenseRevoke'
 import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
 import {
   sendAccessLinkEmail,
@@ -622,5 +627,391 @@ describe('Creem subscription.paid', () => {
       creemTransactionId: 'tran_2',
       creemEnvironment: 'sandbox',
     })
+  })
+})
+
+/* ------------------------------------------------------------------------
+ * Refunds and disputes. These run against a small in-memory database, not
+ * canned answers: the tier is recomputed by the real `recomputeTier` from the
+ * rows, so what is asserted is the state a refund leaves behind.
+ * ---------------------------------------------------------------------- */
+
+const idOf = (value) => (value && typeof value === 'object' ? value.id : value)
+
+const matches = (row, where) => {
+  if (!where) return true
+  if (where.and) return where.and.every((clause) => matches(row, clause))
+  return Object.entries(where).every(([field, cond]) => {
+    const value = idOf(row[field])
+    if ('equals' in cond) return value === cond.equals
+    if ('in' in cond) return cond.in.includes(value)
+    return true
+  })
+}
+
+function database({ purchases = [], licenses = [], products = [] }) {
+  const tables = { purchases, licenses, products }
+  const payload = {
+    find: vi.fn(async ({ collection, where, limit }) => ({
+      docs: tables[collection]
+        .filter((row) => matches(row, where))
+        .slice(0, limit ?? Infinity),
+    })),
+    findByID: vi.fn(async ({ collection, id }) => {
+      const row = tables[collection].find((r) => r.id === id)
+      if (!row) throw Object.assign(new Error('Not Found'), { status: 404 })
+      // A copy, as a real read is: a later write must not rewrite it.
+      return { ...row }
+    }),
+    update: vi.fn(async ({ collection, id, data }) => {
+      const row = tables[collection].find((r) => r.id === id)
+      Object.assign(row, data)
+      return row
+    }),
+    create: vi.fn(),
+  }
+  getPayloadClient.mockResolvedValue(payload)
+  return { payload, tables }
+}
+
+const webhook = (eventType, object) =>
+  new Request('https://example.com/webhooks/creem', {
+    method: 'POST',
+    body: JSON.stringify({ eventType, object }),
+  })
+
+/* The status fields are deliberately wrong, as Creem sends them: `paid` on
+   a full refund, and on a partial one `refunded` with a refunded amount.
+   Neither may be believed. */
+const refund = ({ orderId = 'ord_pro', amount = 49900, paid = 49900 } = {}) =>
+  webhook('refund.created', {
+    id: 'ref_1',
+    object: 'refund',
+    status: 'succeeded',
+    refund_amount: amount,
+    transaction: {
+      id: 'tran_1',
+      amount_paid: paid,
+      status: amount >= paid ? 'paid' : 'refunded',
+      refunded_amount: amount >= paid ? null : paid,
+      order: orderId,
+    },
+    order: { id: orderId, status: amount >= paid ? 'paid' : 'refunded' },
+  })
+
+const kitPurchase = (over) => ({
+  id: 1,
+  status: 'paid',
+  license: 41,
+  grantsTier: 'pro',
+  creemOrderId: 'ord_pro',
+  ...over,
+})
+const proKit = { id: 30, stack: 'next-netsuite', tier: 'pro', seats: 1 }
+const members = (...names) =>
+  names.map((githubUsername) => ({ githubUsername }))
+const needsReview = (tables) => tables.licenses[0].needsReview === true
+
+describe('Creem refund.created', () => {
+  it('marks a full refund and recomputes the tier', async () => {
+    const { payload, tables } = database({
+      purchases: [kitPurchase()],
+      licenses: [{ id: 41, stack: 'next-netsuite', tier: 'pro' }],
+    })
+
+    const res = await POST(refund())
+
+    expect(res.status).toBe(200)
+    expect(tables.purchases[0].status).toBe('refunded')
+    expect(tables.licenses[0].tier).toBeNull()
+    expect(tables.licenses[0].tierChangedAt).toEqual(expect.any(String))
+    // Nothing paid is left, so repo access is handed to the revoker.
+    expect(revokeLicenseAccess).toHaveBeenCalledTimes(1)
+    expect(revokeLicenseAccess).toHaveBeenCalledWith(
+      payload,
+      expect.objectContaining({ id: 41, tier: null })
+    )
+    expect(needsReview(tables)).toBe(false)
+  })
+
+  it('falls back to Pro when the upgrade is refunded and flags seats over the limit', async () => {
+    const { tables } = database({
+      purchases: [
+        kitPurchase(),
+        kitPurchase({
+          id: 2,
+          grantsTier: 'team',
+          creemOrderId: 'ord_upgrade',
+        }),
+      ],
+      licenses: [
+        {
+          id: 41,
+          stack: 'next-netsuite',
+          tier: 'team',
+          seatMembers: members('one', 'two', 'three'),
+        },
+      ],
+      products: [proKit],
+    })
+
+    const res = await POST(refund({ orderId: 'ord_upgrade' }))
+
+    expect(res.status).toBe(200)
+    expect(tables.purchases[1].status).toBe('refunded')
+    expect(tables.purchases[0].status).toBe('paid')
+    expect(tables.licenses[0].tier).toBe('pro')
+    // The seats stay; a person decides what to do about the extra two.
+    expect(tables.licenses[0].seatMembers).toHaveLength(3)
+    expect(needsReview(tables)).toBe(true)
+    expect(revokeLicenseAccess).not.toHaveBeenCalled()
+  })
+
+  it('does not flag an upgrade refund whose seats still fit', async () => {
+    const { tables } = database({
+      purchases: [
+        kitPurchase(),
+        kitPurchase({ id: 2, grantsTier: 'team', creemOrderId: 'ord_up' }),
+      ],
+      licenses: [
+        {
+          id: 41,
+          stack: 'next-netsuite',
+          tier: 'team',
+          seatMembers: members('one'),
+        },
+      ],
+      products: [proKit],
+    })
+
+    await POST(refund({ orderId: 'ord_up' }))
+
+    expect(tables.licenses[0].tier).toBe('pro')
+    expect(needsReview(tables)).toBe(false)
+  })
+
+  it('keeps Team and flags review when the original Pro is refunded', async () => {
+    const { tables } = database({
+      purchases: [
+        kitPurchase(),
+        kitPurchase({ id: 2, grantsTier: 'team', creemOrderId: 'ord_up' }),
+      ],
+      licenses: [{ id: 41, stack: 'next-netsuite', tier: 'team' }],
+      products: [proKit],
+    })
+
+    const res = await POST(refund({ orderId: 'ord_pro' }))
+
+    expect(res.status).toBe(200)
+    expect(tables.purchases[0].status).toBe('refunded')
+    expect(tables.licenses[0].tier).toBe('team')
+    expect(needsReview(tables)).toBe(true)
+    expect(revokeLicenseAccess).not.toHaveBeenCalled()
+  })
+
+  it('flags a partial refund without changing the tier', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tables } = database({
+      purchases: [kitPurchase()],
+      licenses: [{ id: 41, stack: 'next-netsuite', tier: 'pro' }],
+    })
+
+    const res = await POST(refund({ amount: 10000 }))
+
+    expect(res.status).toBe(200)
+    // The payload said `refunded`; only the amounts decide.
+    expect(tables.purchases[0].status).toBe('paid')
+    expect(tables.licenses[0].tier).toBe('pro')
+    expect(tables.licenses[0].tierChangedAt).toBeUndefined()
+    expect(needsReview(tables)).toBe(true)
+    expect(revokeLicenseAccess).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('treats a refund it cannot measure as partial', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tables } = database({
+      purchases: [kitPurchase()],
+      licenses: [{ id: 41, stack: 'next-netsuite', tier: 'pro' }],
+    })
+
+    await POST(
+      webhook('refund.created', {
+        order: { id: 'ord_pro' },
+        refund_amount: 49900,
+      })
+    )
+
+    expect(tables.purchases[0].status).toBe('paid')
+    expect(tables.licenses[0].tier).toBe('pro')
+    expect(needsReview(tables)).toBe(true)
+    warn.mockRestore()
+  })
+
+  it('is a no-op for a redelivered refund', async () => {
+    const { payload } = database({
+      purchases: [kitPurchase({ status: 'refunded' })],
+      licenses: [{ id: 41, stack: 'next-netsuite', tier: null }],
+    })
+
+    const res = await POST(refund())
+
+    expect(res.status).toBe(200)
+    expect(payload.update).not.toHaveBeenCalled()
+    expect(payload.findByID).not.toHaveBeenCalled()
+    expect(revokeLicenseAccess).not.toHaveBeenCalled()
+  })
+
+  it('only re-sets the flag for a redelivered partial refund', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { payload } = database({
+      purchases: [kitPurchase()],
+      licenses: [
+        { id: 41, stack: 'next-netsuite', tier: 'pro', needsReview: true },
+      ],
+    })
+
+    await POST(refund({ amount: 10000 }))
+    await POST(refund({ amount: 10000 }))
+
+    const writes = payload.update.mock.calls.map(([arg]) => arg)
+    expect(writes).toHaveLength(2)
+    for (const write of writes) {
+      expect(write).toMatchObject({
+        collection: 'licenses',
+        data: { needsReview: true },
+      })
+    }
+    warn.mockRestore()
+  })
+
+  it('ignores a refund for an unknown order with 200', async () => {
+    const { payload } = database({ purchases: [], licenses: [] })
+
+    const res = await POST(refund({ orderId: 'ord_nobody' }))
+
+    expect(res.status).toBe(200)
+    expect(payload.update).not.toHaveBeenCalled()
+    expect(revokeLicenseAccess).not.toHaveBeenCalled()
+  })
+
+  it('marks a digital purchase refunded and touches no license', async () => {
+    const { payload, tables } = database({
+      purchases: [{ id: 9, status: 'paid', creemOrderId: 'ord_guide' }],
+      licenses: [],
+    })
+
+    const res = await POST(
+      refund({ orderId: 'ord_guide', amount: 1200, paid: 1200 })
+    )
+
+    expect(res.status).toBe(200)
+    expect(tables.purchases[0].status).toBe('refunded')
+    expect(payload.findByID).not.toHaveBeenCalled()
+    expect(payload.update).toHaveBeenCalledTimes(1)
+    expect(revokeLicenseAccess).not.toHaveBeenCalled()
+  })
+
+  it('asks for a redelivery when the refund cannot be recorded', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { payload } = database({
+      purchases: [kitPurchase()],
+      licenses: [{ id: 41, stack: 'next-netsuite', tier: 'pro' }],
+    })
+    payload.update.mockRejectedValueOnce(new Error('db down'))
+
+    const res = await POST(refund())
+
+    expect(res.status).toBe(500)
+    expect(revokeLicenseAccess).not.toHaveBeenCalled()
+    error.mockRestore()
+  })
+
+  it('keeps the refund and flags the license when the tier work fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { payload, tables } = database({
+      purchases: [kitPurchase()],
+      licenses: [{ id: 41, stack: 'next-netsuite', tier: 'pro' }],
+    })
+    revokeLicenseAccess.mockRejectedValueOnce(new Error('github down'))
+
+    const res = await POST(refund())
+
+    // A redelivery would stop at the duplicate check, so 200, not 500.
+    expect(res.status).toBe(200)
+    expect(tables.purchases[0].status).toBe('refunded')
+    expect(needsReview(tables)).toBe(true)
+    expect(payload.update).toHaveBeenCalled()
+    error.mockRestore()
+  })
+
+  it('verifies the signature before reading a refund', async () => {
+    const { payload } = database({ purchases: [kitPurchase()], licenses: [] })
+    verifyCreemSignature.mockReturnValueOnce(false)
+
+    const res = await POST(refund())
+
+    expect(res.status).toBe(401)
+    expect(payload.find).not.toHaveBeenCalled()
+  })
+})
+
+describe('Creem dispute.created', () => {
+  const dispute = (object) => webhook('dispute.created', object)
+  const world = () =>
+    database({
+      purchases: [kitPurchase()],
+      licenses: [{ id: 41, stack: 'next-netsuite', tier: 'pro' }],
+    })
+
+  it('flags a dispute without changing the tier', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tables } = world()
+
+    const res = await POST(dispute({ id: 'dis_1', order: { id: 'ord_pro' } }))
+
+    expect(res.status).toBe(200)
+    expect(tables.licenses[0].tier).toBe('pro')
+    expect(tables.licenses[0].tierChangedAt).toBeUndefined()
+    expect(tables.purchases[0].status).toBe('paid')
+    expect(needsReview(tables)).toBe(true)
+    expect(revokeLicenseAccess).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it.each([
+    ['a bare order id', { order: 'ord_pro' }],
+    ['the transaction’s order', { transaction: { order: 'ord_pro' } }],
+    ['the checkout’s order', { checkout: { order: 'ord_pro' } }],
+    ['a checkout order object', { checkout: { order: { id: 'ord_pro' } } }],
+  ])('finds the order from %s', async (_name, object) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tables } = world()
+
+    await POST(dispute(object))
+
+    expect(needsReview(tables)).toBe(true)
+    warn.mockRestore()
+  })
+
+  it('logs and answers 200 when no order can be found', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { payload } = world()
+
+    const res = await POST(dispute({ id: 'dis_2', amount: 100 }))
+
+    expect(res.status).toBe(200)
+    expect(warn).toHaveBeenCalled()
+    expect(payload.update).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('answers 200 for a dispute on an unknown order', async () => {
+    const { payload } = world()
+
+    const res = await POST(dispute({ order: { id: 'ord_nobody' } }))
+
+    expect(res.status).toBe(200)
+    expect(payload.update).not.toHaveBeenCalled()
   })
 })

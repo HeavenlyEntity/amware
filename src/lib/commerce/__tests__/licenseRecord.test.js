@@ -7,6 +7,7 @@ import {
   licenseFromClaims,
   licenseIdFrom,
   recomputeTier,
+  syncTierAfterChange,
   teamProductFor,
 } from '../licenseRecord'
 
@@ -602,5 +603,125 @@ describe('teamProductFor', () => {
     await expect(teamProductFor(payload, 'next-netsuite')).rejects.toThrow(
       'down'
     )
+  })
+})
+
+describe('recomputeTier with a request', () => {
+  it('passes the request to every query so it joins the transaction', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 5, tier: 'pro' }],
+      purchases: [{ id: 1, license: 5, status: 'paid', grantsTier: 'team' }],
+    })
+    const req = { transactionID: 'tx_1' }
+
+    await recomputeTier(payload, 5, { req })
+
+    for (const call of [
+      ...payload.find.mock.calls,
+      ...payload.findByID.mock.calls,
+      ...payload.update.mock.calls,
+    ]) {
+      expect(call[0].req).toBe(req)
+    }
+    expect(payload.update).toHaveBeenCalledTimes(1)
+  })
+
+  it('adds no request when none is given', async () => {
+    const payload = fakePayload({ licenses: [{ id: 5, tier: null }] })
+
+    await recomputeTier(payload, 5)
+
+    expect(payload.find.mock.calls[0][0]).not.toHaveProperty('req')
+  })
+})
+
+describe('syncTierAfterChange', () => {
+  const run = (args, payload = fakePayload({ licenses: [{ id: 5 }] })) => {
+    const req = { payload }
+    return {
+      req,
+      payload,
+      done: syncTierAfterChange({ operation: 'update', req, ...args }),
+    }
+  }
+
+  it('recomputes the tier when status changes, inside the same request', async () => {
+    const paid = { id: 1, license: 5, status: 'paid', grantsTier: 'pro' }
+    const { payload, req, done } = run({
+      doc: { ...paid, status: 'refunded' },
+      previousDoc: paid,
+    })
+
+    await done
+
+    expect(payload.find).toHaveBeenCalledTimes(1)
+    expect(payload.find.mock.calls[0][0].req).toBe(req)
+  })
+
+  it('recomputes when the tier a row grants changes', async () => {
+    const before = { id: 1, license: 5, status: 'paid', grantsTier: 'pro' }
+    const { payload, done } = run({
+      doc: { ...before, grantsTier: 'team' },
+      previousDoc: before,
+    })
+    await done
+    expect(payload.find).toHaveBeenCalled()
+  })
+
+  it('reads a license that arrives populated', async () => {
+    const before = { id: 1, license: 5, status: 'paid' }
+    const { payload, done } = run({
+      doc: { ...before, license: { id: 5 }, status: 'refunded' },
+      previousDoc: before,
+    })
+    await done
+    expect(payload.findByID.mock.calls[0][0].id).toBe(5)
+  })
+
+  it('does nothing for an unrelated edit', async () => {
+    const row = { id: 1, license: 5, status: 'paid', grantsTier: 'pro' }
+    const { payload, done } = run({
+      doc: { ...row, githubInviteUrl: 'x' },
+      previousDoc: row,
+    })
+    await done
+    expect(payload.find).not.toHaveBeenCalled()
+  })
+
+  it('does nothing for a row with no license', async () => {
+    const { payload, done } = run({
+      doc: { id: 1, status: 'refunded' },
+      previousDoc: { id: 1, status: 'paid' },
+    })
+    await done
+    expect(payload.find).not.toHaveBeenCalled()
+  })
+
+  it('writes only to licenses, so it cannot trigger itself', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 5, tier: 'pro' }],
+      purchases: [],
+    })
+    const row = { id: 1, license: 5, status: 'paid', grantsTier: 'pro' }
+    await run(
+      { doc: { ...row, status: 'refunded' }, previousDoc: row },
+      payload
+    ).done
+    expect(updatesTo(payload, 'purchases')).toEqual([])
+    expect(updatesTo(payload, 'licenses')).toHaveLength(1)
+  })
+
+  it('never throws, and hands the document back', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const payload = fakePayload({ licenses: [{ id: 5 }] })
+    payload.find.mockRejectedValue(new Error('db down'))
+    const row = { id: 1, license: 5, status: 'paid' }
+    const doc = { ...row, status: 'refunded' }
+
+    await expect(run({ doc, previousDoc: row }, payload).done).resolves.toBe(
+      doc
+    )
+    expect(error).toHaveBeenCalled()
+    error.mockRestore()
   })
 })

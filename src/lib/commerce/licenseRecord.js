@@ -82,8 +82,14 @@ const isPaid = (row) => row?.status === 'paid'
  * Recompute a license's tier from its paid purchases and store it when it
  * changed. A refunded row stops counting the moment its status changes, so a
  * refund needs no history table. `tierChangedAt` moves only with the tier.
+ *
+ * `options.req` is a Payload request. A caller already inside a Payload
+ * transaction, such as a collection hook, must pass it: every query then
+ * joins that transaction and sees its uncommitted write, and none opens a
+ * second connection beside the one the save holds.
  */
-export async function recomputeTier(payload, licenseId) {
+export async function recomputeTier(payload, licenseId, options = {}) {
+  const req = options.req ? { req: options.req } : {}
   const rows = await payload.find({
     collection: 'purchases',
     where: {
@@ -92,6 +98,7 @@ export async function recomputeTier(payload, licenseId) {
     depth: 0,
     pagination: false,
     overrideAccess: true,
+    ...req,
   })
   const tier = highestTier(
     (rows.docs ?? []).filter(isPaid).map((row) => row.grantsTier)
@@ -102,6 +109,7 @@ export async function recomputeTier(payload, licenseId) {
     id: licenseId,
     depth: 0,
     overrideAccess: true,
+    ...req,
   })
   const changed = (license?.tier ?? null) !== tier
   if (changed) {
@@ -110,9 +118,43 @@ export async function recomputeTier(payload, licenseId) {
       id: licenseId,
       overrideAccess: true,
       data: { tier, tierChangedAt: new Date().toISOString() },
+      ...req,
     })
   }
   return { tier, changed }
+}
+
+/**
+ * The `afterChange` hook on Purchases: keep a license's tier from going
+ * stale. An admin who flips a row to refunded, or edits what it grants, and
+ * the dormant Whop path both change a purchase without the Creem webhook
+ * knowing, and the tier is derived from exactly those two fields.
+ *
+ * Only a change to `status` or `grantsTier` on a row that has a license does
+ * anything. It writes to licenses, never to purchases, so it cannot trigger
+ * itself. It passes `req` through (see `recomputeTier`), and it never throws:
+ * a failed recompute is logged, and the next change or the webhook's own
+ * call puts it right.
+ */
+export async function syncTierAfterChange({
+  doc,
+  previousDoc,
+  operation,
+  req,
+}) {
+  try {
+    const licenseId = relationId(doc?.license)
+    if (licenseId == null) return doc
+    const changed =
+      operation === 'create' ||
+      doc.status !== previousDoc?.status ||
+      (doc.grantsTier ?? null) !== (previousDoc?.grantsTier ?? null)
+    if (!changed) return doc
+    await recomputeTier(req.payload, licenseId, { req })
+  } catch (err) {
+    console.error('Tier recompute after a purchase change failed', err)
+  }
+  return doc
 }
 
 /**

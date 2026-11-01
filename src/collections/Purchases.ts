@@ -1,5 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
+import { syncTierAfterChange } from '@/lib/commerce/licenseRecord'
+
 export const Purchases: CollectionConfig = {
   slug: 'purchases',
   admin: {
@@ -34,6 +36,12 @@ export const Purchases: CollectionConfig = {
     read: ({ req: { user } }) => Boolean(user),
     update: ({ req: { user } }) => Boolean(user),
     delete: ({ req: { user } }) => Boolean(user),
+  },
+  hooks: {
+    /* A license's tier is derived from the `status` and `grantsTier` of its
+       paid rows. This keeps it current whoever changes them: an admin edit,
+       the Whop path, or the Creem webhook, which also recomputes for itself. */
+    afterChange: [syncTierAfterChange],
   },
   fields: [
     { name: 'email', type: 'email', required: true },

@@ -23,8 +23,12 @@ import {
 } from '@/lib/commerce/licenseRecord'
 import { licenseLimits, upgradeReturn } from '@/lib/commerce/license'
 import {
+  coveredByAnotherLicense,
+  PAID_TIERS,
+  repoOf,
+} from '@/lib/commerce/repoAccess'
+import {
   canAddSeat,
-  hasSeat,
   listSeats,
   seatsFullMessage,
   type SeatMember,
@@ -147,7 +151,7 @@ export async function addSeat(
     )
   }
 
-  const repo = product?.githubRepo || purchase?.githubRepo
+  const repo = repoOf({ product, purchase })
   if (!repo) {
     return fail(null, 'This license has no repository attached. Get in touch.')
   }
@@ -277,49 +281,6 @@ async function openLicense(token: string): Promise<Opened> {
 const sameName = (a?: string | null, b?: string | null) =>
   (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase()
 
-/* Tiers that are paid for. Lite is free and has its own repository, so a seat
-   on someone's Lite license is not access to this one. */
-const PAID_TIERS = ['pro', 'team', 'enterprise']
-
-/* Does another paid license also hold this person? Pro and Team share a
-   repository, and a sandbox license and a live one share the real repo, so
-   the Creem environment is deliberately not compared: removing them there
-   would take away what the other license still gives. The same check runs
-   whichever of the two licenses the owner opens.
-
-   `like` only narrows the search (it is a case-insensitive contains); the
-   decision is made on the exact name here. */
-async function coveredByAnotherLicense(
-  payload: Payload,
-  license: { id: number | string; stack?: string | null },
-  username: string
-): Promise<boolean> {
-  const found = await payload.find({
-    collection: 'licenses',
-    where: {
-      and: [
-        { stack: { equals: license.stack } },
-        { id: { not_equals: license.id } },
-        { tier: { in: PAID_TIERS } },
-        { 'seatMembers.githubUsername': { like: username } },
-      ],
-    },
-    depth: 0,
-    pagination: false,
-    overrideAccess: true,
-  })
-  return (found.docs ?? []).some(
-    (other: {
-      id: number | string
-      tier?: string | null
-      seatMembers?: SeatMember[] | null
-    }) =>
-      other.id !== license.id &&
-      PAID_TIERS.includes(other.tier ?? '') &&
-      hasSeat(other.seatMembers, username)
-  )
-}
-
 export async function removeSeat(
   _prevState: AddSeatState,
   formData: FormData
@@ -352,7 +313,7 @@ export async function removeSeat(
     return fail(null, `@${requested} is not on this license.`, snapshot)
   }
 
-  const repo = product?.githubRepo || purchase?.githubRepo
+  const repo = repoOf({ product, purchase })
   if (!repo) {
     return fail(
       null,
