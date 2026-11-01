@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 /* Relative import: the engine project defines no `@/` alias, and these are
    pure functions over plain values. */
-import { firstParam, maskLicenseKey, tierFromSlug } from '../onboardingDisplay'
+import {
+  firstParam,
+  maskEmail,
+  maskLicenseKey,
+  tierFromSlug,
+} from '../onboardingDisplay'
 
 /* The onboarding page has no signature: anyone holding a payment id can
    load it. These two decide what that page is allowed to show, so they are
@@ -78,4 +83,26 @@ describe('firstParam', () => {
       expect(firstParam(value)).toBe('')
     }
   })
+})
+
+describe('maskEmail', () => {
+  it('keeps the first letter and the domain, and hides the rest', () => {
+    expect(maskEmail('jane@acme.com')).toBe('j•••@acme.com')
+  })
+
+  it('hides a long address as thoroughly as a short one', () => {
+    expect(maskEmail('jane.q.public+kits@acme.co.uk')).toBe('j•••@acme.co.uk')
+    expect(maskEmail('j@acme.com')).toBe('j•••@acme.com')
+  })
+
+  it('splits on the last @, so a quoted local part cannot leak the domain', () => {
+    expect(maskEmail('a@b@acme.com')).toBe('a•••@acme.com')
+  })
+
+  it.each([null, undefined, '', 'no-at-sign', '@acme.com', 'jane@', 42])(
+    'gives nothing for %s rather than a made-up mask',
+    (value) => {
+      expect(maskEmail(value)).toBeNull()
+    }
+  )
 })

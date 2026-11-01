@@ -1,7 +1,13 @@
 'use server'
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
-import { verifyAccessToken } from '@/lib/commerce/accessToken'
+import {
+  readAccessToken,
+  tryCreateAccessToken,
+  verifyAccessToken,
+} from '@/lib/commerce/accessToken'
+import { sendLicenseLinkEmail } from '@/lib/commerce/fulfillment'
+import { maskEmail } from '@/lib/commerce/onboardingDisplay'
 import { inviteToRepo, removeFromRepo } from '@/lib/commerce/githubInvite'
 import { CreemError, deactivateLicense } from '@/lib/commerce/creem'
 import {
@@ -9,7 +15,7 @@ import {
   usernameMessage,
 } from '@/lib/commerce/githubUsername'
 import { currentKey, licenseFromClaims } from '@/lib/commerce/licenseRecord'
-import { licenseLimits } from '@/lib/commerce/license'
+import { licenseLimits, upgradeReturn } from '@/lib/commerce/license'
 import {
   canAddSeat,
   hasSeat,
@@ -363,6 +369,14 @@ export async function removeSeat(
   )
   const mayRevoke = PAID_TIERS.includes(license.tier) && Boolean(row?.inviteUrl)
 
+  /* A paid license that frees a seat it cannot show it created is leaving
+     repository access in place that nothing here can vouch for: the person
+     may be a collaborator the owner typed in, or someone whose invitation
+     link was never stored. A person should look at the repo. A Lite license
+     has no paid repo to leave anyone in, and a person covered by another
+     paid license is accounted for, so neither is flagged. */
+  const unverifiedAccess = PAID_TIERS.includes(license.tier) && !row?.inviteUrl
+
   let accessKept = !mayRevoke
   if (mayRevoke) {
     try {
@@ -411,7 +425,10 @@ export async function removeSeat(
       collection: 'licenses',
       id: license.id,
       overrideAccess: true,
-      data: { seatMembers: kept },
+      data: {
+        seatMembers: kept,
+        ...(unverifiedAccess ? { needsReview: true } : {}),
+      },
     })
     used = listSeats(kept)
   } catch (err) {
@@ -532,4 +549,179 @@ export async function removeAccount(
       current
     )
   }
+}
+
+/* ------------------------------------------------------------------------
+ * The door on an expired license link.
+ *
+ * An access link lives 30 days, but an upgrade usually comes months later, so
+ * the old email would be dead at the moment its owner is ready to pay. The
+ * license page shows an expired but correctly signed link a button that comes
+ * here, and this emails a fresh link to the license's owner.
+ *
+ * A public server action, and the only action that reads an expired link,
+ * so it is deliberately narrow:
+ *  - It verifies the signature itself with `readAccessToken`. A tampered link
+ *    is `invalid` before any database read; only `expired` and `valid` go on.
+ *  - The recipient is the license's stored `ownerEmail`. Nothing in the form
+ *    but the token (and a wording hint, see below) is read, so the page cannot
+ *    be used to mail anyone else, and the answer carries the address masked.
+ *  - At most one mail in ten minutes per license, tracked on the license
+ *    itself so a second link, a second tab or a second browser shares it.
+ *    `lastLinkSentAt` is written BEFORE the mail goes, so a double click is
+ *    stopped by the record rather than by the button. It is a read, then a
+ *    write, not one atomic update: two requests that land inside the same few
+ *    milliseconds can each pass the check and send one mail apiece. Two mails
+ *    to the owner's own inbox is an acceptable worst case; the limit is there
+ *    to stop a hand-made loop, which this still does.
+ *  - A database failure is a "try again", never a throw at a buyer and never
+ *    "invalid", which would tell a paying owner their link is dead. A failed
+ *    mail is said plainly and gives the ten minutes back.
+ * ---------------------------------------------------------------------- */
+
+const LINK_INTERVAL_MS = 10 * 60 * 1000
+
+export type FreshLinkState = {
+  status: 'idle' | 'sent' | 'limited' | 'failed' | 'retry' | 'invalid'
+  message: string | null
+}
+
+const linkState = (
+  status: FreshLinkState['status'],
+  message: string
+): FreshLinkState => ({ status, message })
+
+export async function emailFreshLicenseLink(
+  _prevState: FreshLinkState,
+  formData: FormData
+): Promise<FreshLinkState> {
+  const read = readAccessToken(String(formData.get('token') || ''))
+  // Tampered, foreign or unreadable: nothing is read from the database.
+  if (read.state === 'invalid') {
+    return linkState(
+      'invalid',
+      'This link is not valid. Request a new one from the access page.'
+    )
+  }
+  const { claims } = read
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
+  if (!site) {
+    console.error('Fresh license link: NEXT_PUBLIC_SITE_URL is not set')
+    return linkState(
+      'failed',
+      'I could not send the email just now, and nothing was sent. Please get in touch.'
+    )
+  }
+
+  let payload: Payload
+  let found: Loaded
+  try {
+    payload = await getPayloadClient()
+    found = await licenseFromClaims(payload, claims)
+  } catch (err) {
+    console.error('Fresh license link lookup failed', err)
+    return linkState(
+      'retry',
+      'I could not reach your license just now, and nothing was sent. Please try again in a moment.'
+    )
+  }
+  if (!found) {
+    return linkState(
+      'invalid',
+      'This link no longer leads to a license. Request a new one from the access page.'
+    )
+  }
+  const { license, product } = found
+
+  const owner = String(license.ownerEmail || '')
+  if (!owner) {
+    console.error('Fresh license link: license has no owner email', license.id)
+    return linkState(
+      'failed',
+      'I could not find an address to send this to. Please get in touch.'
+    )
+  }
+  // For the answers only. Never the address itself.
+  const to = maskEmail(owner) ?? 'the address on the license'
+
+  const lastSent = Date.parse(String(license.lastLinkSentAt ?? ''))
+  const elapsed = Date.now() - lastSent
+  if (Number.isFinite(lastSent) && elapsed >= 0 && elapsed < LINK_INTERVAL_MS) {
+    return linkState(
+      'limited',
+      `A new link was sent to ${to} a few minutes ago. Check that inbox, including spam, and try again in 10 minutes if it has not arrived.`
+    )
+  }
+
+  /* The same claims, a new lifetime. */
+  const signed = tryCreateAccessToken({
+    purchaseId: claims.purchaseId ?? null,
+    licenseId: claims.licenseId,
+    itemType: claims.itemType,
+    itemId: claims.itemId,
+  })
+  if (!signed.ok) {
+    console.error('Fresh license link could not be signed', signed.reason)
+    return linkState(
+      'failed',
+      'I could not make a new link just now, and nothing was sent. Please get in touch.'
+    )
+  }
+
+  /* A buyer whose checkout outlived their link comes back with `upgraded`.
+     Carrying it into the new address keeps "Confirming your upgrade. You
+     don't need to pay again." on the page they open, until the payment
+     lands. Only a known tier name is carried; the rest of the form is not. */
+  const upgraded = upgradeReturn(null, formData.get('upgraded'))?.target
+  const url = `${site}/access/seats/${signed.token}${
+    upgraded ? `?upgraded=${upgraded}` : ''
+  }`
+
+  const previous = license.lastLinkSentAt ?? null
+  try {
+    await payload.update({
+      collection: 'licenses',
+      id: license.id,
+      overrideAccess: true,
+      data: { lastLinkSentAt: new Date().toISOString() },
+    })
+  } catch (err) {
+    console.error('Fresh license link: could not record the send', err)
+    return linkState(
+      'retry',
+      'I could not send the email just now, and nothing was sent. Please try again in a moment.'
+    )
+  }
+
+  try {
+    await sendLicenseLinkEmail({
+      to: owner,
+      itemName: product?.name || 'WareKit',
+      url,
+      reason: 'link',
+    })
+  } catch (err) {
+    console.error('Fresh license link email failed', license.id, err)
+    // Nothing went out, so the ten minutes are not spent. Best effort.
+    await payload
+      .update({
+        collection: 'licenses',
+        id: license.id,
+        overrideAccess: true,
+        data: { lastLinkSentAt: previous },
+      })
+      .catch((e: unknown) =>
+        console.error('Fresh license link: could not give the window back', e)
+      )
+    return linkState(
+      'failed',
+      'I could not send the email just now, and nothing was sent. Please try again in a moment, or get in touch.'
+    )
+  }
+
+  return linkState(
+    'sent',
+    `I sent a new link to ${to}. It can take a few minutes, and it may land in spam.`
+  )
 }

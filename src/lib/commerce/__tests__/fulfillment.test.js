@@ -13,6 +13,7 @@ vi.mock('resend', () => ({
 
 import {
   sendBoilerplateConfirmationEmail,
+  sendLicenseLinkEmail,
   notifyManualFulfilment,
 } from '../fulfillment'
 
@@ -276,5 +277,75 @@ describe('the license page link', () => {
       seats: 5,
     })
     expect(body()).not.toMatch(/license page/i)
+  })
+})
+
+describe('license link email', () => {
+  const url = 'https://example.com/access/seats/signed-token'
+
+  it('sends the link to the address it is given, and nowhere else', async () => {
+    await sendLicenseLinkEmail({
+      to: 'owner@acme.com',
+      itemName: 'WareKit Next NetSuite (Pro)',
+      url,
+      reason: 'link',
+    })
+    expect(send).toHaveBeenCalledTimes(1)
+    const mail = send.mock.calls[0][0]
+    expect(mail.to).toBe('owner@acme.com')
+    expect(mail.subject).toContain('WareKit Next NetSuite (Pro)')
+    expect(mail.text).toContain(url)
+    expect(mail.text).toMatch(/30 days/)
+  })
+
+  it('talks about upgrading when the reason is upgrade', async () => {
+    await sendLicenseLinkEmail({
+      to: 'owner@acme.com',
+      itemName: 'WareKit',
+      url,
+      reason: 'upgrade',
+    })
+    const mail = send.mock.calls[0][0]
+    expect(mail.subject).toMatch(/upgrade/i)
+    expect(mail.text).toMatch(/upgrade/i)
+    expect(mail.text).toMatch(/pay only the difference/i)
+    expect(mail.text).toContain(url)
+  })
+
+  it('does not talk about upgrading for a plain link', async () => {
+    await sendLicenseLinkEmail({
+      to: 'owner@acme.com',
+      itemName: 'WareKit',
+      url,
+      reason: 'link',
+    })
+    const mail = send.mock.calls[0][0]
+    expect(mail.subject).not.toMatch(/upgrade/i)
+    expect(mail.text).not.toMatch(/pay only the difference/i)
+  })
+
+  it('says license, never licence', async () => {
+    for (const reason of ['link', 'upgrade']) {
+      await sendLicenseLinkEmail({
+        to: 'owner@acme.com',
+        itemName: 'WareKit',
+        url,
+        reason,
+      })
+      const mail = send.mock.calls.at(-1)[0]
+      expect(`${mail.subject} ${mail.text}`).not.toMatch(/licence/i)
+    }
+  })
+
+  it('lets a send failure through, for the caller to report', async () => {
+    send.mockRejectedValueOnce(new Error('resend is down'))
+    await expect(
+      sendLicenseLinkEmail({
+        to: 'owner@acme.com',
+        itemName: 'WareKit',
+        url,
+        reason: 'link',
+      })
+    ).rejects.toThrow('resend is down')
   })
 })

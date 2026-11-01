@@ -25,6 +25,38 @@ export async function sendAccessLinkEmail(args: {
   })
 }
 
+/* A link to the license page, sent on request: from the expired-link door on
+ * that page and from /access/resend. Not a receipt, so it says nothing about
+ * a purchase, only where the license is and how long the link lasts.
+ *
+ * `url` is the whole address, built by the caller from the site URL, so this
+ * sends exactly what it is handed and cannot be steered by anything else.
+ * A failed send throws: each caller reports it in its own words, and the
+ * resend page swallows it to keep its answer the same for every email. */
+export async function sendLicenseLinkEmail(args: {
+  to: string
+  itemName: string
+  url: string
+  /** `upgrade` is a buyer who came from "Already on Pro? Pay only the
+      difference", so the mail says what the link is for. */
+  reason: 'link' | 'upgrade'
+}): Promise<void> {
+  const lapse = `This link is personal to you and expires in 30 days. If it has lapsed, open it and I will email a new one${
+    SITE ? `, or ask for one at ${SITE}/access/resend` : ''
+  }.`
+  const upgrade = args.reason === 'upgrade'
+  await getResend().emails.send({
+    from: FROM,
+    to: args.to,
+    subject: upgrade
+      ? `Upgrade your ${args.itemName} license`
+      : `Your ${args.itemName} license page`,
+    text: upgrade
+      ? `Here is your license page for ${args.itemName}. Open it to upgrade.\n\nOn Pro, you pay only the difference for Team, and your code, repo and key stay the same.\n\n${args.url}\n\n${lapse}\n\n— Alec`
+      : `Here is your license page for ${args.itemName}, for your key, your developers and upgrades.\n\n${args.url}\n\n${lapse}\n\n— Alec`,
+  })
+}
+
 /* How long a buyer should wait before assuming something went wrong. Change
  * this and the email changes with it -- it is a commitment, so it lives where
  * it can be found rather than buried in a sentence. */

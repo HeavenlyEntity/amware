@@ -38,6 +38,17 @@ export function maskLicenseKey(key: unknown): string | null {
   return `••••${key.slice(-SHOWN)}`
 }
 
+/* The owner's address as the expired-link page shows it: the first letter and
+ * the domain, which is enough for the owner to recognise it and no use to
+ * anyone else. `null` when the value is not an address, so the page says
+ * "the address on the license" instead of showing a broken mask. */
+export function maskEmail(email: unknown): string | null {
+  if (typeof email !== 'string') return null
+  const at = email.lastIndexOf('@')
+  if (at < 1 || at === email.length - 1) return null
+  return `${email[0]}•••${email.slice(at)}`
+}
+
 /* One value from a search param. A repeated param (?payment_id=a&payment_id=b)
  * arrives as an array, and the first is taken; anything else that is not a
  * string is treated as absent -- never passed on to a query or a URL as-is. */

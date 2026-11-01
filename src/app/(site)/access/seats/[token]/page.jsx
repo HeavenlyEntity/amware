@@ -1,15 +1,22 @@
 import Link from 'next/link'
 import { Container } from '@/components/Container'
 import { getPayloadClient } from '@/lib/getPayloadClient'
-import { verifyAccessToken } from '@/lib/commerce/accessToken'
+import { readAccessToken } from '@/lib/commerce/accessToken'
 import {
   currentKey,
   licenseFromClaims,
   teamProductFor,
 } from '@/lib/commerce/licenseRecord'
-import { licenseLimits, nextAction, upgradeCost } from '@/lib/commerce/license'
+import {
+  licenseLimits,
+  nextAction,
+  upgradeCost,
+  upgradeReturn,
+} from '@/lib/commerce/license'
+import { maskEmail } from '@/lib/commerce/onboardingDisplay'
 import { listSeats } from '@/lib/commerce/seats'
 import { LicensePanel } from '@/components/commerce/LicensePanel'
+import { FreshLinkButton } from '@/components/commerce/FreshLinkButton'
 
 export const dynamic = 'force-dynamic'
 export const metadata = {
@@ -54,6 +61,49 @@ function InvalidLink() {
   )
 }
 
+/* A link that was signed by us and has since run out. Access links last 30
+   days and an upgrade usually comes months later, so this is a door rather
+   than a dead end: one button that emails a fresh link to the license's
+   owner. Nothing of the license is shown but the owner's address, masked,
+   which is the owner's own to recognise. The address is read here only to
+   mask it; the action behind the button reads it again and is what sends.
+
+   A token can also run out during checkout, so `upgraded` still gets its
+   reassurance: an expired link is not a reason to pay twice. A failed read
+   keeps the door and drops only the address. */
+async function expiredLink({ token, claims, upgraded }) {
+  let masked = null
+  try {
+    const payload = await getPayloadClient()
+    const found = await licenseFromClaims(payload, claims)
+    // A signed link that reaches no license has nothing to email.
+    if (!found) return <InvalidLink />
+    masked = maskEmail(found.license.ownerEmail)
+  } catch (err) {
+    console.error('Expired license link lookup failed', err)
+  }
+
+  const returning = upgradeReturn(null, upgraded)?.target ?? null
+
+  return (
+    <Shell title="This link has expired">
+      <p className="mt-4 text-zinc-600 dark:text-zinc-400">
+        {`Email a new one to ${masked ?? 'the address on the license'}.`}
+      </p>
+      {returning && (
+        <p
+          role="status"
+          className="mt-4 text-sm font-medium text-zinc-800 dark:text-zinc-200"
+        >
+          You don&apos;t need to pay again. If you just upgraded, it shows on
+          your license page once the new link opens.
+        </p>
+      )}
+      <FreshLinkButton token={token} upgraded={returning} />
+    </Shell>
+  )
+}
+
 /* A buyer is never shown a thrown error. Either the database blinked and a
    refresh may fix it, or this link reaches no license and a person has to. */
 function GetInTouch({ title, children }) {
@@ -72,14 +122,23 @@ function GetInTouch({ title, children }) {
 
 export default async function LicensePage({ params, searchParams }) {
   const { token } = await params
-  const claims = verifyAccessToken(token)
-  if (!claims) return <InvalidLink />
+
+  /* A tampered link is the invalid page, before anything is read. An expired
+     one that we signed is a door to a fresh link; only a live one opens the
+     license. */
+  const read = readAccessToken(token)
+  if (read.state === 'invalid') return <InvalidLink />
+  const { claims } = read
 
   /* Both come from the URL, so both are only wording: `upgraded` says which
      tier a buyer just paid for, `attempt` counts the page's own re-checks. */
   const query = (await searchParams) ?? {}
   const upgraded = firstParam(query.upgraded) || null
   const attempt = Math.max(0, parseInt(firstParam(query.attempt), 10) || 0)
+
+  if (read.state === 'expired') {
+    return expiredLink({ token, claims, upgraded })
+  }
 
   let payload
   let found

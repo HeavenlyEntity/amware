@@ -618,6 +618,70 @@ describe('removeSeat', () => {
     expect(writtenSeats().map((m) => m.githubUsername)).toEqual(['owner'])
   })
 
+  describe('flagging a license for review', () => {
+    const reviewed = () => update.mock.calls.at(-1)[0].data.needsReview
+
+    it('flags a paid license that freed a seat it could not show it created, in the same write', async () => {
+      world({
+        license: { seatMembers: members('owner', 'someone-elses-customer') },
+      })
+      await remove('someone-elses-customer')
+
+      expect(update).toHaveBeenCalledTimes(1)
+      expect(update.mock.calls[0][0].data).toEqual({
+        seatMembers: [{ githubUsername: 'owner' }],
+        needsReview: true,
+      })
+    })
+
+    it.each(['pro', 'team', 'enterprise'])(
+      'flags a %s license',
+      async (tier) => {
+        world({
+          license: { tier, seatMembers: members('owner', 'octocat') },
+          // Enterprise has no kit row; its repo is on the purchase.
+          product: tier === 'enterprise' ? null : teamProduct,
+          purchase: { githubRepo: REPO },
+        })
+        await remove('octocat')
+        expect(reviewed()).toBe(true)
+      }
+    )
+
+    it('does not flag a removal that took the access away', async () => {
+      world({ license: { seatMembers: invited('owner', 'octocat') } })
+      await remove('octocat')
+      expect(removeFromRepo).toHaveBeenCalled()
+      expect(update.mock.calls[0][0].data).not.toHaveProperty('needsReview')
+    })
+
+    it('does not flag a removal another paid license covers', async () => {
+      world({
+        license: { seatMembers: invited('owner', 'octocat') },
+        others: [
+          {
+            id: 31,
+            stack: 'next-netsuite',
+            tier: 'pro',
+            seatMembers: members('octocat'),
+          },
+        ],
+      })
+      await remove('octocat')
+      expect(removeFromRepo).not.toHaveBeenCalled()
+      expect(update.mock.calls[0][0].data).not.toHaveProperty('needsReview')
+    })
+
+    it('does not flag a free Lite license', async () => {
+      world({
+        license: { tier: 'lite', seatMembers: members('owner') },
+        product: { id: 5, name: 'Lite kit', seats: 1, githubRepo: REPO },
+      })
+      await remove('owner')
+      expect(update.mock.calls[0][0].data).not.toHaveProperty('needsReview')
+    })
+  })
+
   it('does not look for cover when it is not going to remove anyone', async () => {
     world({ license: { seatMembers: members('owner', 'octocat') } })
     await remove('octocat')

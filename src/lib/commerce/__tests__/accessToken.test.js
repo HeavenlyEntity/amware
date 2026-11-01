@@ -1,9 +1,11 @@
+import crypto from 'crypto'
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 
 /* Relative import: the engine project defines no `@/` alias, and this module
    reaches nothing but node crypto. */
 import {
   createAccessToken,
+  readAccessToken,
   tryCreateAccessToken,
   verifyAccessToken,
 } from '../accessToken'
@@ -138,6 +140,63 @@ describe('verifyAccessToken', () => {
     // An empty HMAC key is still a valid key. Without this guard, a
     // misconfigured deployment would happily verify tokens it had signed
     // with the empty string.
+    expect(verifyAccessToken(token)).toBeNull()
+  })
+})
+
+describe('readAccessToken', () => {
+  it('reports a live token as valid, with claims', () => {
+    const { token, jti } = createAccessToken({ ...claims, licenseId: 12 })
+    const read = readAccessToken(token)
+    expect(read.state).toBe('valid')
+    expect(read.claims).toMatchObject({ ...claims, licenseId: 12, jti })
+  })
+
+  it('reports an expired but signed token as expired, with claims', () => {
+    const { token, jti } = createAccessToken({ ...claims, ttlMs: -1 })
+    const read = readAccessToken(token)
+    expect(read.state).toBe('expired')
+    expect(read.claims).toMatchObject({ ...claims, jti })
+  })
+
+  it('reports a tampered token as invalid', () => {
+    const { token } = createAccessToken({ ...claims, ttlMs: -1 })
+    const [, sig] = token.split('.')
+    const forged = Buffer.from(
+      JSON.stringify({ ...claims, jti: 'x', exp: Date.now() + 10000 })
+    ).toString('base64url')
+    expect(readAccessToken(`${forged}.${sig}`)).toEqual({ state: 'invalid' })
+    expect(readAccessToken(`${token}x`)).toEqual({ state: 'invalid' })
+    expect(readAccessToken('not.a.token')).toEqual({ state: 'invalid' })
+    expect(readAccessToken('')).toEqual({ state: 'invalid' })
+  })
+
+  it('reports a token signed with another secret as invalid, even when expired', () => {
+    const { token } = createAccessToken({ ...claims, ttlMs: -1 })
+    process.env.ACCESS_LINK_SECRET = 'a-different-secret'
+    expect(readAccessToken(token)).toEqual({ state: 'invalid' })
+  })
+
+  it('reports everything as invalid when the secret is missing', () => {
+    const { token } = createAccessToken({ ...claims, ttlMs: -1 })
+    delete process.env.ACCESS_LINK_SECRET
+    expect(readAccessToken(token)).toEqual({ state: 'invalid' })
+  })
+
+  it('reports a signed body with no expiry as invalid', () => {
+    const body = Buffer.from(JSON.stringify({ ...claims, jti: 'x' })).toString(
+      'base64url'
+    )
+    const sig = crypto
+      .createHmac('sha256', 'a-test-signing-secret')
+      .update(body)
+      .digest('base64url')
+    expect(readAccessToken(`${body}.${sig}`)).toEqual({ state: 'invalid' })
+  })
+
+  it('leaves verifyAccessToken strict: an expired token is still rejected', () => {
+    const { token } = createAccessToken({ ...claims, ttlMs: -1 })
+    expect(readAccessToken(token).state).toBe('expired')
     expect(verifyAccessToken(token)).toBeNull()
   })
 })

@@ -388,4 +388,143 @@ describe('License page', () => {
       ).toBeInTheDocument()
     })
   })
+
+  describe('an expired link', () => {
+    const expiredToken = (claims = {}) => token({ ttlMs: -1, ...claims })
+    const OWNER = 'jane@acme.com'
+    const ownedBy = (email = OWNER, over = {}) =>
+      mockDb({
+        license: license({ ownerEmail: email, ...over }),
+        purchase: { id: 42, license: 9 },
+      })
+
+    it('masks the owner email on the expired page', async () => {
+      ownedBy()
+      const { container } = await renderPage(expiredToken())
+
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'This link has expired' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/Email a new one to j•••@acme\.com/)
+      ).toBeVisible()
+      expect(container.innerHTML).not.toContain(OWNER)
+      expect(container.innerHTML).not.toContain('jane')
+    })
+
+    it('offers one button, and shows nothing of the license', async () => {
+      ownedBy()
+      await renderPage(expiredToken())
+
+      expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
+        'Email me a new link',
+      ])
+      expect(screen.queryByText(/developers$/)).toBeNull()
+      expect(screen.queryByText('••••1234')).toBeNull()
+      expect(screen.queryByText(/pay again/i)).toBeNull()
+    })
+
+    it('posts the expired link to the action, and no address', async () => {
+      ownedBy()
+      const tok = expiredToken()
+      const { container } = await renderPage(tok)
+      const fields = [...container.querySelectorAll('input')].map((i) => [
+        i.name,
+        i.value,
+      ])
+      expect(fields).toEqual([['token', tok]])
+    })
+
+    it('still tells a buyer who came back from checkout that they do not need to pay again', async () => {
+      // A token can run out during checkout.
+      ownedBy(OWNER, { tier: 'pro' })
+      const { container } = await renderPage(expiredToken(), {
+        upgraded: 'team',
+      })
+
+      expect(screen.getByText(/You don't need to pay again/)).toBeVisible()
+      expect(
+        screen.getByRole('button', { name: 'Email me a new link' })
+      ).toBeInTheDocument()
+      // And the new link keeps saying so.
+      expect(container.querySelector('input[name="upgraded"]').value).toBe(
+        'team'
+      )
+    })
+
+    it.each([[undefined], ['gold'], ['']])(
+      'does not say it for upgraded=%j',
+      async (value) => {
+        ownedBy()
+        await renderPage(
+          expiredToken(),
+          value === undefined ? {} : { upgraded: value }
+        )
+        expect(screen.queryByText(/pay again/i)).toBeNull()
+      }
+    )
+
+    it('keeps the door, without the address, when the database cannot be read', async () => {
+      getPayloadClient.mockRejectedValue(new Error('connection refused'))
+      await renderPage(expiredToken())
+      expect(
+        screen.getByRole('heading', { name: 'This link has expired' })
+      ).toBeInTheDocument()
+      expect(screen.getByText(/address on the license/i)).toBeVisible()
+      expect(
+        screen.getByRole('button', { name: 'Email me a new link' })
+      ).toBeInTheDocument()
+    })
+
+    it('keeps the door for a refunded license, which then shows the refund', async () => {
+      ownedBy(OWNER, { tier: null })
+      await renderPage(expiredToken())
+      expect(screen.getByText(/j•••@acme\.com/)).toBeVisible()
+    })
+
+    it('says the link is invalid when it reaches no license', async () => {
+      mockDb({ license: license(), purchase: { id: 42, license: 9 } })
+      await renderPage(expiredToken({ purchaseId: 999 }))
+      expect(
+        screen.getByRole('heading', { name: /invalid or expired/i })
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button')).toBeNull()
+    })
+
+    it('works from an expired link that names only a license', async () => {
+      ownedBy()
+      await renderPage(expiredToken({ purchaseId: null, licenseId: 9 }))
+      expect(screen.getByText(/j•••@acme\.com/)).toBeVisible()
+    })
+
+    it('keeps a tampered link on the invalid page, with no database read', async () => {
+      mockDb({ license: license(), purchase: { id: 42, license: 9 } })
+      const [, sig] = expiredToken().split('.')
+      const forged = Buffer.from(
+        JSON.stringify({
+          purchaseId: 42,
+          itemType: 'product',
+          itemId: 7,
+          jti: 'x',
+          exp: 1,
+        })
+      ).toString('base64url')
+      await renderPage(`${forged}.${sig}`)
+
+      expect(
+        screen.getByRole('heading', { name: /invalid or expired/i })
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button')).toBeNull()
+      expect(getPayloadClient).not.toHaveBeenCalled()
+    })
+
+    it('never opens the license from an expired link', async () => {
+      ownedBy()
+      const { container } = await renderPage(expiredToken())
+      expect(container.innerHTML).not.toContain(KEY)
+      expect(db.find).not.toHaveBeenCalledWith(
+        expect.objectContaining({ collection: 'purchases' })
+      )
+    })
+  })
 })

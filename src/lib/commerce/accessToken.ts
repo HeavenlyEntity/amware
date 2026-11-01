@@ -114,23 +114,46 @@ export function tryCreateAccessToken(
   }
 }
 
-export function verifyAccessToken(token: string): AccessTokenPayload | null {
-  if (!token || !secret()) return null
+export type AccessTokenRead =
+  /** Signed by us. `expired` still carries its claims, for the license
+      page's door to a fresh link; only `valid` may open anything. */
+  | { state: 'valid' | 'expired'; claims: AccessTokenPayload }
+  /** Unsigned, tampered, signed with another secret, or unreadable. */
+  | { state: 'invalid' }
+
+/* Reads a link without deciding what it may do. The signature is checked
+   first and in constant time, so `expired` is only ever said of a token this
+   server really signed: a forged or altered one is `invalid` whatever its
+   expiry says. */
+export function readAccessToken(token: string): AccessTokenRead {
+  const invalid = { state: 'invalid' } as const
+  if (!token || !secret()) return invalid
   const dotIdx = token.indexOf('.')
-  if (dotIdx === -1) return null
+  if (dotIdx === -1) return invalid
   const body = token.slice(0, dotIdx)
   const sig = token.slice(dotIdx + 1)
-  if (!body || !sig || sig.includes('.')) return null
+  if (!body || !sig || sig.includes('.')) return invalid
   const expected = sign(body)
   const a = Buffer.from(sig)
   const b = Buffer.from(expected)
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return invalid
   let payload: AccessTokenPayload
   try {
     payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
   } catch {
-    return null
+    return invalid
   }
-  if (typeof payload.exp !== 'number' || Date.now() > payload.exp) return null
-  return payload
+  if (!payload || typeof payload.exp !== 'number') return invalid
+  return {
+    state: Date.now() > payload.exp ? 'expired' : 'valid',
+    claims: payload,
+  }
+}
+
+/* Strict: an expired link opens nothing. Every caller that grants access
+   uses this; only the license page's "email me a new one" door and its
+   action read an expired link, through `readAccessToken`. */
+export function verifyAccessToken(token: string): AccessTokenPayload | null {
+  const read = readAccessToken(token)
+  return read.state === 'valid' ? read.claims : null
 }
