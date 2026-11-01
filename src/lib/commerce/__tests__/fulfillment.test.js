@@ -61,6 +61,55 @@ describe('manual fulfilment alert', () => {
   })
 })
 
+describe('boilerplate confirmation email, the route to Pro', () => {
+  const claim = {
+    to: 'buyer@example.com',
+    itemName: 'WareKit Next NetSuite (Lite)',
+    githubUsername: 'octocat',
+    repo: 'amwaredotdev/warekit-next-netsuite-lite',
+    inviteUrl: 'https://github.com/o/r/invitations',
+  }
+
+  it('adds the same line as the claim page, with a link to Pro', async () => {
+    await sendBoilerplateConfirmationEmail({
+      ...claim,
+      proPath: '/products/warekit-next-netsuite-pro',
+    })
+    const text = body()
+    expect(text).toContain('Want sessions in NetSuite? Pro adds them.')
+    expect(text).toContain(
+      'https://example.com/products/warekit-next-netsuite-pro'
+    )
+    expect(text.match(/Pro adds them/g)).toHaveLength(1)
+  })
+
+  it('adds it to the manual branch too, since the claim result does', async () => {
+    await sendBoilerplateConfirmationEmail({
+      ...claim,
+      inviteUrl: null,
+      proPath: '/products/warekit-next-netsuite-pro',
+    })
+    expect(body()).toContain('Pro adds them.')
+  })
+
+  it('says nothing about Pro without a path, which is how every paid kit email stays as it was', async () => {
+    await sendBoilerplateConfirmationEmail(claim)
+    expect(body()).not.toMatch(/pro adds|sessions in netsuite/i)
+    await sendBoilerplateConfirmationEmail({ ...claim, proPath: null })
+    expect(body()).not.toMatch(/pro adds|sessions in netsuite/i)
+  })
+
+  it('leaves the line out rather than send a link that goes nowhere', async () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL
+    await sendBoilerplateConfirmationEmail({
+      ...claim,
+      proPath: '/products/warekit-next-netsuite-pro',
+    })
+    expect(body()).not.toMatch(/pro adds/i)
+    expect(body()).not.toContain('/products/')
+  })
+})
+
 describe('boilerplate confirmation email', () => {
   it('repeats the username back, which is the only chance to catch a typo', async () => {
     await sendBoilerplateConfirmationEmail({

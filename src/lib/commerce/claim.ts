@@ -4,6 +4,7 @@ import { getPayloadClient } from '@/lib/getPayloadClient'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
 import { attachPurchase } from '@/lib/commerce/licenseRecord'
 import { creemEnvironment } from '@/lib/commerce/creemEnv'
+import { checkoutRoute } from '@/lib/commerce/checkoutRoute'
 import { sendBoilerplateConfirmationEmail } from '@/lib/commerce/fulfillment'
 import {
   checkGithubUsername,
@@ -46,6 +47,9 @@ export type ClaimState = {
     eventId: string
     /** The address the claim was sent to, echoed back to the person who typed it. */
     email: string
+    /** Path to this stack's Pro product page, only while Pro is on sale.
+        The one line on what Pro adds hangs off this; null means no line. */
+    proPath: string | null
   } | null
 }
 
@@ -75,6 +79,50 @@ async function githubAccountExists(login: string): Promise<boolean | null> {
     if (!res.ok) return null
     return true
   } catch {
+    return null
+  }
+}
+
+/*
+ * The Pro page this Lite kit can point at, or null.
+ *
+ * A line about Pro is only honest while Pro can be bought, so the answer
+ * comes from the same gate the product page uses: a published Pro row for
+ * the same stack that `checkoutRoute` says sells through Creem. A draft, a
+ * missing row (React Pro does not exist yet) and a row with no Creem product
+ * all come back null, and so does a failed read. The rule follows the data,
+ * so React Lite gets the line by itself the day React Pro goes on sale and
+ * needs no stack check here.
+ *
+ * Never throws: it runs after the claim is recorded, and a failure here
+ * must not fail the claim or hold back its email.
+ */
+async function proPathFor(
+  payload: Awaited<ReturnType<typeof getPayloadClient>>,
+  stack: string | null | undefined
+): Promise<string | null> {
+  if (!stack) return null
+  try {
+    const { docs } = await payload.find({
+      collection: 'products',
+      where: {
+        and: [
+          { stack: { equals: stack } },
+          { tier: { equals: 'pro' } },
+          { status: { equals: 'published' } },
+        ],
+      },
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+    })
+    const pro = docs?.[0]
+    if (!pro?.slug || pro.tier !== 'pro' || checkoutRoute(pro) !== 'creem') {
+      return null
+    }
+    return `/products/${pro.slug}`
+  } catch (err) {
+    console.error('Free claim Pro lookup failed', stack, err)
     return null
   }
 }
@@ -236,6 +284,8 @@ export async function claimFreeKit(
   const alreadyHadAccess =
     invite.ok && invite.state === 'already-a-collaborator'
 
+  const proPath = await proPathFor(payload, item.stack)
+
   // Best-effort: access has already been granted, and a bounced email must
   // not undo it. The page shows the same information either way.
   try {
@@ -246,6 +296,7 @@ export async function claimFreeKit(
       repo: item.githubRepo,
       inviteUrl: invite.ok ? invite.url : null,
       alreadyHadAccess,
+      proPath,
     })
   } catch {
     console.error('Free claim email failed', claimId)
@@ -262,6 +313,7 @@ export async function claimFreeKit(
       manual: !invite.ok,
       eventId: claimId,
       email,
+      proPath,
     },
   }
 }

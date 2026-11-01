@@ -122,6 +122,9 @@ export async function sendBoilerplateConfirmationEmail(args: {
   setupUrl?: string | null
   /** The full license key. This email goes only to the buyer's own address. */
   licenseKey?: string | null
+  /** Path to the Pro product page, passed only by a Lite claim while Pro is
+      on sale. It adds the one line on what Pro adds. */
+  proPath?: string | null
 }): Promise<void> {
   const target = args.githubUsername
     ? `@${args.githubUsername}`
@@ -208,6 +211,16 @@ Your setup page, with the repository and what to do next:
 ${args.setupUrl}
 
 Keep that link — it is how you get back to the page.`
+  }
+
+  /* The Lite claim's one line on Pro, the same words as on the claim page.
+     Left out without a site URL: a relative link in an email goes nowhere, and
+     this is a pointer, not something to fail a send over. */
+  if (args.proPath && site()) {
+    body += `
+
+Want sessions in NetSuite? Pro adds them.
+${site()}${args.proPath}`
   }
 
   await deliver({
