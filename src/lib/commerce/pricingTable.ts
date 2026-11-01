@@ -21,6 +21,8 @@ export type PricingKit = {
   tier?: string | null
   popular?: boolean | null
   type?: string | null
+  creemProductId?: string | null
+  creemSandboxProductId?: string | null
   whopPlanId?: string | null
   whopSandboxPlanId?: string | null
   pricingHighlights?: { highlight?: string | null }[] | null
@@ -54,9 +56,9 @@ export function periodLabel(kit: PricingKit): string {
 
 /* Generated from the same field the seat page enforces, never typed into the
    bullets by hand -- a pricing page promising six seats on a five-seat
-   licence is a refund, not a typo. */
+   license is a refund, not a typo. */
 /* Takes only the field it reads, not a whole PricingKit: the product page
-   needs this line too, and a licence is a licence whether it is being
+   needs this line too, and a license is a license whether it is being
    compared on the pricing table or bought on the product page. Asking for
    the full shape would have meant faking an id and a name to get a string. */
 export function seatLine(kit: { seats?: number | null }): string {
@@ -71,7 +73,7 @@ export function seatLine(kit: { seats?: number | null }): string {
    repository does not exist to invite anyone to.
  *
  * The absence of a checkout route is what marks it, rather than a flag someone
- * has to remember to unset: a kit becomes buyable at the moment its Whop plan
+ * has to remember to unset: a kit becomes buyable at the moment its Creem product
  * exists for this environment, and not before. Free kits need no plan. */
 export function cta(kit: PricingKit): {
   label: string

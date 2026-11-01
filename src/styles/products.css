@@ -2232,7 +2232,7 @@
     grid-template-columns: 1fr;
   }
 }
-/* DigitalBuyButton owns its button, so the board's look lands on .amw-cta. */
+/* CreemBuyButton owns its button, so the board's look lands on .amw-cta. */
 .gd-buy-form {
   min-width: 0;
   max-width: 22rem;

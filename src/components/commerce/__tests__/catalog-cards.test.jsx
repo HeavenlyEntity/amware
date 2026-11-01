@@ -24,7 +24,7 @@ const product = {
   tagline: 'Auth, billing, CMS. Wired.',
   price: 149,
   currency: 'USD',
-  whopPlanId: 'plan_kit',
+  creemProductId: 'prod_kit',
   heroImage: { url: '/img/kit.webp' },
   techStack: [{ tech: 'Next.js' }, { tech: 'Payload' }],
 }
@@ -60,7 +60,19 @@ describe('catalog cards', () => {
     expect(screen.getByText('View spec')).toBeInTheDocument()
     unmount()
 
-    // A kit with only a Creem id is not on sale: kits sell through Whop.
+    // A kit with only a Whop plan is not on sale: kits sell through Creem.
+    const { unmount: unmountWhopKit } = render(
+      <ul>
+        <ProductCard
+          product={{ ...product, creemProductId: null, whopPlanId: 'plan_1' }}
+          index={0}
+        />
+      </ul>
+    )
+    expect(screen.getByText('Details')).toBeInTheDocument()
+    unmountWhopKit()
+
+    // A kit with a Creem id is.
     const { unmount: unmountCreemKit } = render(
       <ul>
         <ProductCard
@@ -69,7 +81,7 @@ describe('catalog cards', () => {
         />
       </ul>
     )
-    expect(screen.getByText('Details')).toBeInTheDocument()
+    expect(screen.getByText('View spec')).toBeInTheDocument()
     unmountCreemKit()
 
     const digital = {

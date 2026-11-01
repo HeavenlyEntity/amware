@@ -5,15 +5,17 @@ import { redirect } from 'next/navigation'
 import { getPayloadClient } from '../getPayloadClient'
 import { CreemError, createCheckoutSession } from './creem'
 import { checkoutRoute } from './checkoutRoute'
+import { creemProductIdFor } from './creemEnv'
+import { onboardingPath } from './onboardingLink'
 
 /* A 'use server' module may only export async functions, so the initial state
  * lives with the component that owns it. Types are erased, so the type export
  * is fine. */
-export type DigitalCheckoutState = {
+export type CreemCheckoutState = {
   error: { message: string } | null
 }
 
-const NOT_ON_SALE: DigitalCheckoutState = {
+const NOT_ON_SALE: CreemCheckoutState = {
   error: {
     message:
       'This item is not on sale yet. Nothing has been charged. Check back shortly or get in touch.',
@@ -21,8 +23,8 @@ const NOT_ON_SALE: DigitalCheckoutState = {
 }
 
 /*
- * Digital products sell through Creem; kits sell through Whop and never reach
- * this action.
+ * Kits and digital products both sell through Creem, and both start here.
+ * Services keep Whop and never reach this action.
  *
  * Returns instead of throwing for the one failure a buyer can see: an item
  * that is not purchasable yet. Throwing sent that to the Next error boundary,
@@ -35,10 +37,10 @@ const NOT_ON_SALE: DigitalCheckoutState = {
  * Imports are relative, not `@/`, so the engine test project can load this
  * module without an alias.
  */
-export async function startDigitalCheckout(
-  _prevState: DigitalCheckoutState,
+export async function startCreemCheckout(
+  _prevState: CreemCheckoutState,
   formData: FormData
-): Promise<DigitalCheckoutState> {
+): Promise<CreemCheckoutState> {
   const slug = String(formData.get('slug') || '')
   // Only reachable if the hidden input was stripped or tampered with, so this
   // is a fault rather than a buyer mistake.
@@ -54,7 +56,8 @@ export async function startDigitalCheckout(
   const item = docs[0]
   // The same gate the product page used to show the button, so a stale page
   // cannot buy what the server would not have offered.
-  if (!item || checkoutRoute(item) !== 'creem' || !item.creemProductId) {
+  const productId = creemProductIdFor(item)
+  if (!item || checkoutRoute(item) !== 'creem' || !productId) {
     return NOT_ON_SALE
   }
 
@@ -69,17 +72,31 @@ export async function startDigitalCheckout(
 
   const requestId = crypto.randomUUID()
 
-  /* The success page gets the request id, unsigned. It uses it for one thing:
-     to report the sale to the ads pixel with its real amount. It grants
-     nothing -- Creem delivers the file through its own email and portal -- so
-     it needs no signature, and a guessed id (a UUID) would reveal only that a
-     sale of some amount happened. */
-  const successUrl = `${site}/checkout/success?r=${requestId}`
+  /* A kit buyer lands on the onboarding page, where the signed link proves
+     they paid and collects the GitHub username for the repo invite. The link
+     is signed with our own secret. Without it the buyer would pay and land on
+     a page that cannot recognise them, so this refuses before Creem is
+     called, as the missing webhook secret does above. */
+  let successUrl: string
+  if (item.type === 'boilerplate') {
+    const path = onboardingPath(requestId)
+    if (!path) {
+      throw new Error('ACCESS_LINK_SECRET is required to sell a kit')
+    }
+    successUrl = `${site}${path}`
+  } else {
+    /* A digital buyer gets the request id, unsigned. The success page uses it
+       for one thing: to report the sale to the ads pixel with its real
+       amount. It grants nothing -- Creem delivers the file through its own
+       email and portal -- so it needs no signature, and a guessed id (a UUID)
+       would reveal only that a sale of some amount happened. */
+    successUrl = `${site}/checkout/success?r=${requestId}`
+  }
 
   let checkoutUrl: string
   try {
     ;({ checkoutUrl } = await createCheckoutSession({
-      productId: item.creemProductId,
+      productId,
       requestId,
       successUrl,
       metadata: { itemType: 'product', itemId: String(item.id), slug },
@@ -94,7 +111,7 @@ export async function startDigitalCheckout(
     if (err instanceof CreemError && err.status === 404) {
       console.error('Creem does not know this product in the current mode', {
         slug,
-        creemProductId: item.creemProductId,
+        creemProductId: productId,
       })
       return NOT_ON_SALE
     }

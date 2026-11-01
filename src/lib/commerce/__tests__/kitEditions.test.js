@@ -18,7 +18,7 @@ const pro = {
   price: 499,
   seats: 1,
   status: 'published',
-  whopPlanId: 'plan_1',
+  creemProductId: 'prod_1',
 }
 const IDS = [
   'react-lite',
@@ -35,7 +35,7 @@ const view = (id, states) =>
   )
 
 describe('editionStates', () => {
-  it('is ready when published with a Whop plan', () => {
+  it('is ready when published with a Creem product', () => {
     expect(editionStates([pro])['next-pro'].state).toBe('ready')
   })
 
@@ -45,14 +45,30 @@ describe('editionStates', () => {
     )
   })
 
-  it('is planned without a Whop plan', () => {
+  it('is planned without a Creem product', () => {
     expect(
-      editionStates([{ ...pro, whopPlanId: null }])['next-pro'].state
+      editionStates([{ ...pro, creemProductId: null }])['next-pro'].state
+    ).toBe('planned')
+  })
+
+  it('is planned for a kit with only a Whop plan', () => {
+    expect(
+      editionStates([{ ...pro, creemProductId: null, whopPlanId: 'plan_1' }])[
+        'next-pro'
+      ].state
+    ).toBe('planned')
+  })
+
+  it('is planned for a kit with only a sandbox product, in production', () => {
+    expect(
+      editionStates([
+        { ...pro, creemProductId: null, creemSandboxProductId: 'prod_test' },
+      ])['next-pro'].state
     ).toBe('planned')
   })
 
   it('is free when a published kit costs nothing', () => {
-    const lite = { ...pro, tier: 'lite', price: 0, whopPlanId: null }
+    const lite = { ...pro, tier: 'lite', price: 0, creemProductId: null }
     expect(editionStates([lite])['next-lite'].state).toBe('free')
   })
 
@@ -149,7 +165,13 @@ describe('editionView', () => {
 
   it('shows a free edition as claimable', () => {
     const states = editionStates([
-      { ...pro, tier: 'lite', price: 0, whopPlanId: null, slug: 'next-lite' },
+      {
+        ...pro,
+        tier: 'lite',
+        price: 0,
+        creemProductId: null,
+        slug: 'next-lite',
+      },
     ])
     expect(view('next-lite', states)).toMatchObject({
       badge: 'Free to claim',
@@ -208,7 +230,7 @@ describe('editionView on sale', () => {
   it('stops pointing at React Lite once React Pro is on sale', () => {
     const states = editionStates([
       react('pro', 499),
-      { ...react('lite', 0), whopPlanId: null },
+      { ...react('lite', 0), creemProductId: null },
     ])
     expect(view('react-pro', states).copy).not.toContain(
       'Start with React Lite'
@@ -342,7 +364,7 @@ describe('compareTable', () => {
   it('prices what is on sale', () => {
     const states = editionStates([
       pro,
-      { ...pro, tier: 'lite', price: 0, whopPlanId: null },
+      { ...pro, tier: 'lite', price: 0, creemProductId: null },
     ])
     expect(
       row(compareTable('connected', states), 'Price').cells.map((c) => c.value)

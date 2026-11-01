@@ -54,7 +54,7 @@ function plannedEditions() {
 function saleState(row) {
   if (row.status !== 'published') return 'planned'
   if (row.type === 'boilerplate' && row.price === 0) return 'free'
-  return checkoutRoute(row) === 'whop' ? 'ready' : 'planned'
+  return checkoutRoute(row) === 'creem' ? 'ready' : 'planned'
 }
 
 export function editionStates(rows) {

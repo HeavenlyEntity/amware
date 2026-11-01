@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Check } from 'lucide-react'
 
-import { DigitalBuyButton } from '@/components/commerce/DigitalBuyButton'
+import { CreemBuyButton } from '@/components/commerce/CreemBuyButton'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
 import {
   GUIDE_NAME,
@@ -195,7 +195,7 @@ function BuyBlock({ guide }) {
           </span>
         </div>
         {onSale && (
-          <DigitalBuyButton
+          <CreemBuyButton
             slug={slug}
             name={GUIDE_NAME}
             price={amount}
@@ -205,7 +205,7 @@ function BuyBlock({ guide }) {
             <span className="pj-btn-dot">
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </span>
-          </DigitalBuyButton>
+          </CreemBuyButton>
         )}
       </div>
     </Reveal>

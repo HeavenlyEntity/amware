@@ -12,8 +12,8 @@ vi.mock('@/components/react-bits/dither', () => ({
   default: () => <div data-testid="dither" />,
 }))
 /* The real one pulls in the server action; only its props matter here. */
-vi.mock('@/components/commerce/DigitalBuyButton', () => ({
-  DigitalBuyButton: ({ slug, name, price, children }) => (
+vi.mock('@/components/commerce/CreemBuyButton', () => ({
+  CreemBuyButton: ({ slug, name, price, children }) => (
     <button
       type="submit"
       data-testid="buy"
@@ -147,7 +147,7 @@ describe('the /digital-products read', () => {
 })
 
 describe('buying the playbook', () => {
-  it('sells through DigitalBuyButton on the Creem route', () => {
+  it('sells through CreemBuyButton on the Creem route', () => {
     render(<DigitalProducts guide={onSale} />)
     const buy = screen.getByTestId('buy')
     expect(buy).toHaveTextContent('Buy the guide')

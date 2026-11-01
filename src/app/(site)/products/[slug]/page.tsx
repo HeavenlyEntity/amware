@@ -7,7 +7,7 @@ import { RichText } from '@/components/site/RichText'
 import { inlineCode } from '@/components/site/inline-code'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { BuyButton } from '@/components/commerce/BuyButton'
-import { DigitalBuyButton } from '@/components/commerce/DigitalBuyButton'
+import { CreemBuyButton } from '@/components/commerce/CreemBuyButton'
 import { planId } from '@/lib/commerce/whopEnv'
 import { checkoutRoute } from '@/lib/commerce/checkoutRoute'
 import { ClaimFreeKit } from '@/components/commerce/ClaimFreeKit'
@@ -87,8 +87,8 @@ export default async function ProductPage({
      set is unfinished and shows "Soon"; a kit priced at 0 is a deliberate
      free tier and is claimed rather than bought. */
   const isFree = product.price === 0
-  // Kits sell through Whop and digital products through Creem. Neither is on
-  // sale until the route says so.
+  // Kits and digital products sell through Creem; anything else keeps its
+  // Whop plan. Nothing is on sale until the route says so.
   const route = checkoutRoute(product)
   const price = typeof product.price === 'number' ? product.price : undefined
 
@@ -215,11 +215,11 @@ export default async function ProductPage({
                   </div>
                 )}
                 {isBoilerplate && (
-                  /* The licence, on the page where it is bought. The pricing
+                  /* The license, on the page where it is bought. The pricing
                      table states it and the seat page enforces it; this card,
                      where the money actually changes hands, did not. */
                   <div className="amw-spec">
-                    <dt>licence</dt>
+                    <dt>license</dt>
                     <dd>{seatLine({ seats: product.seats })}</dd>
                   </div>
                 )}
@@ -240,13 +240,13 @@ export default async function ProductPage({
                   name={product.name}
                 />
               ) : route === 'creem' ? (
-                <DigitalBuyButton
+                <CreemBuyButton
                   slug={product.slug}
                   name={product.name}
                   price={price}
                 >
                   Buy now
-                </DigitalBuyButton>
+                </CreemBuyButton>
               ) : (
                 /* The same dashed panel the pricing table uses, rather than a
                    line of grey text that reads like something failed to
