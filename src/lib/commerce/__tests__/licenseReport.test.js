@@ -163,6 +163,7 @@ describe('which key answers', () => {
     const answers = [
       await report(world(), '1', { key: 'NOPE' }),
       await report(world({ license: { tier: null } }), '1'),
+      await report(world({ license: { tier: 'lite' } }), '1'),
       await report(world(), '1', { kit: 'react-netsuite' }),
       await report(world({ license: { tier: null } }), '1', {
         kit: 'react-netsuite',
@@ -239,6 +240,119 @@ describe('an account already listed', () => {
     expect(out.status).toBe('ok')
     expect(activateLicense).toHaveBeenCalledTimes(1)
     expect(rowOf(payload, '7654321').creemInstanceId).toBe('inst_new')
+  })
+})
+
+describe('how often a listed account is written', () => {
+  const MINUTE = 60 * 1000
+  const ago = (minutes) => new Date(Date.now() - minutes * MINUTE).toISOString()
+
+  it('skips the write for an account seen under an hour ago', async () => {
+    const payload = world({
+      license: { accounts: [row('7654321', { lastSeenAt: ago(59) })] },
+    })
+
+    const out = await report(payload, '7654321')
+
+    expect(out).toEqual({ status: 'ok', tier: 'pro', used: 1, limit: 1 })
+    expect(payload.update).not.toHaveBeenCalled()
+    expect(activateLicense).not.toHaveBeenCalled()
+  })
+
+  it('writes again once the hour has passed', async () => {
+    const payload = world({
+      license: { accounts: [row('7654321', { lastSeenAt: ago(61) })] },
+    })
+
+    await report(payload, '7654321')
+
+    expect(payload.update).toHaveBeenCalledTimes(1)
+  })
+
+  it('writes when the stored time is missing or in the future', async () => {
+    for (const lastSeenAt of [undefined, ago(-30)]) {
+      const payload = world({
+        license: { accounts: [row('7654321', { lastSeenAt })] },
+      })
+      await report(payload, '7654321')
+      expect(payload.update).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('still writes a recent row that needs an instance retry', async () => {
+    const seen = ago(1)
+    const payload = world({
+      license: {
+        accounts: [
+          row('7654321', { lastSeenAt: seen, creemInstanceId: undefined }),
+        ],
+      },
+    })
+    activateLicense.mockRejectedValue(new Error('creem down'))
+
+    await report(payload, '7654321')
+
+    expect(activateLicense).toHaveBeenCalledTimes(1)
+    expect(payload.update).toHaveBeenCalledTimes(1)
+    expect(rowOf(payload, '7654321').lastSeenAt).not.toBe(seen)
+  })
+
+  it('still promotes a recent over_limit row once there is room', async () => {
+    const payload = world({
+      license: {
+        tier: 'team',
+        accounts: [
+          row('1111111'),
+          row('7654321', { status: 'over_limit', lastSeenAt: ago(1) }),
+        ],
+      },
+      product: { seats: 5, netsuiteAccounts: 3 },
+    })
+
+    const out = await report(payload, '7654321')
+
+    expect(out).toMatchObject({ status: 'ok', used: 2, limit: 3 })
+    expect(rowOf(payload, '7654321').status).toBe('active')
+  })
+
+  it('skips the write for a recent over_limit row with no room', async () => {
+    const payload = world({
+      license: {
+        accounts: [
+          row('1111111'),
+          row('7654321', {
+            status: 'over_limit',
+            creemInstanceId: undefined,
+            notifiedAt: ago(5),
+            lastSeenAt: ago(1),
+          }),
+        ],
+      },
+    })
+
+    const out = await report(payload, '7654321')
+
+    expect(out.status).toBe('over_limit')
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it('still mails about a recent over_limit row whose mail never went', async () => {
+    const payload = world({
+      license: {
+        accounts: [
+          row('1111111'),
+          row('7654321', {
+            status: 'over_limit',
+            creemInstanceId: undefined,
+            lastSeenAt: ago(1),
+          }),
+        ],
+      },
+    })
+
+    await report(payload, '7654321')
+
+    expect(sendOverLimitEmail).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -398,10 +512,10 @@ describe('a new account', () => {
     })
   })
 
-  it('answers ok and writes nothing for a tier that does not track accounts', async () => {
+  it('returns invalid for a Lite license, where a key only outlives a refund', async () => {
     const payload = world({ license: { tier: 'lite' } })
     const out = await report(payload, '8')
-    expect(out).toEqual({ status: 'ok', tier: 'lite' })
+    expect(out).toEqual({ status: 'invalid' })
     expect(payload.update).not.toHaveBeenCalled()
     expect(activateLicense).not.toHaveBeenCalled()
   })
@@ -675,13 +789,9 @@ describe('licenseStatus', () => {
     expect(await ask(world())).toEqual({ status: 'invalid' })
   })
 
-  it('leaves accounts out for a tier that does not track them', async () => {
+  it('returns invalid for a Pro refund that left a Lite tier', async () => {
     const out = await ask(world({ license: { tier: 'lite' } }))
-    expect(out).toEqual({
-      status: 'ok',
-      tier: 'lite',
-      developers: { used: 1, limit: 1 },
-    })
+    expect(out).toEqual({ status: 'invalid' })
   })
 })
 

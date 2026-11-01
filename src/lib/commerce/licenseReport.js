@@ -18,9 +18,9 @@
  *    key from the other environment or another kit, a refunded license. The
  *    route cannot be used to tell them apart.
  *  - No answer ever carries the key, the owner's address or a Creem id.
- *  - `lastSeenAt` is a rough signal. The accounts array is read, changed and
- *    written back, so two reports in the same few milliseconds can lose one
- *    row's update; the spec accepts that.
+ *  - `lastSeenAt` is a rough signal, moved at most once an hour. The accounts
+ *    array is read, changed and written back, so two reports in the same few
+ *    milliseconds can lose one row's update; the spec accepts that.
  *
  * Rate limiting is a Vercel Firewall rule, not code here.
  */
@@ -29,7 +29,12 @@ import { activateLicense } from './creem'
 import { creemEnvironment } from './creemEnv'
 import { tryCreateAccessToken } from './accessToken'
 import { sendOverLimitEmail } from './fulfillment'
-import { licenseLimits, normalizeAccountId } from './license'
+import {
+  activeAccounts,
+  licenseLimits,
+  normalizeAccountId,
+  tierRank,
+} from './license'
 import { currentKey, licenseFromClaims, relationId } from './licenseRecord'
 
 /** The largest request body read, in bytes. */
@@ -42,6 +47,11 @@ const CREEM_TIMEOUT_MS = 2000
     leaked key could otherwise grow the row and mail the owner once per
     made-up account. */
 const OVER_LIMIT_ROWS = 25
+
+/** How old a listed account's `lastSeenAt` may be before a report moves it.
+    Every license write rewrites the whole document, which is a lot to spend
+    on a rough signal. */
+const LAST_SEEN_INTERVAL_MS = 60 * 60 * 1000
 
 const INVALID = Object.freeze({ status: 'invalid' })
 
@@ -176,10 +186,12 @@ const itemIdOf = (purchase) =>
 
 /*
  * The license a key opens, or null for every reason it should not: no such
- * key, a purchase from the other Creem environment, no license, a refunded
- * license (null tier; Creem leaves a refunded key active, so only our table
- * stops it), or a key from another kit. `kit` is the `kit` in the kit's
- * `warekit.json`, which equals the license's `stack`.
+ * key, a purchase from the other Creem environment, no license, a key from
+ * another kit, or a license below Pro. Every key was sold with a paid tier,
+ * so a license below Pro has been refunded: its tier is null, or `lite` if it
+ * began as a free claim. Creem leaves a refunded key active, so only our table
+ * stops it. `kit` is the `kit` in the kit's `warekit.json`, which equals the
+ * license's `stack`.
  *
  * A database failure is thrown, not turned into null: "invalid" is an
  * answer, and the caller must not give it because it could not look.
@@ -203,16 +215,22 @@ async function findLicense(payload, key, kit) {
     licenseId: relationId(purchase.license),
   })
   const license = claims?.license
-  if (!license || !license.tier || license.stack !== kit) return null
+  if (!license || license.stack !== kit) return null
+  if (tierRank(license.tier) < tierRank('pro')) return null
   return { license, purchase, product: claims.product }
 }
 
 const rowsOf = (license) =>
   Array.isArray(license.accounts) ? license.accounts : []
-const activeCount = (rows) =>
-  rows.filter((row) => row.status === 'active').length
 
 /* ------------------------------------------------------------------ writes */
+
+/* A timestamp from the future is not recent: it would otherwise stop updating
+   until then. */
+const seenRecently = (row, now) => {
+  const elapsed = now - Date.parse(String(row.lastSeenAt ?? ''))
+  return elapsed >= 0 && elapsed < LAST_SEEN_INTERVAL_MS
+}
 
 const saveAccounts = (payload, license, accounts) =>
   payload.update({
@@ -339,22 +357,25 @@ export async function reportAccount(payload, { key, accountId, kit }) {
   const { license, purchase, product } = found
   const tier = license.tier
   const limit = licenseLimits(license, product).accounts
-  // Lite does not track accounts. It has no key, so this is not reachable
-  // through a real purchase; it is answered without writing anything.
+  // Every tier `findLicense` lets through tracks accounts, so this only stops
+  // a limit it could not read from being written against.
   if (limit == null) return { status: 'ok', tier }
 
   const rows = rowsOf(license)
   const now = new Date().toISOString()
-  const used = activeCount(rows)
+  const used = activeAccounts(rows)
   const listed = rows.find((row) => row.accountId === id)
   const answer = (status, count) => ({ status, tier, used: count, limit })
-
-  if (listed?.status === 'active') {
-    await saveAccounts(
+  const recent = listed != null && seenRecently(listed, Date.parse(now))
+  const touch = () =>
+    saveAccounts(
       payload,
       license,
       rows.map((row) => (row === listed ? { ...row, lastSeenAt: now } : row))
     )
+
+  if (listed?.status === 'active') {
+    if (!recent || !listed.creemInstanceId) await touch()
     if (!listed.creemInstanceId) await activateRow(payload, license, id)
     return answer('ok', used)
   }
@@ -374,11 +395,7 @@ export async function reportAccount(payload, { key, accountId, kit }) {
       if (!listed.creemInstanceId) await activateRow(payload, license, id)
       return answer('ok', used + 1)
     }
-    await saveAccounts(
-      payload,
-      license,
-      rows.map((row) => (row === listed ? { ...row, lastSeenAt: now } : row))
-    )
+    if (!recent) await touch()
     if (!listed.notifiedAt) {
       await notifyOwner(payload, {
         license,
@@ -433,7 +450,7 @@ export async function licenseStatus(payload, { key, kit }) {
     ...(limits.accounts != null
       ? {
           accounts: {
-            used: activeCount(rowsOf(license)),
+            used: activeAccounts(license.accounts),
             limit: limits.accounts,
           },
         }
