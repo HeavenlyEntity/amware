@@ -205,38 +205,45 @@ export async function addSeat(
 
   /* Appended only when the account is genuinely new to the license. Writing a
      row for someone already on it would spend a seat on a re-invitation,
-     which is how a full team locks itself out by retrying. */
+     which is how a full team locks itself out by retrying.
+   *
+     A failed invitation tells the buyer it will be sent by hand, so the same
+     write puts the license in the review queue, where that gets done. A
+     failed re-invitation stores no seat and still makes that write. */
+  const isNew = verdict.reason === 'new'
   let saved = true
-  if (verdict.reason === 'new') {
+  if (isNew || !invite.ok) {
     try {
       await payload.update({
         collection: 'licenses',
         id: license.id,
         overrideAccess: true,
         data: {
-          seatMembers: [
-            ...members,
-            {
-              githubUsername: username,
-              inviteUrl: (invite.ok && invite.url) || undefined,
-              addedAt: new Date().toISOString(),
-            },
-          ],
+          ...(isNew
+            ? {
+                seatMembers: [
+                  ...members,
+                  {
+                    githubUsername: username,
+                    inviteUrl: (invite.ok && invite.url) || undefined,
+                    addedAt: new Date().toISOString(),
+                  },
+                ],
+              }
+            : {}),
+          ...(invite.ok ? {} : { needsReview: true }),
         },
       })
     } catch (err) {
       /* The invitation cannot be taken back, so say what is true: it went
          out, and the seat was not stored. Showing the account as added would
          be a seat that vanishes on the next load. */
-      saved = false
+      saved = !isNew
       console.error('Seat record failed', license.id, err)
     }
   }
 
-  const used =
-    verdict.reason === 'new' && saved
-      ? [...snapshot.used, username]
-      : snapshot.used
+  const used = isNew && saved ? [...snapshot.used, username] : snapshot.used
 
   return {
     error: null,

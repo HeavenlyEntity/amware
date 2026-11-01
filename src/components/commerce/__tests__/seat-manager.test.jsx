@@ -360,6 +360,49 @@ describe('addSeat: delivery', () => {
     expect(update).toHaveBeenCalled()
   })
 
+  it('queues a failed invitation for a person in the seat write', async () => {
+    world()
+    inviteToRepo.mockResolvedValue({ ok: false, reason: 'not-configured' })
+    await add('octocat')
+
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update.mock.calls[0][0].data).toMatchObject({
+      needsReview: true,
+      seatMembers: [
+        expect.anything(),
+        expect.objectContaining({ githubUsername: 'octocat' }),
+      ],
+    })
+  })
+
+  it('does not queue an invitation that went out', async () => {
+    world()
+    await add('octocat')
+    expect(update.mock.calls[0][0].data).not.toHaveProperty('needsReview')
+  })
+
+  it('queues a failed re-invitation, which stores no seat', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    inviteToRepo.mockResolvedValue({ ok: false, reason: 'not-configured' })
+    const state = await add('octocat')
+
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update.mock.calls[0][0].data).toEqual({ needsReview: true })
+    expect(state.ok).toMatchObject({ manual: true, unsaved: false })
+    expect(state.seats.used).toEqual(['owner', 'octocat'])
+  })
+
+  it('does not call a seat unsaved when only the flag could not be written', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    inviteToRepo.mockResolvedValue({ ok: false, reason: 'not-configured' })
+    update.mockRejectedValue(new Error('write failed'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await add('octocat')
+    error.mockRestore()
+
+    expect(state.ok).toMatchObject({ manual: true, unsaved: false })
+  })
+
   it('does not show a seat as added when it could not be stored', async () => {
     world()
     update.mockRejectedValue(new Error('write failed'))
