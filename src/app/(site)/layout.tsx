@@ -1,14 +1,12 @@
 import { siteOrigin } from '@/lib/site-origin'
 import type { Metadata } from 'next'
 import { Geist, Inter, JetBrains_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 
 import { SiteHeader } from '@/components/SiteHeader'
 import { Footer } from '@/components/Footer'
 import { StagewiseInit } from '@/components/StagewiseInit'
-import { WHOP_PIXEL } from '@/lib/analytics/whop-pixel'
-import { WhopRouteEvents } from '@/components/analytics/WhopRouteEvents'
+import { SiteTelemetry, WhopPixel } from '@/components/analytics/SiteTelemetry'
 
 import '@/styles/tailwind.css'
 import '@/styles/global.css'
@@ -91,11 +89,10 @@ export default function SiteLayout({
         <script dangerouslySetInnerHTML={{ __html: modeScript }} />
         {/* Whop Pixel. Whop's instruction is "inside the <head> of every page
             in your funnel", which this layout is: every marketing, catalogue,
-            pricing and checkout page renders through it. It sits after the
-            dark-mode script because that one has to run before first paint or
-            the page flashes, and an ads pixel has no such claim on the
-            critical path. */}
-        <script dangerouslySetInnerHTML={{ __html: WHOP_PIXEL }} />
+            pricing and checkout page renders through it. Not on a bearer link
+            under /access, whose address must not reach a third party, so it
+            is behind a component that can see the path. */}
+        <WhopPixel />
       </head>
       <body className="flex h-full flex-col bg-zinc-50 font-sans dark:bg-black">
         <div
@@ -122,12 +119,10 @@ export default function SiteLayout({
         </AccessibilityProvider>
         {/* Organization, Person and WebSite: who runs this site, on every page. */}
         <JsonLd data={siteGraph()} />
-        <Analytics />
         <SpeedInsights />
         <StagewiseInit />
-        {/* The head snippet reports the first page view; this reports the
-            client-side navigations that follow it. */}
-        <WhopRouteEvents />
+        {/* Vercel Analytics and the pixel's route events. */}
+        <SiteTelemetry />
       </body>
     </html>
   )
