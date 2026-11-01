@@ -26,8 +26,16 @@ import {
 
 const DEBOUNCE_MS = 450
 
-export function GithubAccountField({ serverError, inputRef, onGateChange }) {
-  const [value, setValue] = useState('')
+/* `initialValue` pre-fills a name already known, such as the account a buyer
+   claimed Lite with. It is only a starting value: the account is looked up and
+   shown like any typed one, and still has to be confirmed. */
+export function GithubAccountField({
+  serverError,
+  inputRef,
+  onGateChange,
+  initialValue = '',
+}) {
+  const [value, setValue] = useState(initialValue)
   /* One result object carrying the login it describes, rather than a status
      flag sequenced through effects. Status is then derived: if the stored
      result is for the text currently in the box we know the answer, and if it

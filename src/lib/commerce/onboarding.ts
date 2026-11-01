@@ -2,6 +2,8 @@
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
+import { attachPurchase } from '@/lib/commerce/licenseRecord'
+import { claimGithubUsername } from '@/lib/commerce/purchaseClaim'
 import { sendBoilerplateConfirmationEmail } from '@/lib/commerce/fulfillment'
 import { verifyOnboardingLink } from '@/lib/commerce/onboardingLink'
 import {
@@ -20,6 +22,15 @@ import {
  * Two gates, both required. The signature proves we minted the link. A paid
  * purchase carrying that request id proves the money arrived, which the
  * signature cannot, because the link is minted before payment.
+ *
+ * And it works once. The link stays valid, so without a limit it could be
+ * replayed with a new username each time, and every replay would send another
+ * repository invitation past the license's seat limit. The account is
+ * claimed with one conditional UPDATE that only succeeds while the purchase
+ * still has none, and the invitation goes out only after that UPDATE wins.
+ * Everything that can fail in a way the buyer can fix -- a misspelt account,
+ * a kit with no repository -- is checked before the claim, so a correctable
+ * mistake never uses up the one attempt.
  */
 
 export type OnboardingState = {
@@ -57,6 +68,62 @@ async function githubAccountExists(login: string): Promise<boolean | null> {
     return true
   } catch {
     return null
+  }
+}
+
+const ALREADY_SET_UP =
+  'This purchase is already set up. If the account on file is the wrong one, reply to your receipt email and I will change it.'
+
+const BY_HAND =
+  'Something went wrong finishing this purchase. Your payment is safe: reply to your receipt email and I will set up your access by hand.'
+
+const NOT_A_KIT =
+  'There is no repository to set up for this purchase. Reply to your receipt email and I will sort it out by hand.'
+
+const relationId = (value: unknown) =>
+  value && typeof value === 'object' ? (value as { id?: unknown }).id : value
+
+/* Record the buyer as seat one on the license. Never throws: the invitation
+   has already been sent, and a failed write here must not turn that into an
+   error the buyer sees.
+
+   The buyer's account is also on the purchase (the claim wrote it), so the
+   record survives even when this write does not. */
+async function recordSeat(
+  payload: Awaited<ReturnType<typeof getPayloadClient>>,
+  licenseId: string | number,
+  username: string,
+  inviteUrl: string | null
+) {
+  try {
+    const license = await payload.findByID({
+      collection: 'licenses',
+      id: licenseId,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const members = license?.seatMembers ?? []
+    const taken = members.some(
+      (m) => m.githubUsername?.toLowerCase() === username.toLowerCase()
+    )
+    if (taken) return
+    await payload.update({
+      collection: 'licenses',
+      id: licenseId,
+      overrideAccess: true,
+      data: {
+        seatMembers: [
+          ...members,
+          {
+            githubUsername: username,
+            inviteUrl: inviteUrl || undefined,
+            addedAt: new Date().toISOString(),
+          },
+        ],
+      },
+    })
+  } catch (err) {
+    console.error('Onboarding seat record failed', licenseId, err)
   }
 }
 
@@ -106,7 +173,28 @@ export async function completeOnboarding(
       : null
   const productDoc = (
     product && typeof product === 'object' ? product : null
-  ) as { githubRepo?: string | null; name?: string | null } | null
+  ) as {
+    githubRepo?: string | null
+    name?: string | null
+    type?: string | null
+    stack?: string | null
+    tier?: string | null
+  } | null
+
+  /* Only a kit has a repository to invite anyone to. */
+  if (productDoc?.type !== 'boilerplate') return fail(null, NOT_A_KIT)
+
+  /* A kit row is created 'pending_invite' and stays there until an
+     invitation is sent. Anything else is a row this page must not act on:
+     'failed' is one a person is working by hand, 'not_required' is an upgrade
+     that grants no repository of its own, and 'sent' is already done. */
+  if (purchase.fulfillmentStatus === 'failed') return fail(null, BY_HAND)
+  if (purchase.githubUsername || purchase.fulfillmentStatus === 'sent') {
+    return fail(null, ALREADY_SET_UP)
+  }
+  if (purchase.fulfillmentStatus !== 'pending_invite') {
+    return fail(null, NOT_A_KIT)
+  }
 
   const repo = productDoc?.githubRepo || purchase.githubRepo
   if (!repo) {
@@ -118,13 +206,28 @@ export async function completeOnboarding(
 
   /* Fails open, as everywhere else: only GitHub saying the account is absent
      stops this. A timeout or a rate limit says nothing about the name, and
-     this buyer has already paid. */
+     this buyer has already paid. Before the claim, so a typo can be fixed. */
   if ((await githubAccountExists(username)) === false) {
     return fail(
       'githubUsername',
       `GitHub has no account called “${username}”. Check the spelling: this is where the repository invitation is sent.`
     )
   }
+
+  /* The claim. Whoever wins this invites; whoever loses is a replay or a
+     second tab, and gets the same answer as a row that was already set up.
+     When the database cannot decide, nobody is invited. */
+  let claimed = false
+  try {
+    claimed = await claimGithubUsername(payload, purchase.id, username)
+  } catch (err) {
+    console.error('Onboarding claim failed', purchase.id, err)
+    return fail(
+      null,
+      'I could not record that just now, and nothing was sent. Please try again in a moment.'
+    )
+  }
+  if (!claimed) return fail(null, ALREADY_SET_UP)
 
   const invite = await inviteToRepo({ repo, username })
   if (!invite.ok) {
@@ -137,28 +240,45 @@ export async function completeOnboarding(
 
   const alreadyHadAccess =
     invite.ok && invite.state === 'already-a-collaborator'
+  const inviteUrl = (invite.ok && invite.url) || null
 
-  /* Recorded whether or not the invitation sent. The username is the answer
-     to the question this page exists to ask, and losing it because GitHub was
-     down would mean asking again. */
+  /* The buyer is seat one, on the license. A purchase whose first attach
+     failed has none: try to attach it now, which is what the webhook would
+     have done. If that fails too the seat is not recorded -- the account is
+     still on the purchase, and nothing here may fail the buyer -- and the
+     license page is where it gets repaired. */
+  let licenseId = relationId(purchase.license) as string | number | null
+  if (!licenseId) {
+    const tier = purchase.grantsTier || productDoc?.tier || null
+    try {
+      if (!tier || !productDoc?.stack)
+        throw new Error('kit has no tier or stack')
+      const attached = await attachPurchase(payload, {
+        purchase,
+        email: purchase.email,
+        stack: productDoc.stack,
+        grantsTier: tier,
+        licenseId: undefined,
+        environment: purchase.creemEnvironment || undefined,
+      })
+      licenseId = attached?.id ?? null
+    } catch (err) {
+      console.error('Onboarding license attach failed', purchase.id, err)
+    }
+  }
+  if (licenseId) await recordSeat(payload, licenseId, username, inviteUrl)
+
+  /* Recorded whether or not the invitation sent. The username is already
+     safe -- the claim wrote it -- so a failed invite leaves a purchase a
+     person can finish, not one the buyer must be asked about again. */
   await payload
     .update({
       collection: 'purchases',
       id: purchase.id,
       overrideAccess: true,
       data: {
-        githubUsername: username,
         githubRepo: repo,
         ...(invite.ok && invite.url ? { githubInviteUrl: invite.url } : {}),
-        /* The buyer is seat one. Recorded here rather than at the webhook,
-           because at the webhook there was no username to record. */
-        seatMembers: [
-          {
-            githubUsername: username,
-            inviteUrl: (invite.ok && invite.url) || undefined,
-            addedAt: new Date().toISOString(),
-          },
-        ],
         fulfillmentStatus: invite.ok ? 'sent' : 'pending_invite',
       },
     })

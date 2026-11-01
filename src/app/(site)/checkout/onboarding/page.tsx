@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { Container } from '@/components/Container'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { OnboardingSteps } from '@/components/commerce/OnboardingSteps'
+import { OnboardingGithubForm } from '@/components/commerce/OnboardingGithubForm'
+import { TrackPurchase } from '@/components/analytics/TrackPurchase'
+import { centsToValue } from '@/lib/analytics/whop'
 import { NextStep } from '@/components/commerce/NextStep'
 import { PendingRefresh } from '@/components/commerce/PendingRefresh'
 import {
@@ -15,6 +18,10 @@ import {
 import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
 import { seatLimit } from '@/lib/commerce/seats'
 import { validCheckoutRef } from '@/lib/commerce/whop'
+import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
+import { licenseLimits } from '@/lib/commerce/license'
+import { currentKey, licenseFromClaims } from '@/lib/commerce/licenseRecord'
+import { verifyOnboardingLink } from '@/lib/commerce/onboardingLink'
 import type { Purchase } from '@/payload-types'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +36,7 @@ export const metadata = {
  * The page has no signature -- there is nothing on it worth forging. It
  * grants nothing (Whop's webhook already delivered the repo invitation by
  * the time this renders), so all a payment_id or ref unlocks is a look at
- * your own purchase: the item name, the repo, a masked licence key, the
+ * your own purchase: the item name, the repo, a masked license key, the
  * GitHub username on file, and one relevant next step. Never the full key,
  * the email or the amount -- those stay in the receipt only you received.
  *
@@ -61,6 +68,16 @@ export const metadata = {
  * a paid row wins over anything on the URL. A link with no payment id or
  * ref, or one whose purchase is no longer paid, can never turn into a
  * purchase by waiting, so it points at the email straight away.
+ *
+ * Creem is the third way in, and the only one that asks anything. Its
+ * success_url is the signed link from `onboardingPath`: ?r=<request id>&s=<its
+ * signature>, plus whatever Creem appends, which is ignored. The signature
+ * proves we minted the link, so the page verifies it before it looks anything
+ * up; an r without a valid s is the manual state, and never falls through to
+ * the other two. A paid kit row that has no GitHub account yet asks for one
+ * here, through a form that posts the same r and s to an action that verifies
+ * them again. Once the account is on file the page is the same one a Whop
+ * buyer sees, ending on the license page.
  */
 
 function Shell({
@@ -89,13 +106,22 @@ const linkClass =
 /* The manual route, for a link that can never show a purchase by waiting:
  * no ref or payment id at all (Whop gave none, or the ref on the URL was
  * not a valid one, so there is nothing to look up), or a purchase that is
- * no longer paid (a revoked licence is marked refunded). It says nothing
+ * no longer paid (a revoked license is marked refunded). It says nothing
  * about any purchase -- no item, repo, key or account -- so it is safe in
  * front of whoever holds the link, and it points at the one thing that
  * always works: the purchase email and a human. */
 /* Reload this page for the same purchase. Both states that cannot yet
    describe the order offer it, keyed the way the buyer arrived. */
-function refreshHref(ref: string | null, paymentId: string | null | undefined) {
+function refreshHref(
+  ref: string | null,
+  paymentId: string | null | undefined,
+  link?: { r: string; s: string } | null
+) {
+  if (link) {
+    return `/checkout/onboarding?r=${encodeURIComponent(
+      link.r
+    )}&s=${encodeURIComponent(link.s)}`
+  }
   return ref
     ? `/checkout/onboarding?ref=${encodeURIComponent(ref)}`
     : `/checkout/onboarding?payment_id=${encodeURIComponent(paymentId ?? '')}`
@@ -154,15 +180,30 @@ export default async function OnboardingPage({
     payment_id?: string | string[]
     attempt?: string | string[]
     status?: string | string[]
+    r?: string | string[]
+    s?: string | string[]
   }>
 }) {
   /* A repeated param arrives as an array; firstParam takes the first, so an
      array never reaches the query, the refresh URL or the status check. */
   const params = await searchParams
-  const ref = validCheckoutRef(firstParam(params.ref))
-  const paymentId = firstParam(params.payment_id)
-  const status = firstParam(params.status)
+  const requestId = firstParam(params.r)
+  const signature = firstParam(params.s)
   const attempt = Math.max(0, parseInt(firstParam(params.attempt), 10) || 0)
+
+  /* A Creem link is trusted only once its signature checks out, and an r that
+     fails it is not a bad lookup but a forged or damaged link: it gets the
+     manual state, and never the Whop params that might sit beside it. */
+  if (requestId && !verifyOnboardingLink(requestId, signature)) {
+    return <ManualState />
+  }
+  const link = requestId ? { r: requestId, s: signature } : null
+
+  /* Creem's own params ride along on the success_url, and ?status is not
+     among the ones this page reads for them. */
+  const ref = link ? null : validCheckoutRef(firstParam(params.ref))
+  const paymentId = link ? '' : firstParam(params.payment_id)
+  const status = link ? '' : firstParam(params.status)
 
   /* Without a valid ref there is nothing to look up first, so the URL
      decides: an explicit ?status=error says the payment failed, and "you do
@@ -170,7 +211,7 @@ export default async function OnboardingPage({
   if (!ref && status === 'error') return <PaymentFailed />
 
   // Without a ref or an id the lookup can never succeed, so nothing waits.
-  if (!ref && !paymentId) return <ManualState />
+  if (!link && !ref && !paymentId) return <ManualState />
 
   /* With a valid ref the page looks first, whatever the URL says: a paid
      row wins over any parameter, because a buyer who paid must never read
@@ -183,7 +224,9 @@ export default async function OnboardingPage({
     const payload = await getPayloadClient()
     const { docs } = await payload.find({
       collection: 'purchases',
-      where: ref
+      where: link
+        ? { creemRequestId: { equals: link.r } }
+        : ref
         ? { whopCheckoutRef: { equals: ref } }
         : { whopPaymentId: { equals: paymentId } },
       depth: 1,
@@ -211,7 +254,7 @@ export default async function OnboardingPage({
         </p>
         <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
           If your bank or card step did not finish, nothing was taken.{' '}
-          <Link href={refreshHref(ref, paymentId)} className={linkClass}>
+          <Link href={refreshHref(ref, paymentId, link)} className={linkClass}>
             Refresh the page
           </Link>{' '}
           to check again, or{' '}
@@ -229,7 +272,7 @@ export default async function OnboardingPage({
     return <PaymentFailed />
   }
 
-  /* Only a paid purchase is described. A revoked licence is marked refunded,
+  /* Only a paid purchase is described. A revoked license is marked refunded,
      and its ref or payment id still finds the row -- so the page has to
      refuse it here, or it would go on showing the repo and account it no
      longer grants. */
@@ -243,7 +286,7 @@ export default async function OnboardingPage({
      receipt that may not exist -- and another try is offered only once the
      checks have run out, never while the webhook may just be late. */
   if (!purchase) {
-    const manualHref = refreshHref(ref, paymentId)
+    const manualHref = refreshHref(ref, paymentId, link)
 
     return (
       <Shell title="Confirming your payment">
@@ -260,6 +303,7 @@ export default async function OnboardingPage({
               checkoutRef={ref}
               paymentId={paymentId}
               attempt={attempt}
+              keepParams={link ? { r: link.r, s: link.s } : undefined}
             />
           </>
         ) : (
@@ -297,13 +341,14 @@ export default async function OnboardingPage({
     slug?: string | null
     githubRepo?: string | null
     seats?: number | null
+    id?: number | string
   } | null
 
   const tier = tierFromSlug(itemDoc?.slug)
 
   /* Not a kit: a guide, another product, a course. Nothing here delivers
      one -- the owner does, by hand -- and nothing of ours was emailed for
-     it, so there is no repository, clone command, licence or "it is in
+     it, so there is no repository, clone command, license or "it is in
      your email" to show. Only the confirmation, and the one next step. */
   if (!tier) {
     const name = itemDoc?.name || itemDoc?.title
@@ -321,31 +366,108 @@ export default async function OnboardingPage({
 
   const itemName = itemDoc?.name || 'Your kit'
   const repo = purchase.githubRepo || itemDoc?.githubRepo || null
-  const maskedLicenseKey = maskLicenseKey(purchase.licenseKey)
   const delivered = purchase.fulfillmentStatus === 'sent'
+
+  /* The Whop route is unchanged: the purchase row says everything. */
+  if (!link) {
+    return (
+      <Shell title={`${itemName} is yours`}>
+        <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
+          {delivered
+            ? 'Payment received. Here is everything you need.'
+            : 'One more step and the repository is in your hands.'}
+        </p>
+
+        <OnboardingSteps
+          itemName={itemName}
+          repo={repo}
+          maskedLicenseKey={maskLicenseKey(purchase.licenseKey)}
+          githubUsername={purchase.githubUsername || null}
+          /* Only when a server actually exists. Everything on this page is
+             either real or absent. */
+          discordUrl={process.env.DISCORD_INVITE_URL || null}
+          cliCommand={process.env.WAREKIT_CLI_COMMAND || null}
+          tier={tier}
+          delivered={delivered}
+          /* The product's own limit, the same one the seat page enforces. */
+          seats={seatLimit(itemDoc)}
+        />
+
+        <p className="mt-12 text-sm text-zinc-600 dark:text-zinc-400">
+          Keep the link to this page. It is in your purchase email, and it is
+          how you get back here.
+        </p>
+      </Shell>
+    )
+  }
+
+  /* A row a person is finishing by hand. The action refuses it too, so the
+     form is not offered: asking a question whose answer will be refused is
+     worse than saying so. */
+  const needsAnswer =
+    !purchase.githubUsername && purchase.fulfillmentStatus === 'pending_invite'
+  if (!purchase.githubUsername && purchase.fulfillmentStatus === 'failed') {
+    return (
+      <Shell title="Your payment is safe">
+        <p className="mt-6 text-zinc-600 dark:text-zinc-400">
+          {`Something went wrong setting up ${itemName} automatically. You do not need to pay again. Reply to your receipt email and I will set up your access by hand, or `}
+          <Link href="/contact" className={linkClass}>
+            get in touch
+          </Link>
+          .
+        </p>
+      </Shell>
+    )
+  }
+
+  const setup = await creemSetup(purchase, itemDoc, needsAnswer)
 
   return (
     <Shell title={`${itemName} is yours`}>
+      {/* One report per render, with the amount Creem charged. The event id
+          is the request id, so a refresh or the email link folds into the
+          same sale. No email: this page can show a link, not who holds it. */}
+      <TrackPurchase
+        eventId={link.r}
+        value={centsToValue(purchase.amount ?? 0)}
+        currency={(purchase.currency || 'USD').toUpperCase()}
+        contentName={itemName}
+      />
+
       <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
         {delivered
           ? 'Payment received. Here is everything you need.'
           : 'One more step and the repository is in your hands.'}
       </p>
 
-      <OnboardingSteps
-        itemName={itemName}
-        repo={repo}
-        maskedLicenseKey={maskedLicenseKey}
-        githubUsername={purchase.githubUsername || null}
-        /* Only when a server actually exists. Everything on this page is
-           either real or absent. */
-        discordUrl={process.env.DISCORD_INVITE_URL || null}
-        cliCommand={process.env.WAREKIT_CLI_COMMAND || null}
-        tier={tier}
-        delivered={delivered}
-        /* The product's own limit, the same one the seat page enforces. */
-        seats={seatLimit(itemDoc)}
-      />
+      {needsAnswer ? (
+        <>
+          <h2 className="mt-12 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            Which GitHub account should get the repository?
+          </h2>
+          <OnboardingGithubForm
+            requestId={link.r}
+            signature={link.s}
+            initialUsername={setup.liteUsername}
+            licenseUrl={setup.licenseUrl}
+          />
+        </>
+      ) : (
+        <OnboardingSteps
+          itemName={itemName}
+          repo={repo}
+          maskedLicenseKey={maskLicenseKey(
+            setup.licenseKey ?? purchase.licenseKey
+          )}
+          githubUsername={purchase.githubUsername || null}
+          discordUrl={process.env.DISCORD_INVITE_URL || null}
+          cliCommand={process.env.WAREKIT_CLI_COMMAND || null}
+          tier={tier}
+          delivered={delivered}
+          seats={setup.seats}
+          licenseUrl={setup.licenseUrl}
+        />
+      )}
 
       <p className="mt-12 text-sm text-zinc-600 dark:text-zinc-400">
         Keep the link to this page. It is in your purchase email, and it is how
@@ -353,4 +475,82 @@ export default async function OnboardingPage({
       </p>
     </Shell>
   )
+}
+
+type KitDoc = {
+  id?: number | string
+  seats?: number | null
+} | null
+
+/* What the license adds to a Creem buyer's page: the developer count, the
+   current key, the license page to end on, and the account a Lite claim on the
+   same license used. All of it is a convenience. A purchase whose first attach
+   failed has no license, and a lookup can fail, so every part has a fallback
+   and nothing here throws at a buyer who has already paid. */
+async function creemSetup(
+  purchase: Purchase,
+  itemDoc: KitDoc,
+  needsAnswer: boolean
+) {
+  const out: {
+    seats: number
+    licenseKey: string | null
+    licenseUrl: string | null
+    liteUsername: string
+  } = {
+    seats: licenseLimits(null, itemDoc).seats,
+    licenseKey: null,
+    licenseUrl: null,
+    liteUsername: '',
+  }
+
+  let licenseId: number | string | null = null
+  try {
+    const payload = await getPayloadClient()
+    const found = await licenseFromClaims(payload, {
+      purchaseId: purchase.id,
+    })
+    if (found?.license) {
+      licenseId = found.license.id
+      out.seats = licenseLimits(found.license, found.product ?? itemDoc).seats
+      out.licenseKey = await currentKey(payload, found.license.id)
+
+      if (needsAnswer) {
+        const lite = await payload.find({
+          collection: 'purchases',
+          where: {
+            and: [
+              { license: { equals: found.license.id } },
+              { grantsTier: { equals: 'lite' } },
+              { status: { equals: 'paid' } },
+              { githubUsername: { exists: true } },
+            ],
+          },
+          sort: '-createdAt',
+          depth: 0,
+          limit: 1,
+          overrideAccess: true,
+        })
+        out.liteUsername = lite.docs?.[0]?.githubUsername || ''
+      }
+    }
+  } catch (err) {
+    console.error('Onboarding license lookup failed', purchase.id, err)
+  }
+
+  /* The license page lives at the existing seats route until it becomes the
+     license page. A token that cannot be signed leaves the step out rather
+     than linking nowhere. */
+  const signed =
+    itemDoc?.id == null
+      ? null
+      : tryCreateAccessToken({
+          purchaseId: purchase.id,
+          ...(licenseId != null ? { licenseId } : {}),
+          itemType: 'product',
+          itemId: itemDoc.id,
+        })
+  if (signed?.ok) out.licenseUrl = `/access/seats/${signed.token}`
+
+  return out
 }

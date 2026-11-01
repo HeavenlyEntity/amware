@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 /* The page is an async server component: it is called with its search
@@ -13,13 +13,18 @@ vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
    helper -- is a stub, never the value. Recreated here for PendingRefresh,
    so a page that read a value from it fails these tests the way it fails
    in the real app. */
+const pendingRefreshProps = vi.hoisted(() => [])
+
 vi.mock('@/components/commerce/PendingRefresh', async (importOriginal) => {
   const actual = await importOriginal()
   return Object.fromEntries(
     Object.keys(actual).map((name) => [
       name,
       name === 'PendingRefresh'
-        ? actual.PendingRefresh
+        ? (props) => {
+            pendingRefreshProps.push(props)
+            return actual.PendingRefresh(props)
+          }
         : () => {
             throw new Error(`${name} is a client reference on the server`)
           },
@@ -28,6 +33,8 @@ vi.mock('@/components/commerce/PendingRefresh', async (importOriginal) => {
 })
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
+import { onboardingPath } from '@/lib/commerce/onboardingLink'
+import { verifyAccessToken } from '@/lib/commerce/accessToken'
 import OnboardingPage from '../page'
 
 /* Forty characters, opening with seven that the old mask used to show. */
@@ -67,6 +74,7 @@ let find
 
 beforeEach(() => {
   vi.clearAllMocks()
+  pendingRefreshProps.length = 0
   find = vi.fn()
   getPayloadClient.mockResolvedValue({ find })
 })
@@ -75,7 +83,7 @@ const renderPage = async (params = {}) =>
   render(await OnboardingPage({ searchParams: Promise.resolve(params) }))
 
 describe('Onboarding page', () => {
-  it('shows only the last four characters of the licence key', async () => {
+  it('shows only the last four characters of the license key', async () => {
     find.mockResolvedValue({ docs: [row()] })
     const { container } = await renderPage({ payment_id: 'pay_1' })
 
@@ -114,7 +122,7 @@ describe('Onboarding page', () => {
     ).toHaveAttribute('href', '/services')
   })
 
-  /* A revoked licence is marked refunded. Its payment id still resolves to
+  /* A revoked license is marked refunded. Its payment id still resolves to
      the row, so the page itself has to refuse to describe it. */
   it('shows nothing about a purchase that is no longer paid', async () => {
     find.mockResolvedValue({ docs: [row({ status: 'refunded' })] })
@@ -243,7 +251,7 @@ describe('Onboarding page for a purchase that is not a kit', () => {
     expect(text).not.toMatch(/is yours/i)
     expect(text).not.toMatch(/git clone/i)
     expect(text).not.toMatch(/repository/i)
-    expect(text).not.toMatch(/licence key/i)
+    expect(text).not.toMatch(/licen[sc]e key/i)
     // Nothing of ours was emailed for it, so the page must not say so.
     expect(text).not.toMatch(/in your purchase email/i)
   })
@@ -511,7 +519,7 @@ describe('Onboarding page while no row has arrived, which could be either outcom
   })
 })
 
-describe('Onboarding page for a Team licence', () => {
+describe('Onboarding page for a Team license', () => {
   it('mentions the other seats, from the product’s own seat count', async () => {
     find.mockResolvedValue({
       docs: [
@@ -532,7 +540,7 @@ describe('Onboarding page for a Team licence', () => {
 
     expect(
       screen.getByText(
-        'Your licence covers 5 GitHub accounts — add the rest from the link in your receipt email.'
+        'Your license covers 5 developers — add the rest from the link in your receipt email.'
       )
     ).toBeInTheDocument()
   })
@@ -540,6 +548,361 @@ describe('Onboarding page for a Team licence', () => {
   it('does not mention seats for a single-seat kit', async () => {
     find.mockResolvedValue({ docs: [row()] })
     const { container } = await renderPage({ payment_id: 'pay_1' })
-    expect(container.textContent).not.toMatch(/licence covers/i)
+    expect(container.textContent).not.toMatch(/licen[sc]e covers/i)
+  })
+})
+
+/* The Creem route. A kit buyer arrives on the signed link the checkout minted,
+   with whatever Creem appended beside it. The page proves the signature before
+   it looks anything up, and asks the one question Creem's checkout could not. */
+describe('Onboarding page for a Creem kit buyer', () => {
+  const REQUEST_ID = '6f1c1d7e-2b1a-4c57-9a52-0f1f5d1a1111'
+  const teamKit = {
+    ...proKit,
+    name: 'WareKit Next NetSuite (Team)',
+    slug: 'warekit-next-netsuite-team',
+    stack: 'next-netsuite',
+    tier: 'team',
+    seats: 5,
+    netsuiteAccounts: 3,
+  }
+  const license = { id: 5, stack: 'next-netsuite', tier: 'team' }
+
+  const link = () => {
+    const params = new URL(onboardingPath(REQUEST_ID), 'https://x.test')
+      .searchParams
+    return { r: params.get('r'), s: params.get('s') }
+  }
+
+  /* A paid Creem kit row that has not been asked for its account yet. */
+  const creemRow = (over = {}) =>
+    row({
+      id: 99,
+      creemRequestId: REQUEST_ID,
+      githubUsername: null,
+      githubRepo: null,
+      licenseKey: null,
+      fulfillmentStatus: 'pending_invite',
+      license: 5,
+      grantsTier: 'team',
+      item: { relationTo: 'products', value: teamKit },
+      ...over,
+    })
+
+  let track
+  let purchases
+  let findByID
+
+  /* The database as the page uses it: the purchase by request id, the license
+     and its product through licenseFromClaims, the key through currentKey, and
+     the Lite claim that pre-fills the username. */
+  const database = ({ lite = null, key = null, licenseDoc = license } = {}) => {
+    find = vi.fn(({ collection, where }) => {
+      if (collection === 'products') return Promise.resolve({ docs: [teamKit] })
+      if (where?.creemRequestId) return Promise.resolve({ docs: purchases })
+      const text = JSON.stringify(where)
+      if (text.includes('grantsTier')) {
+        return Promise.resolve({
+          docs: lite ? [{ githubUsername: lite, grantsTier: 'lite' }] : [],
+        })
+      }
+      if (text.includes('licenseKey')) {
+        return Promise.resolve({
+          docs: key
+            ? [{ licenseKey: key, status: 'paid', createdAt: '2026-10-01' }]
+            : [],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+    findByID = vi.fn(({ collection }) =>
+      collection === 'purchases'
+        ? Promise.resolve(purchases[0])
+        : licenseDoc
+        ? Promise.resolve(licenseDoc)
+        : Promise.reject(new Error('gone'))
+    )
+    getPayloadClient.mockResolvedValue({ find, findByID })
+  }
+
+  beforeEach(() => {
+    process.env.ACCESS_LINK_SECRET = 'test-secret-for-onboarding'
+    track = vi.fn()
+    window.whop = { track }
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    purchases = [creemRow()]
+    database()
+  })
+
+  afterEach(() => {
+    delete window.whop
+    vi.unstubAllGlobals()
+  })
+
+  it('asks a signed Creem buyer for a GitHub account', async () => {
+    const { container } = await renderPage({
+      ...link(),
+      // Creem's own additions to the success_url are ignored.
+      checkout_id: 'ch_1',
+      order_id: 'ord_1',
+      signature: 'creem-own',
+    })
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'purchases',
+        where: { creemRequestId: { equals: REQUEST_ID } },
+      })
+    )
+    expect(screen.getByLabelText(/github username/i)).toHaveValue('')
+    expect(container.querySelector('input[name="r"]')).toHaveValue(REQUEST_ID)
+    expect(container.querySelector('input[name="s"]')).toHaveValue(link().s)
+    expect(
+      screen.getByRole('button', { name: /send my invitation/i })
+    ).toBeInTheDocument()
+    // Nothing is claimed delivered, and no clone command is shown yet.
+    expect(container.textContent).not.toMatch(/git clone/i)
+  })
+
+  it('shows "Confirming your payment" for a signed link with no row yet', async () => {
+    purchases = []
+    const { container } = await renderPage(link())
+
+    expect(
+      screen.getByRole('heading', { name: /confirming your payment/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).toMatch(/do not need to pay again/i)
+    expect(screen.queryByLabelText(/github username/i)).toBeNull()
+    // The retry keeps the signed link, or it would land on the manual state.
+    expect(pendingRefreshProps.at(-1)).toMatchObject({
+      keepParams: link(),
+      attempt: 0,
+    })
+  })
+
+  it('offers a refresh of the signed link once the checks run out', async () => {
+    purchases = []
+    await renderPage({ ...link(), attempt: '6' })
+
+    const href = screen
+      .getByRole('link', { name: /refresh the page/i })
+      .getAttribute('href')
+    expect(href).toBe(
+      `/checkout/onboarding?r=${encodeURIComponent(
+        link().r
+      )}&s=${encodeURIComponent(link().s)}`
+    )
+  })
+
+  it('rejects an unsigned r', async () => {
+    for (const params of [
+      { r: REQUEST_ID },
+      { r: REQUEST_ID, s: 'forged' },
+      // A real signature for some other request id.
+      { r: 'some-other-id', s: link().s },
+      // A good Whop param beside a bad r never rescues it.
+      { r: REQUEST_ID, s: 'forged', payment_id: 'pay_1' },
+    ]) {
+      find.mockClear()
+      const { container, unmount } = await renderPage(params)
+      expect(
+        screen.getByRole('heading', { name: /check your email/i })
+      ).toBeInTheDocument()
+      expect(container.textContent).not.toMatch(/github username/i)
+      expect(find).not.toHaveBeenCalled()
+      unmount()
+    }
+    expect(track).not.toHaveBeenCalled()
+  })
+
+  it('pre-fills the username from a Lite claim on the same license', async () => {
+    database({ lite: 'octocat-lite' })
+    await renderPage(link())
+
+    expect(screen.getByLabelText(/github username/i)).toHaveValue(
+      'octocat-lite'
+    )
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'purchases',
+        sort: '-createdAt',
+        where: {
+          and: expect.arrayContaining([
+            { license: { equals: 5 } },
+            { grantsTier: { equals: 'lite' } },
+          ]),
+        },
+      })
+    )
+  })
+
+  it('leaves the field empty when the license has no Lite claim', async () => {
+    database({ lite: null })
+    await renderPage(link())
+    expect(screen.getByLabelText(/github username/i)).toHaveValue('')
+  })
+
+  it('reports the purchase with its real amount once', async () => {
+    purchases = [creemRow({ amount: 99900, currency: 'usd' })]
+    await renderPage(link())
+
+    expect(track).toHaveBeenCalledTimes(1)
+    expect(track).toHaveBeenCalledWith('purchase', {
+      value: 999,
+      currency: 'USD',
+      event_id: REQUEST_ID,
+      content_name: 'WareKit Next NetSuite (Team)',
+    })
+  })
+
+  it('reports it once after delivery too, and never the email', async () => {
+    purchases = [
+      creemRow({
+        amount: 99900,
+        fulfillmentStatus: 'sent',
+        githubUsername: 'octocat',
+      }),
+    ]
+    await renderPage(link())
+
+    expect(track).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(track.mock.calls)).not.toContain('buyer@example.com')
+  })
+
+  it('reports nothing before the payment has arrived or for a refunded row', async () => {
+    purchases = []
+    const first = await renderPage(link())
+    first.unmount()
+    purchases = [creemRow({ status: 'refunded' })]
+    await renderPage(link())
+
+    expect(track).not.toHaveBeenCalled()
+  })
+
+  it('does not report a Whop purchase, which Whop records itself', async () => {
+    find = vi.fn().mockResolvedValue({ docs: [row()] })
+    getPayloadClient.mockResolvedValue({ find })
+    await renderPage({ payment_id: 'pay_1' })
+    expect(track).not.toHaveBeenCalled()
+  })
+
+  it('offers the license page after delivery', async () => {
+    database({ key: 'KEY' + 'k'.repeat(20) + 'WXYZ' })
+    purchases = [
+      creemRow({
+        fulfillmentStatus: 'sent',
+        githubUsername: 'octocat',
+        githubRepo: 'amwaredotdev/warekit-next-netsuite',
+      }),
+    ]
+    await renderPage(link())
+
+    expect(screen.queryByLabelText(/github username/i)).toBeNull()
+    const open = screen.getByRole('link', { name: /open your license page/i })
+    const href = open.getAttribute('href')
+    expect(href).toMatch(/^\/access\/seats\/[^/]+$/)
+    expect(
+      screen.getByRole('heading', { name: 'Add your key to .env' })
+    ).toBeInTheDocument()
+
+    // The link opens this buyer's own license.
+    const claims = verifyAccessToken(href.split('/').pop())
+    expect(claims).toMatchObject({
+      purchaseId: 99,
+      licenseId: 5,
+      itemType: 'product',
+      itemId: 7,
+    })
+    // The key shown is the license's current one, masked.
+    expect(screen.getByText('••••WXYZ')).toBeInTheDocument()
+  })
+
+  it('counts developers from the license, not the purchased product alone', async () => {
+    database({ licenseDoc: { ...license, seatOverride: 8 } })
+    purchases = [
+      creemRow({ fulfillmentStatus: 'sent', githubUsername: 'octocat' }),
+    ]
+    await renderPage(link())
+    expect(screen.getByText(/covers 8 developers/)).toBeInTheDocument()
+  })
+
+  describe('when the first attach failed and the purchase has no license', () => {
+    beforeEach(() => {
+      purchases = [creemRow({ license: null })]
+      database({ licenseDoc: null })
+    })
+
+    it('still asks for the account, from the product alone', async () => {
+      await renderPage(link())
+      expect(screen.getByLabelText(/github username/i)).toHaveValue('')
+    })
+
+    it('still ends on a license page link and the product’s developer count', async () => {
+      purchases = [
+        creemRow({
+          license: null,
+          fulfillmentStatus: 'sent',
+          githubUsername: 'octocat',
+        }),
+      ]
+      await renderPage(link())
+
+      expect(screen.getByText(/covers 5 developers/)).toBeInTheDocument()
+      const href = screen
+        .getByRole('link', { name: /open your license page/i })
+        .getAttribute('href')
+      const claims = verifyAccessToken(href.split('/').pop())
+      expect(claims.purchaseId).toBe(99)
+      expect(claims.licenseId).toBeUndefined()
+    })
+  })
+
+  it('still renders when the license lookup itself fails', async () => {
+    findByID.mockRejectedValue(new Error('db'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await renderPage(link())
+    error.mockRestore()
+
+    expect(screen.getByLabelText(/github username/i)).toBeInTheDocument()
+  })
+
+  it('leaves out the license page step when no token can be signed', async () => {
+    process.env.ACCESS_LINK_SECRET = 'test-secret-for-onboarding'
+    purchases = [
+      creemRow({ fulfillmentStatus: 'sent', githubUsername: 'octocat' }),
+    ]
+    // A purchased item with no id cannot name what the link opens.
+    purchases[0].item.value = { ...teamKit, id: undefined }
+    await renderPage(link())
+    expect(screen.queryByText('Add your key to .env')).toBeNull()
+  })
+
+  it('does not ask a question the action would refuse, for a row owed by hand', async () => {
+    purchases = [creemRow({ fulfillmentStatus: 'failed' })]
+    const { container } = await renderPage(link())
+
+    expect(screen.queryByLabelText(/github username/i)).toBeNull()
+    expect(container.textContent).toMatch(/payment is safe/i)
+    expect(container.textContent).toMatch(/do not need to pay again/i)
+  })
+
+  it('shows nothing about a signed link whose purchase was refunded', async () => {
+    purchases = [creemRow({ status: 'refunded' })]
+    const { container } = await renderPage(link())
+
+    expect(
+      screen.getByRole('heading', { name: /check your email/i })
+    ).toBeInTheDocument()
+    expect(container.textContent).not.toContain('WareKit Next NetSuite')
+  })
+
+  it('does not ask a signed buyer of a guide for anything', async () => {
+    purchases = [creemRow({ item: { relationTo: 'products', value: guide } })]
+    await renderPage(link())
+
+    expect(screen.queryByLabelText(/github username/i)).toBeNull()
+    expect(
+      screen.getByRole('heading', { name: /your purchase is confirmed/i })
+    ).toBeInTheDocument()
   })
 })
