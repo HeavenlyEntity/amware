@@ -71,6 +71,17 @@ export function licenseLimits(license, product) {
   return { seats, accounts }
 }
 
+const KIT_NAMES = {
+  'react-netsuite': 'WareKit React NetSuite',
+  'next-netsuite': 'WareKit Next NetSuite',
+}
+
+/** The kit's name, without a tier: what a license with no kit row is called.
+    Enterprise and a license with no tier have none to read one from. */
+export function kitName(stack) {
+  return Object.hasOwn(KIT_NAMES, stack) ? KIT_NAMES[stack] : null
+}
+
 /** The rows that count against a license's accounts. An `over_limit` row is
     a signal, not a use. */
 export function activeAccounts(rows) {

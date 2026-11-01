@@ -344,6 +344,31 @@ export async function teamProductFor(payload, stack) {
   return found?.docs?.[0] ?? null
 }
 
+/**
+ * The sale that put a license on `tier`: the newest paid row that grants it.
+ * Never the row a token names, which is usually the older sale the upgrade was
+ * bought from. Null when there is none.
+ *
+ * Reads the database and throws on a failure.
+ */
+export async function upgradeSaleFor(payload, licenseId, tier) {
+  const found = await payload.find({
+    collection: 'purchases',
+    where: {
+      and: [
+        { license: { equals: licenseId } },
+        { status: { equals: 'paid' } },
+        { grantsTier: { equals: tier } },
+      ],
+    },
+    sort: '-createdAt',
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+  })
+  return found?.docs?.[0] ?? null
+}
+
 /* The slug of the one auth collection, Users. Only a signed-in member of it is
    an admin; there is no other kind of account on this site. */
 const ADMIN_COLLECTION = 'users'

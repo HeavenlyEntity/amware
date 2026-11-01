@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 
 /* The page is an async server component: it is called with its params and
    the element it resolves to is rendered. Only the database is mocked. What
@@ -40,6 +40,8 @@ const teamRow = {
   stack: 'next-netsuite',
   status: 'published',
   price: 999,
+  creemUpgradeProductId: 'prod_upgrade',
+  creemUpgradeSandboxProductId: 'prod_upgrade_sb',
 }
 
 let db
@@ -53,6 +55,7 @@ function mockDb({
   product = teamKit,
   products,
   key = KEY,
+  sales = [],
 } = {}) {
   db = {
     findByID: vi.fn(async ({ collection, id }) => {
@@ -74,6 +77,8 @@ function mockDb({
               ),
             }
           : { docs: product ? [product] : [] }
+        : JSON.stringify(where).includes('grantsTier')
+        ? { docs: sales }
         : {
             docs: key
               ? [{ licenseKey: key, status: 'paid', createdAt: '2026-10-01' }]
@@ -187,6 +192,30 @@ describe('License page', () => {
     })
     await renderPage(token())
     expect(screen.getByText(/this license was refunded/i)).toBeInTheDocument()
+  })
+
+  it('says a Pro refund was a refund on a license that began as Lite', async () => {
+    mockDb({
+      license: license({ tier: 'lite' }),
+      purchase: { id: 42, license: 9, status: 'refunded' },
+      product: { id: 5, name: 'WareKit Next NetSuite (Lite)', seats: 1 },
+    })
+    await renderPage(token())
+
+    expect(screen.getByText(/this license was refunded/i)).toBeInTheDocument()
+    expect(screen.queryByText(/license key/i)).toBeNull()
+  })
+
+  it('leaves a Lite license alone when its own purchase stands', async () => {
+    mockDb({
+      license: license({ tier: 'lite' }),
+      purchase: { id: 42, license: 9, status: 'paid' },
+      product: { id: 5, name: 'WareKit Next NetSuite (Lite)', seats: 1 },
+    })
+    await renderPage(token())
+
+    expect(screen.queryByText(/was refunded/i)).toBeNull()
+    expect(screen.getByText(/1 \/ 1 developer/)).toBeInTheDocument()
   })
 
   it('does not show a made-up limit when the kit row is missing', async () => {
@@ -363,6 +392,151 @@ describe('License page', () => {
       })
       await renderPage(token(), { upgraded: 'team' })
       expect(screen.getByText("You're on Team.")).toBeInTheDocument()
+    })
+
+    describe('the sale reported once an upgrade lands', () => {
+      const landed = (sales, over = {}) =>
+        mockDb({
+          license: license({ tier: 'team' }),
+          purchase: { id: 42, license: 9 },
+          products: [{ ...proKit, tier: 'team' }, teamRow],
+          sales,
+          ...over,
+        })
+      const upgradeRow = {
+        id: 77,
+        creemRequestId: 'req_upgrade',
+        amount: 50000,
+        currency: 'usd',
+      }
+      let track
+
+      beforeEach(() => {
+        track = vi.fn()
+        window.whop = { track }
+      })
+      afterEach(() => {
+        delete window.whop
+      })
+
+      it('reports the upgrade row, with what Creem charged, once', async () => {
+        landed([upgradeRow])
+        await renderPage(token(), { upgraded: 'team' })
+
+        expect(track).toHaveBeenCalledTimes(1)
+        expect(track).toHaveBeenCalledWith(
+          'purchase',
+          expect.objectContaining({
+            value: 500,
+            currency: 'USD',
+            event_id: 'req_upgrade',
+          })
+        )
+      })
+
+      it('finds the row by what it granted, not the row on the link', async () => {
+        landed([upgradeRow])
+        await renderPage(token(), { upgraded: 'team' })
+
+        const query = db.find.mock.calls
+          .map(([arg]) => arg)
+          .find((arg) => JSON.stringify(arg.where).includes('grantsTier'))
+        expect(query.collection).toBe('purchases')
+        expect(query.where.and).toEqual([
+          { license: { equals: 9 } },
+          { status: { equals: 'paid' } },
+          { grantsTier: { equals: 'team' } },
+        ])
+      })
+
+      it('reports nothing before the upgrade lands', async () => {
+        mockDb({
+          license: license({ tier: 'pro' }),
+          purchase: { id: 42, license: 9 },
+          products: [proKit, teamRow],
+          sales: [upgradeRow],
+        })
+        await renderPage(token(), { upgraded: 'team' })
+
+        expect(track).not.toHaveBeenCalled()
+      })
+
+      it('reports nothing on an ordinary visit', async () => {
+        landed([upgradeRow])
+        await renderPage(token())
+
+        expect(track).not.toHaveBeenCalled()
+        expect(
+          db.find.mock.calls.some(([arg]) =>
+            JSON.stringify(arg.where ?? {}).includes('grantsTier')
+          )
+        ).toBe(false)
+      })
+
+      it('reports nothing for a row with no request id or no amount', async () => {
+        landed([{ ...upgradeRow, creemRequestId: undefined }])
+        await renderPage(token(), { upgraded: 'team' })
+        landed([{ ...upgradeRow, amount: 0 }])
+        await renderPage(token(), { upgraded: 'team' })
+
+        expect(track).not.toHaveBeenCalled()
+      })
+
+      it('still confirms the upgrade when the sale cannot be read', async () => {
+        landed([upgradeRow])
+        const ok = db.find.getMockImplementation()
+        db.find.mockImplementation(async (q) => {
+          if (JSON.stringify(q.where ?? {}).includes('grantsTier')) {
+            throw new Error('connection terminated')
+          }
+          return ok(q)
+        })
+        await renderPage(token(), { upgraded: 'team' })
+
+        expect(screen.getByText("You're on Team.")).toBeInTheDocument()
+        expect(track).not.toHaveBeenCalled()
+        expect(console.error).toHaveBeenCalled()
+      })
+    })
+
+    describe('with no upgrade product for this Creem environment', () => {
+      afterEach(() => {
+        delete process.env.CREEM_ENV
+      })
+
+      it('shows no button in production without a live product', async () => {
+        proPage({
+          products: [proKit, { ...teamRow, creemUpgradeProductId: '' }],
+        })
+        await renderPage(token())
+
+        expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+        expect(console.error).toHaveBeenCalledWith(
+          'No upgrade to offer',
+          expect.objectContaining({ hasUpgradeProduct: false })
+        )
+      })
+
+      it('reads the sandbox product in the sandbox', async () => {
+        process.env.CREEM_ENV = 'sandbox'
+        proPage({
+          products: [
+            proKit,
+            { ...teamRow, creemUpgradeSandboxProductId: undefined },
+          ],
+        })
+        await renderPage(token())
+        expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+
+        cleanup()
+        proPage({
+          products: [proKit, { ...teamRow, creemUpgradeProductId: undefined }],
+        })
+        await renderPage(token())
+        expect(
+          screen.getByRole('button', { name: 'Move to Team · $500.00' })
+        ).toBeInTheDocument()
+      })
     })
 
     it('treats the URL as wording only', async () => {

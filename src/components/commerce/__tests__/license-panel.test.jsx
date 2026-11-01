@@ -488,6 +488,160 @@ describe('LicensePanel upgrade', () => {
   })
 })
 
+describe('LicensePanel refunds below Pro', () => {
+  const lite = {
+    license: { ...pro.license, tier: 'lite', accounts: [] },
+    product: { name: 'WareKit Next NetSuite (Lite)' },
+    limits: { seats: 1, accounts: null },
+    action: { kind: null, urgent: false },
+    upgrade: null,
+  }
+
+  it('says refunded on a Lite license whose purchase was refunded', () => {
+    panel({ ...lite, refunded: true })
+    expect(screen.getByText(/this license was refunded/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /add to the license/i })
+    ).toBeNull()
+  })
+
+  it('shows a Lite license as usual otherwise', () => {
+    panel(lite)
+    expect(screen.queryByText(/was refunded/i)).toBeNull()
+  })
+
+  it('does not call a paid license refunded because one row was', () => {
+    panel({ refunded: true })
+    expect(screen.queryByText(/was refunded/i)).toBeNull()
+    expect(screen.getByRole('button', { name: MOVE })).toBeInTheDocument()
+  })
+})
+
+describe('LicensePanel kit name', () => {
+  const heading = () => screen.getByRole('heading', { level: 1 })
+  const enterprise = {
+    license: { ...pro.license, tier: 'enterprise', stack: 'next-netsuite' },
+    product: null,
+    action: { kind: null, urgent: false },
+    upgrade: null,
+    limits: { seats: 12, accounts: 4 },
+  }
+
+  it('names the kit on an Enterprise page, which has no product', () => {
+    panel(enterprise)
+    expect(heading()).toHaveTextContent('WareKit Next NetSuite')
+  })
+
+  it('names the kit on a quote and a refund too', () => {
+    panel({
+      ...enterprise,
+      license: { ...enterprise.license, tier: null, stack: 'react-netsuite' },
+      action: { kind: 'enterprise-quote', urgent: false },
+    })
+    expect(heading()).toHaveTextContent('WareKit React NetSuite')
+    cleanupAll()
+    panel({
+      ...enterprise,
+      license: { ...enterprise.license, tier: null },
+    })
+    expect(heading()).toHaveTextContent('WareKit Next NetSuite')
+  })
+
+  it('keeps the product name where there is one', () => {
+    panel()
+    expect(heading()).toHaveTextContent('WareKit Next NetSuite (Pro)')
+  })
+})
+
+describe('LicensePanel funnel events', () => {
+  let track
+
+  beforeEach(() => {
+    track = vi.fn()
+    window.whop = { track }
+  })
+  afterEach(() => {
+    delete window.whop
+  })
+
+  const press = (name) =>
+    fireEvent.submit(screen.getByRole('button', { name }).closest('form'))
+
+  it('fires begin_checkout for Team with the price the button names', () => {
+    panel({
+      upgrade: {
+        ...pro.upgrade,
+        slug: 'warekit-next-netsuite-team',
+        name: 'WareKit Next NetSuite (Team)',
+      },
+    })
+    press(MOVE)
+    expect(track).toHaveBeenCalledTimes(1)
+    expect(track).toHaveBeenCalledWith('begin_checkout', {
+      value: 500,
+      currency: 'USD',
+      content_type: 'product',
+      content_id: 'warekit-next-netsuite-team',
+      content_name: 'WareKit Next NetSuite (Team)',
+    })
+  })
+
+  it('fires begin_checkout for a quote, with no value to give', () => {
+    panel({
+      license: { ...pro.license, stack: 'next-netsuite' },
+      product: null,
+      action: { kind: 'enterprise-quote', urgent: false },
+      upgrade: null,
+    })
+    press('Complete your Enterprise upgrade')
+    expect(track).toHaveBeenCalledWith('begin_checkout', {
+      currency: 'USD',
+      content_type: 'product',
+      content_id: 'next-netsuite-enterprise',
+      content_name: 'WareKit Next NetSuite (Enterprise)',
+    })
+  })
+
+  const done = {
+    license: { ...pro.license, tier: 'team' },
+    limits: { seats: 5, accounts: 3 },
+    upgraded: 'team',
+    sale: {
+      eventId: 'req_upgrade',
+      value: 500,
+      currency: 'USD',
+      contentName: 'WareKit Next NetSuite (Team)',
+    },
+  }
+
+  it('reports the sale once, on the done phase only', () => {
+    const { rerender } = render(<LicensePanel {...pro} {...done} />)
+    rerender(<LicensePanel {...pro} {...done} attempt={1} />)
+
+    expect(track).toHaveBeenCalledTimes(1)
+    expect(track).toHaveBeenCalledWith('purchase', {
+      value: 500,
+      currency: 'USD',
+      event_id: 'req_upgrade',
+      content_name: 'WareKit Next NetSuite (Team)',
+    })
+  })
+
+  it('reports nothing while confirming, or with no sale to report', () => {
+    panel({ upgraded: 'team', sale: done.sale })
+    cleanupAll()
+    panel({ ...done, sale: null })
+    expect(track).not.toHaveBeenCalled()
+  })
+
+  it('does not break the page where the pixel is not loaded', () => {
+    delete window.whop
+    panel(done)
+    expect(screen.getByText("You're on Team.")).toBeInTheDocument()
+    expect(() => panel()).not.toThrow()
+  })
+})
+
 describe('LicensePanel Enterprise', () => {
   const COMPLETE = 'Complete your Enterprise upgrade'
   const quoted = {

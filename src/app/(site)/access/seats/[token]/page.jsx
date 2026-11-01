@@ -6,8 +6,15 @@ import {
   currentKey,
   licenseFromClaims,
   teamProductFor,
+  upgradeSaleFor,
 } from '@/lib/commerce/licenseRecord'
 import {
+  creemEnvironment,
+  creemUpgradeProductIdFor,
+} from '@/lib/commerce/creemEnv'
+import { centsToValue } from '@/lib/analytics/whop'
+import {
+  kitName,
   licenseLimits,
   nextAction,
   upgradeCost,
@@ -201,19 +208,22 @@ export default async function LicensePage({ params, searchParams }) {
   })
 
   /* What moving to Team costs, from the two kit rows: Team's price less
-     this tier's. A failed read, a missing row or a price that is not a number
-     leaves no amount to show, and the panel then shows no button. That is
-     logged, because a Pro owner who cannot find the upgrade is a fault here,
-     and the rest of the license still loads. */
+     this tier's. A failed read, a missing row, a price that is not a number
+     or no upgrade product for this Creem environment leaves nothing honest to
+     show, and the panel then shows no button: `startUpgrade` would only refuse
+     it. That is logged, because a Pro owner who cannot find the upgrade is a
+     fault here, and the rest of the license still loads. */
   let upgrade = null
   if (action.kind === 'upgrade-team') {
     try {
       const team = await teamProductFor(payload, license.stack)
       const cost = upgradeCost(product?.price, team?.price)
-      if (cost == null) {
-        console.error('No upgrade price to show', {
+      const productId = creemUpgradeProductIdFor(team, creemEnvironment())
+      if (cost == null || !productId) {
+        console.error('No upgrade to offer', {
           license: license.id,
           hasTeamRow: Boolean(team),
+          hasUpgradeProduct: Boolean(productId),
         })
       } else {
         const teamLimits = licenseLimits({ tier: 'team' }, team)
@@ -221,10 +231,34 @@ export default async function LicensePage({ params, searchParams }) {
           cost,
           seats: teamLimits.seats,
           accounts: teamLimits.accounts,
+          slug: team.slug,
+          name: team.name,
         }
       }
     } catch (err) {
       console.error('Upgrade price lookup failed', err)
+    }
+  }
+
+  /* The sale to report once an upgrade has landed: the row that paid for it,
+     read here because the row on this link is usually the older sale. The
+     amount is what Creem charged. It is only a report, so a failed read
+     leaves the page as it is. */
+  let sale = null
+  const returned = upgradeReturn(license.tier, upgraded)
+  if (returned?.phase === 'done') {
+    try {
+      const row = await upgradeSaleFor(payload, license.id, returned.target)
+      if (row?.creemRequestId && row.amount > 0) {
+        sale = {
+          eventId: row.creemRequestId,
+          value: centsToValue(row.amount),
+          currency: (row.currency || 'USD').toUpperCase(),
+          contentName: product?.name || kitName(license.stack) || undefined,
+        }
+      }
+    } catch (err) {
+      console.error('Upgrade sale lookup failed', err)
     }
   }
 
@@ -242,6 +276,8 @@ export default async function LicensePage({ params, searchParams }) {
           upgraded={upgraded}
           attempt={attempt}
           repo={product?.githubRepo || purchase?.githubRepo}
+          refunded={purchase?.status === 'refunded'}
+          sale={sale}
         />
       </div>
     </Container>

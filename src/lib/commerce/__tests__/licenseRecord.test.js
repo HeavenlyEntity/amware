@@ -11,6 +11,7 @@ import {
   recomputeTier,
   syncTierAfterChange,
   teamProductFor,
+  upgradeSaleFor,
 } from '../licenseRecord'
 import { readAccessToken } from '../accessToken'
 
@@ -694,6 +695,36 @@ describe('teamProductFor', () => {
     await expect(teamProductFor(payload, 'next-netsuite')).rejects.toThrow(
       'down'
     )
+  })
+})
+
+describe('upgradeSaleFor', () => {
+  it('asks for the newest paid row granting that tier on that license', async () => {
+    const row = { id: 8, grantsTier: 'team' }
+    const payload = fakePayload({ purchases: [row] })
+
+    expect(await upgradeSaleFor(payload, 31, 'team')).toBe(row)
+
+    const query = payload.find.mock.calls[0][0]
+    expect(query).toMatchObject({
+      collection: 'purchases',
+      sort: '-createdAt',
+      limit: 1,
+      overrideAccess: true,
+    })
+    expect(query.where.and).toEqual([
+      { license: { equals: 31 } },
+      { status: { equals: 'paid' } },
+      { grantsTier: { equals: 'team' } },
+    ])
+  })
+
+  it('is null when there is none, and lets a failure through', async () => {
+    const payload = fakePayload({ purchases: [] })
+    expect(await upgradeSaleFor(payload, 31, 'team')).toBeNull()
+
+    payload.find.mockRejectedValue(new Error('db down'))
+    await expect(upgradeSaleFor(payload, 31, 'team')).rejects.toThrow('db down')
   })
 })
 

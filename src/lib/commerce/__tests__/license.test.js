@@ -4,6 +4,7 @@ import {
   activeAccounts,
   highestTier,
   joinDecision,
+  kitName,
   licenseLimits,
   nextAction,
   normalizeAccountId,
@@ -15,6 +16,18 @@ import {
 /* The rules a license follows, kept pure so the webhook, the admin, the
    account page and the kit all read the same answer. A refunded license has
    a null tier, so every function has to cope with that without throwing. */
+
+describe('kitName', () => {
+  it('names each kit family', () => {
+    expect(kitName('next-netsuite')).toBe('WareKit Next NetSuite')
+    expect(kitName('react-netsuite')).toBe('WareKit React NetSuite')
+  })
+
+  it('has nothing to say about anything else', () => {
+    expect(kitName(undefined)).toBeNull()
+    expect(kitName('constructor')).toBeNull()
+  })
+})
 
 describe('activeAccounts', () => {
   it('counts active rows only', () => {

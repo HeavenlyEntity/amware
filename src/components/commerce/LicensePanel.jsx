@@ -3,10 +3,11 @@ import { AccountList, SeatManager } from '@/components/commerce/SeatManager'
 import { LicenseKey } from '@/components/commerce/LicenseKey'
 import { PendingRefresh } from '@/components/commerce/PendingRefresh'
 import { UpgradeButton } from '@/components/commerce/UpgradeButton'
+import { TrackPurchase } from '@/components/analytics/TrackPurchase'
 /* From the plain module, never from PendingRefresh.jsx: on the server this
    file would get a client reference for the constant, not the number. */
 import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
-import { upgradeReturn } from '@/lib/commerce/license'
+import { kitName, tierRank, upgradeReturn } from '@/lib/commerce/license'
 import { listSeats } from '@/lib/commerce/seats'
 
 /* The license page, for the whole license rather than one purchase.
@@ -33,7 +34,8 @@ import { listSeats } from '@/lib/commerce/seats'
  *  - "Confirming your upgrade" while `upgraded` names a tier the license has
  *    not reached yet, with no button at all, so no one pays twice. The page
  *    checks again until `attempt` runs out, then offers a refresh and contact.
- *  - "You're on Team." once the license has reached it.
+ *  - "You're on Team." once the license has reached it, which also reports
+ *    `sale`, the row that paid for it, to the funnel.
  *  - "Move to Team" for a Pro license, when `upgrade` has the numbers.
  *  - "Complete your Enterprise upgrade" when the license holds a quote and is
  *    not Enterprise yet, with the terms the quote sets. A brand new Enterprise
@@ -44,6 +46,10 @@ import { listSeats } from '@/lib/commerce/seats'
  * so that this is the only one, whenever there is one.
  * `upgraded` is read from the URL, which anyone can write. It only picks
  * wording, compared with the tier the database holds. It unlocks nothing.
+ *
+ * `refunded` says the purchase on this link was refunded. A license that began
+ * as a free Lite claim falls back to `lite` on a Pro refund, not to no tier,
+ * and its page says the same thing as any other refund.
  *
  * @param {{
  *   token: string,
@@ -56,8 +62,21 @@ import { listSeats } from '@/lib/commerce/seats'
  *   limits: { seats: number, accounts: number | null },
  *   keyValue: string | null,
  *   action?: { kind: string | null, urgent: boolean } | null,
- *   upgrade?: { cost: number, seats: number, accounts: number | null } | null,
+ *   upgrade?: {
+ *     cost: number,
+ *     seats: number,
+ *     accounts: number | null,
+ *     slug?: string | null,
+ *     name?: string | null,
+ *   } | null,
  *   upgraded?: string | null,
+ *   refunded?: boolean,
+ *   sale?: {
+ *     eventId: string,
+ *     value: number,
+ *     currency: string,
+ *     contentName?: string,
+ *   } | null,
  *   attempt?: number,
  *   repo?: string | null,
  * }} props
@@ -120,11 +139,17 @@ const quoteTerms = (license) =>
 
 /* The Enterprise payment. It is the page's one action, so it is always the
    teal one. */
-function EnterpriseQuote({ token, license }) {
+function EnterpriseQuote({ token, license, name }) {
   const terms = quoteTerms(license)
   return (
     <div>
-      <UpgradeButton token={token} target="enterprise" urgent>
+      <UpgradeButton
+        token={token}
+        target="enterprise"
+        urgent
+        contentId={`${license.stack}-enterprise`}
+        contentName={`${name} (Enterprise)`}
+      >
         Complete your Enterprise upgrade
       </UpgradeButton>
       {terms && (
@@ -187,16 +212,22 @@ export function LicensePanel({
   upgraded,
   attempt = 0,
   repo,
+  refunded = false,
+  sale,
 }) {
   const returned = upgradeReturn(license?.tier, upgraded)
+  /* A product row names the tier too. Enterprise and a license with no tier
+     have none, so the kit's own name stands in. */
+  const name = product?.name || kitName(license?.stack) || 'Your kit'
+  const noLongerPaid = refunded && tierRank(license?.tier) < tierRank('pro')
 
-  if (!license?.tier) {
+  if (!license?.tier || noLongerPaid) {
     /* A new Enterprise license has no tier until its first payment lands. A
        buyer who has just paid for it must not be told it was refunded. */
     if (returned?.phase === 'confirming') {
       return (
         <>
-          <Heading kicker="license">{product?.name || 'Your kit'}</Heading>
+          <Heading kicker="license">{name}</Heading>
           <div className="mt-4">
             <Confirming token={token} returned={returned} attempt={attempt} />
           </div>
@@ -207,18 +238,16 @@ export function LicensePanel({
     if (action?.kind === 'enterprise-quote') {
       return (
         <>
-          <Heading kicker="Enterprise quote">
-            {product?.name || 'Your kit'}
-          </Heading>
+          <Heading kicker="Enterprise quote">{name}</Heading>
           <div className="mt-6">
-            <EnterpriseQuote token={token} license={license} />
+            <EnterpriseQuote token={token} license={license} name={name} />
           </div>
         </>
       )
     }
     return (
       <>
-        <Heading kicker="license">{product?.name || 'Your kit'}</Heading>
+        <Heading kicker="license">{name}</Heading>
         <p role="status" className="mt-4 text-zinc-600 dark:text-zinc-400">
           This license was refunded. If that is not what you expected,{' '}
           <Link href="/contact" className={linkClass}>
@@ -245,18 +274,30 @@ export function LicensePanel({
     )
   } else if (returned?.phase === 'done') {
     upgradeAction = (
-      <p
-        role="status"
-        className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
-      >
-        {`You're on ${TIER_LABEL[returned.target]}.`}
-      </p>
+      <>
+        <p
+          role="status"
+          className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
+        >
+          {`You're on ${TIER_LABEL[returned.target]}.`}
+        </p>
+        {sale && (
+          <TrackPurchase
+            eventId={sale.eventId}
+            value={sale.value}
+            currency={sale.currency}
+            contentName={sale.contentName}
+          />
+        )}
+      </>
     )
   } else if (
     action?.kind === 'enterprise-quote' &&
     license.tier !== 'enterprise'
   ) {
-    upgradeAction = <EnterpriseQuote token={token} license={license} />
+    upgradeAction = (
+      <EnterpriseQuote token={token} license={license} name={name} />
+    )
   } else if (action?.kind === 'enterprise-contact' && license.tier === 'team') {
     upgradeAction = (
       <Link href={enterpriseContactHref(license)} className="amw-cta">
@@ -270,7 +311,14 @@ export function LicensePanel({
   ) {
     upgradeAction = (
       <div>
-        <UpgradeButton token={token} target="team" urgent={action.urgent}>
+        <UpgradeButton
+          token={token}
+          target="team"
+          urgent={action.urgent}
+          value={upgrade.cost}
+          contentId={upgrade.slug}
+          contentName={upgrade.name}
+        >
           {`Move to Team · $${upgrade.cost.toFixed(2)}`}
         </UpgradeButton>
         <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
@@ -283,7 +331,7 @@ export function LicensePanel({
   return (
     <>
       <Heading kicker={`${TIER_LABEL[license.tier] ?? license.tier} license`}>
-        {product?.name || 'Your kit'}
+        {name}
       </Heading>
       <p className="mt-4 text-zinc-600 dark:text-zinc-400">
         {tracksAccounts
