@@ -79,6 +79,47 @@ export async function sendLicenseLinkEmail(args: {
   })
 }
 
+/* The one automated notice about accounts: a deploy reported a NetSuite
+ * account the license has no room for. The person deploying may not be the
+ * person who pays, so the owner is told once per account, with a link to the
+ * license page where the options are. Nothing is blocked, and the mail says
+ * so. `url` is the whole address, built by the caller. A failed send throws,
+ * and the caller leaves the account unmarked so the next report tries again. */
+export async function sendOverLimitEmail(args: {
+  to: string
+  accountId: string
+  used: number
+  limit: number
+  url: string
+}): Promise<void> {
+  const SITE = site()
+  const lapse = `This link is personal to you and expires in 30 days. If it has lapsed, open it and I will email a new one${
+    SITE ? `, or ask for one at ${SITE}/access/resend` : ''
+  }.`
+  await deliver({
+    from: FROM,
+    to: args.to,
+    subject: `NetSuite account ${args.accountId} is over your WareKit license limit`,
+    text: `A deploy just reported NetSuite account ${
+      args.accountId
+    } on your WareKit license. The license covers ${args.limit} account${
+      args.limit === 1 ? '' : 's'
+    } and ${args.used} ${
+      args.used === 1 ? 'is' : 'are'
+    } already in use, so this one is over.
+
+Nothing is blocked and nothing has stopped working. Your license page lists the accounts and the options: remove an account that was added by mistake, or upgrade.
+
+${args.url}
+
+${lapse}
+
+You get this notice once for each account.
+
+— Alec`,
+  })
+}
+
 /* How long a buyer should wait before assuming something went wrong. Change
  * this and the email changes with it -- it is a commitment, so it lives where
  * it can be found rather than buried in a sentence. */

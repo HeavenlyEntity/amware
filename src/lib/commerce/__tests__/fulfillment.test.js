@@ -15,6 +15,7 @@ import {
   sendAccessLinkEmail,
   sendBoilerplateConfirmationEmail,
   sendLicenseLinkEmail,
+  sendOverLimitEmail,
   notifyManualFulfilment,
 } from '../fulfillment'
 
@@ -470,5 +471,41 @@ describe('a send Resend refuses', () => {
     send.mockResolvedValueOnce(refused)
     const err = await calls.sendLicenseLinkEmail().catch((e) => e)
     expect(err.message).not.toContain('owner@acme.com')
+  })
+})
+
+describe('over-limit email', () => {
+  const args = {
+    to: 'owner@example.com',
+    accountId: '7654321',
+    used: 1,
+    limit: 1,
+    url: 'https://example.com/access/seats/tok',
+  }
+
+  it('tells the owner which account, the count, and where to go', async () => {
+    await sendOverLimitEmail(args)
+
+    expect(send).toHaveBeenCalledTimes(1)
+    const mail = send.mock.calls[0][0]
+    expect(mail.to).toBe('owner@example.com')
+    expect(mail.subject).toContain('7654321')
+    expect(body()).toContain('covers 1 account and 1 is already in use')
+    expect(body()).toContain('https://example.com/access/seats/tok')
+    expect(body()).toContain('Nothing is blocked')
+    expect(body()).not.toMatch(/licence/i)
+  })
+
+  it('uses plurals for more than one account', async () => {
+    await sendOverLimitEmail({ ...args, used: 3, limit: 3 })
+    expect(body()).toContain('covers 3 accounts and 3 are already in use')
+  })
+
+  it('throws when Resend refuses, so the caller does not mark it sent', async () => {
+    send.mockResolvedValueOnce({
+      data: null,
+      error: { name: 'rate_limit_exceeded', message: 'Slow down' },
+    })
+    await expect(sendOverLimitEmail(args)).rejects.toThrow(/refused/)
   })
 })

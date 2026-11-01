@@ -93,6 +93,18 @@ describe('activateLicense', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('waits 8 seconds unless the caller asks for less', async () => {
+    const { activateLicense } = await load()
+    vi.stubGlobal('fetch', reply(200, { instance: { id: 'inst_abc' } }))
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+
+    await activateLicense({ key: 'K', instanceName: '1' })
+    await activateLicense({ key: 'K', instanceName: '1', timeoutMs: 2000 })
+
+    expect(timeout.mock.calls.map(([ms]) => ms)).toEqual([8000, 2000])
+    timeout.mockRestore()
+  })
+
   it('never puts the API key in an error message', async () => {
     const { activateLicense } = await load()
     vi.stubGlobal('fetch', reply(401, { message: 'bad key' }))

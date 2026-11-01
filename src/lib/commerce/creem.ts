@@ -126,7 +126,8 @@ const LICENSE_TIMEOUT_MS = 8000
    message: the detail is Creem's body, and only outside production. */
 async function licenseCall(
   path: '/v1/licenses/activate' | '/v1/licenses/deactivate',
-  body: Record<string, string>
+  body: Record<string, string>,
+  timeoutMs: number = LICENSE_TIMEOUT_MS
 ): Promise<Response> {
   if (!API_KEY) throw new CreemError('CREEM_API_KEY is not configured', 0)
 
@@ -139,7 +140,7 @@ async function licenseCall(
         'x-api-key': API_KEY,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(LICENSE_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     })
   } catch {
     throw new CreemError('Creem license call could not reach Creem', 0)
@@ -158,14 +159,21 @@ async function licenseCall(
 
 // POST /v1/licenses/activate — Creem does not merge repeat activations, so a
 // caller checks its own table first. `instanceName` is the NetSuite account.
+// `timeoutMs` shortens the wait for a caller with a tighter deadline, such as
+// the report route, whose client gives up at 3 seconds. Left out, it is 8.
 export async function activateLicense(args: {
   key: string
   instanceName: string
+  timeoutMs?: number
 }): Promise<{ instanceId: string }> {
-  const res = await licenseCall('/v1/licenses/activate', {
-    key: args.key,
-    instance_name: args.instanceName,
-  })
+  const res = await licenseCall(
+    '/v1/licenses/activate',
+    {
+      key: args.key,
+      instance_name: args.instanceName,
+    },
+    args.timeoutMs
+  )
   const data = await res.json().catch(() => null)
   const instanceId = data?.instance?.id
   if (typeof instanceId !== 'string' || !instanceId) {
