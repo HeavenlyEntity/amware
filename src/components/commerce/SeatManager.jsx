@@ -104,7 +104,17 @@ export function SeatManager({ token, initialSeats, repo, children }) {
           role="status"
           className="mt-6 rounded-md border border-zinc-900/10 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-800/40"
         >
-          {state.ok.manual ? (
+          {state.ok.unsaved ? (
+            <p className="text-zinc-700 dark:text-zinc-300">
+              @{state.ok.username} was invited, but I could not save the seat to
+              your license. Refresh the page to check. If @{state.ok.username}{' '}
+              does not show,{' '}
+              <a href="/contact" className="underline">
+                get in touch
+              </a>
+              .
+            </p>
+          ) : state.ok.manual ? (
             <p className="text-zinc-700 dark:text-zinc-300">
               @{state.ok.username} is on the license. I&apos;ll send the invite
               by hand.

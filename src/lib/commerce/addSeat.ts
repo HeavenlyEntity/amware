@@ -32,7 +32,14 @@ import { canAddSeat, listSeats, seatsFullMessage } from './seats'
 
 export type AddSeatState = {
   error: { field: 'githubUsername' | null; message: string } | null
-  ok: { username: string; inviteUrl: string | null; manual: boolean } | null
+  ok: {
+    username: string
+    inviteUrl: string | null
+    manual: boolean
+    /** True when the invitation went out but the seat could not be stored.
+        `seats` then does not include the account. */
+    unsaved: boolean
+  } | null
   seats: { used: string[]; limit: number } | null
 }
 
@@ -151,9 +158,10 @@ export async function addSeat(
   /* Appended only when the account is genuinely new to the license. Writing a
      row for someone already on it would spend a seat on a re-invitation,
      which is how a full team locks itself out by retrying. */
+  let saved = true
   if (verdict.reason === 'new') {
-    await payload
-      .update({
+    try {
+      await payload.update({
         collection: 'licenses',
         id: license.id,
         overrideAccess: true,
@@ -168,11 +176,19 @@ export async function addSeat(
           ],
         },
       })
-      .catch(() => console.error('Seat record failed', license.id))
+    } catch (err) {
+      /* The invitation cannot be taken back, so say what is true: it went
+         out, and the seat was not stored. Showing the account as added would
+         be a seat that vanishes on the next load. */
+      saved = false
+      console.error('Seat record failed', license.id, err)
+    }
   }
 
   const used =
-    verdict.reason === 'new' ? [...snapshot.used, username] : snapshot.used
+    verdict.reason === 'new' && saved
+      ? [...snapshot.used, username]
+      : snapshot.used
 
   return {
     error: null,
@@ -180,6 +196,7 @@ export async function addSeat(
       username,
       inviteUrl: invite.ok ? invite.url : null,
       manual: !invite.ok,
+      unsaved: !saved,
     },
     seats: { used, limit },
   }

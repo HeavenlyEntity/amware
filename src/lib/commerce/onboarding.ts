@@ -250,7 +250,16 @@ export async function completeOnboarding(
      and not added twice. A purchase with no license has no limit to read. */
   const licenseId = relationId(purchase.license) as string | number | null
   if (licenseId) {
-    const found = await licenseFromClaims(payload, { licenseId })
+    /* A lookup that fails says nothing about whether the license is full, so
+       it refuses and sends nothing, exactly like the lookups above. Fail-open
+       here would let a database blink hand out a seat past the limit. */
+    let found: Awaited<ReturnType<typeof licenseFromClaims>>
+    try {
+      found = await licenseFromClaims(payload, { licenseId })
+    } catch (err) {
+      console.error('Onboarding license lookup failed', purchase.id, err)
+      return fail(null, TRY_AGAIN)
+    }
     if (found?.license) {
       const members = found.license.seatMembers ?? []
       const limit = licenseLimits(

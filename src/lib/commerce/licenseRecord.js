@@ -242,22 +242,40 @@ export async function currentKey(payload, licenseId) {
   return newest?.licenseKey ?? null
 }
 
+/* Payload throws with status 404 for a document that is not there. That is
+   the only failure that means "not found"; a dropped connection or a timeout
+   says nothing about whether the row exists. */
+const isNotFound = (err) => err?.status === 404
+
 /**
  * Resolve a verified token's claims to a license. `claims.licenseId` wins;
  * otherwise the purchase it names leads to one. The purchase is null when the
- * claims carried only a license. Returns null when nothing resolves, and
- * never throws at a buyer.
+ * claims carried only a license. Returns null when nothing resolves.
+ *
+ * Only "not found" resolves to null. Any other failure, such as the database
+ * being unreachable, is thrown, because treating it as a missing license
+ * would tell a paying buyer something false, and would let a caller that
+ * checks a limit fail open. Every caller catches it and shows its own
+ * retry state.
  *
  * `product` is the kit row that sets this license's limits (its stack and
  * tier), or null for Enterprise, which has none.
  */
 export async function licenseFromClaims(payload, claims) {
-  const byId = async (collection, id) =>
-    id == null
-      ? null
-      : payload
-          .findByID({ collection, id, depth: 0, overrideAccess: true })
-          .catch(() => null)
+  const byId = async (collection, id) => {
+    if (id == null) return null
+    try {
+      return await payload.findByID({
+        collection,
+        id,
+        depth: 0,
+        overrideAccess: true,
+      })
+    } catch (err) {
+      if (isNotFound(err)) return null
+      throw err
+    }
+  }
 
   const purchase = await byId('purchases', claims?.purchaseId)
   const license = await byId(
@@ -268,20 +286,18 @@ export async function licenseFromClaims(payload, claims) {
 
   let product = null
   if (license.tier && license.tier !== 'enterprise') {
-    const found = await payload
-      .find({
-        collection: 'products',
-        where: {
-          and: [
-            { stack: { equals: license.stack } },
-            { tier: { equals: license.tier } },
-          ],
-        },
-        depth: 0,
-        limit: 1,
-        overrideAccess: true,
-      })
-      .catch(() => null)
+    const found = await payload.find({
+      collection: 'products',
+      where: {
+        and: [
+          { stack: { equals: license.stack } },
+          { tier: { equals: license.tier } },
+        ],
+      },
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+    })
     product = found?.docs?.[0] ?? null
   }
 

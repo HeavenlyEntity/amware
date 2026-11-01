@@ -27,7 +27,7 @@ function fakePayload({
     })),
     findByID: vi.fn(async ({ collection, id }) => {
       const row = tables[collection].find((r) => r.id === id)
-      if (!row) throw new Error('Not Found')
+      if (!row) throw Object.assign(new Error('Not Found'), { status: 404 })
       return row
     }),
     create: vi.fn(async ({ collection, data }) => ({ id: 500, ...data })),
@@ -441,6 +441,59 @@ describe('licenseFromClaims', () => {
         fakePayload({ ...rows, purchases: [{ id: 8, license: null }] }),
         { purchaseId: 8 }
       )
+    ).resolves.toBeNull()
+  })
+})
+
+describe('licenseFromClaims: a failure is not a missing license', () => {
+  const rows = {
+    licenses: [{ id: 4, stack: 'next-netsuite', tier: 'team' }],
+    purchases: [{ id: 8, license: 4 }],
+    products: [{ id: 60, stack: 'next-netsuite', tier: 'team', seats: 5 }],
+  }
+  const down = Object.assign(new Error('connection terminated'), {
+    status: 500,
+  })
+
+  it('rethrows when the purchase read fails', async () => {
+    const payload = fakePayload(rows)
+    payload.findByID.mockRejectedValueOnce(down)
+    await expect(licenseFromClaims(payload, { purchaseId: 8 })).rejects.toBe(
+      down
+    )
+  })
+
+  it('rethrows when the license read fails', async () => {
+    const payload = fakePayload(rows)
+    payload.findByID.mockImplementation(async ({ collection }) => {
+      if (collection === 'licenses') throw down
+      return rows.purchases[0]
+    })
+    await expect(licenseFromClaims(payload, { purchaseId: 8 })).rejects.toBe(
+      down
+    )
+  })
+
+  it('rethrows an error with no status at all, as it cannot be proven missing', async () => {
+    const payload = fakePayload(rows)
+    payload.findByID.mockRejectedValueOnce(new Error('boom'))
+    await expect(licenseFromClaims(payload, { purchaseId: 8 })).rejects.toThrow(
+      'boom'
+    )
+  })
+
+  it('rethrows when the kit row lookup fails', async () => {
+    const payload = fakePayload(rows)
+    payload.find.mockRejectedValueOnce(down)
+    await expect(licenseFromClaims(payload, { purchaseId: 8 })).rejects.toBe(
+      down
+    )
+  })
+
+  it('still answers null for a 404', async () => {
+    const payload = fakePayload(rows)
+    await expect(
+      licenseFromClaims(payload, { purchaseId: 999 })
     ).resolves.toBeNull()
   })
 })

@@ -29,7 +29,9 @@ function mockDb({ license, purchase, product = teamKit, key = KEY } = {}) {
   db = {
     findByID: vi.fn(async ({ collection, id }) => {
       const row = collection === 'licenses' ? license : purchase
-      if (!row || row.id !== id) throw new Error('not found')
+      if (!row || row.id !== id) {
+        throw Object.assign(new Error('Not Found'), { status: 404 })
+      }
       return row
     }),
     find: vi.fn(async ({ collection }) =>
@@ -166,6 +168,27 @@ describe('License page', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText(/connection refused/)).toBeNull()
   })
+
+  it.each(['purchases', 'licenses'])(
+    'shows the refresh state, not "could not find", when the %s read fails',
+    async (failing) => {
+      mockDb({ license: license(), purchase: { id: 42, license: 9 } })
+      const ok = db.findByID.getMockImplementation()
+      db.findByID.mockImplementation(async (args) => {
+        if (args.collection === failing) {
+          throw Object.assign(new Error('connection terminated'), {
+            status: 500,
+          })
+        }
+        return ok(args)
+      })
+      await renderPage(token())
+      expect(
+        screen.getByRole('heading', { name: /could not be loaded/i })
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/could not find this license/i)).toBeNull()
+    }
+  )
 
   it('tells a license with no key to get in touch', async () => {
     mockDb({

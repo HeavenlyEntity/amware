@@ -51,7 +51,9 @@ const world = ({ license = {}, purchase = {}, product = teamProduct } = {}) => {
   getPayloadClient.mockResolvedValue({
     findByID: vi.fn(async ({ collection, id }) => {
       const row = rows[collection]
-      if (!row || row.id !== id) throw new Error('not found')
+      if (!row || row.id !== id) {
+        throw Object.assign(new Error('Not Found'), { status: 404 })
+      }
       return row
     }),
     find: vi.fn(async () => ({ docs: product ? [product] : [] })),
@@ -126,6 +128,34 @@ describe('addSeat: the link is the authentication', () => {
     expect(state.error?.message).toMatch(/try again/i)
     expect(inviteToRepo).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['purchase', 'purchases'],
+    ['license', 'licenses'],
+  ])(
+    'answers a failed %s read with a try-again, never "no longer valid"',
+    async (_label, failing) => {
+      const rows = world()
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const payload = await getPayloadClient()
+      payload.findByID.mockImplementation(async ({ collection }) => {
+        if (collection === failing) {
+          throw Object.assign(new Error('connection terminated'), {
+            status: 500,
+          })
+        }
+        return rows[collection]
+      })
+      const state = await add('octocat')
+      error.mockRestore()
+
+      expect(state.error?.message).toMatch(/nothing was sent/i)
+      expect(state.error?.message).toMatch(/try again/i)
+      expect(state.error?.message).not.toMatch(/no longer valid/i)
+      expect(inviteToRepo).not.toHaveBeenCalled()
+      expect(update).not.toHaveBeenCalled()
+    }
+  )
 
   it('works from a token that names only a license', async () => {
     world()
@@ -266,6 +296,27 @@ describe('addSeat: delivery', () => {
     expect(state.ok?.manual).toBe(true)
     // The seat is spent either way: a human is going to finish this invite.
     expect(update).toHaveBeenCalled()
+  })
+
+  it('does not show a seat as added when it could not be stored', async () => {
+    world()
+    update.mockRejectedValue(new Error('write failed'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await add('octocat')
+    error.mockRestore()
+
+    // The invitation cannot be taken back, so it did go out.
+    expect(inviteToRepo).toHaveBeenCalled()
+    expect(state.error).toBeNull()
+    expect(state.ok).toMatchObject({ username: 'octocat', unsaved: true })
+    // But the count does not include an account that was never stored.
+    expect(state.seats).toEqual({ used: ['owner'], limit: 5 })
+  })
+
+  it('does not call a stored seat unsaved', async () => {
+    world()
+    const state = await add('octocat')
+    expect(state.ok.unsaved).toBe(false)
   })
 
   it('rejects an account GitHub says does not exist', async () => {

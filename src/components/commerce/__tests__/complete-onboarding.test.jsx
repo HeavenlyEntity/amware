@@ -454,6 +454,24 @@ describe('completeOnboarding', () => {
       expect(updatesTo('licenses')).toHaveLength(0)
     })
 
+    it('refuses, rather than failing open, when the license cannot be read', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      licenseFromClaims.mockRejectedValue(
+        Object.assign(new Error('connection terminated'), { status: 500 })
+      )
+      const state = await submit({ githubUsername: 'newcomer' })
+      error.mockRestore()
+
+      expect(state.ok).toBeNull()
+      expect(state.error.message).toMatch(/nothing was sent/i)
+      expect(state.error.message).toMatch(/try again/i)
+      expect(claimGithubUsername).not.toHaveBeenCalled()
+      expect(inviteToRepo).not.toHaveBeenCalled()
+      expect(fetch).not.toHaveBeenCalled()
+      expect(updatesTo('licenses')).toHaveLength(0)
+      expect(row.githubUsername).toBeNull()
+    })
+
     it('does not look at a limit when the purchase has no license', async () => {
       row.license = null
       attachPurchase.mockRejectedValue(new Error('no'))
