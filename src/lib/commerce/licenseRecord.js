@@ -15,7 +15,14 @@ import {
   creemUpgradeProductIdFor,
 } from './creemEnv'
 import { tryCreateAccessToken } from './accessToken'
-import { highestTier, joinDecision, tierRank } from './license'
+import {
+  activeAccounts,
+  highestTier,
+  joinDecision,
+  licenseLimits,
+  tierRank,
+} from './license'
+import { seatsUsed } from './seats'
 
 /**
  * Checkout metadata values are strings. Anything that is not a positive
@@ -418,6 +425,65 @@ export async function enterpriseLinkFor({ payload, license, user }) {
     return null
   }
   return `${site}/access/seats/${signed.token}`
+}
+
+/* Every kit row, once a request. A list view runs the field hooks for every
+   row at the same time, so the promise is what is kept, and N licenses share
+   one read. A failed read is logged once and counts as no rows. No `req`
+   here, as in `enterpriseLinkFor`: a query given one that fails kills the
+   transaction of the save this read may be part of. */
+function kitRows(payload, context) {
+  const cache = context ?? {}
+  cache.licenseKitRows ??= payload
+    .find({
+      collection: 'products',
+      where: { tier: { in: ['lite', 'pro', 'team'] } },
+      depth: 0,
+      pagination: false,
+      overrideAccess: true,
+    })
+    .then((found) => found?.docs ?? [])
+    .catch((err) => {
+      console.error('License usage: kit rows could not be read', err)
+      return []
+    })
+  return cache.licenseKitRows
+}
+
+/**
+ * What a license uses against what it allows, for the admin to read: `1 / 5`.
+ * Only active accounts count. A limit with neither an override nor a kit row
+ * behind it reads `?`, because `licenseLimits` would otherwise show a made-up
+ * 1. Lite and a license with no tier do not track accounts.
+ *
+ * For a signed-in admin only, as `enterpriseLinkFor` is: a server read has no
+ * user and gets null, without touching the database. Never throws, because it
+ * runs in an `afterRead` hook. `context` is `req.context`.
+ */
+export async function licenseUsageFor({ payload, license, user, context }) {
+  if (user?.collection !== ADMIN_COLLECTION || !license?.id) return null
+
+  const rows = await kitRows(payload, context)
+  const product =
+    rows.find((r) => r.stack === license.stack && r.tier === license.tier) ??
+    null
+  const limits = licenseLimits(license, product)
+  const shown = (limit, override) =>
+    product || Number.isFinite(override) ? limit : '?'
+
+  return {
+    seats: `${seatsUsed(license.seatMembers)} / ${shown(
+      limits.seats,
+      license.seatOverride
+    )}`,
+    accounts:
+      limits.accounts == null
+        ? 'Not tracked'
+        : `${activeAccounts(license.accounts)} / ${shown(
+            limits.accounts,
+            license.accountOverride
+          )}`,
+  }
 }
 
 /**

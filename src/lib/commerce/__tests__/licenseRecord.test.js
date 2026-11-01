@@ -7,6 +7,7 @@ import {
   expectedProductIds,
   licenseFromClaims,
   licenseIdFrom,
+  licenseUsageFor,
   overrideError,
   recomputeTier,
   syncTierAfterChange,
@@ -1013,6 +1014,161 @@ describe('enterpriseLinkFor', () => {
       })
     ).resolves.toBeNull()
     error.mockRestore()
+  })
+})
+
+describe('licenseUsageFor', () => {
+  const admin = { collection: 'users' }
+  const kits = [
+    { stack: 'next-netsuite', tier: 'team', seats: 5, netsuiteAccounts: 3 },
+    { stack: 'next-netsuite', tier: 'pro', seats: 1, netsuiteAccounts: 1 },
+    { stack: 'react-netsuite', tier: 'team', seats: 7, netsuiteAccounts: 2 },
+  ]
+  const team = {
+    id: 31,
+    stack: 'next-netsuite',
+    tier: 'team',
+    seatMembers: [{ githubUsername: 'a' }],
+    accounts: [{ accountId: '1', status: 'active' }],
+  }
+  const usage = (license, { payload, user = admin, context = {} } = {}) =>
+    licenseUsageFor({
+      payload: payload ?? fakePayload({ products: kits }),
+      license,
+      user,
+      context,
+    })
+
+  it('shows used against what the kit row allows', async () => {
+    expect(await usage(team)).toEqual({ seats: '1 / 5', accounts: '1 / 3' })
+  })
+
+  it('takes the row for the license’s own stack and tier', async () => {
+    expect(await usage({ ...team, stack: 'react-netsuite' })).toEqual({
+      seats: '1 / 7',
+      accounts: '1 / 2',
+    })
+    expect(await usage({ ...team, tier: 'pro' })).toEqual({
+      seats: '1 / 1',
+      accounts: '1 / 1',
+    })
+  })
+
+  it('counts active accounts only', async () => {
+    const out = await usage({
+      ...team,
+      accounts: [
+        { accountId: '1', status: 'active' },
+        { accountId: '2', status: 'active' },
+        { accountId: '3', status: 'over_limit' },
+      ],
+    })
+    expect(out.accounts).toBe('2 / 3')
+  })
+
+  it('counts one person once, however they were typed', async () => {
+    const out = await usage({
+      ...team,
+      seatMembers: [{ githubUsername: 'Ann' }, { githubUsername: 'ann' }],
+    })
+    expect(out.seats).toBe('1 / 5')
+  })
+
+  it('lets an override win, and reads Enterprise from its overrides', async () => {
+    expect(await usage({ ...team, seatOverride: 9 })).toMatchObject({
+      seats: '1 / 9',
+    })
+    expect(
+      await usage({
+        ...team,
+        tier: 'enterprise',
+        seatOverride: 20,
+        accountOverride: 8,
+      })
+    ).toEqual({ seats: '1 / 20', accounts: '1 / 8' })
+  })
+
+  it('says accounts are not tracked on Lite and with no tier', async () => {
+    const lite = { stack: 'next-netsuite', tier: 'lite', seats: 1 }
+    const payload = fakePayload({ products: [...kits, lite] })
+    expect(await usage({ ...team, tier: 'lite' }, { payload })).toEqual({
+      seats: '1 / 1',
+      accounts: 'Not tracked',
+    })
+    expect((await usage({ ...team, tier: null })).accounts).toBe('Not tracked')
+  })
+
+  it('does not make up a limit it has no row for', async () => {
+    const payload = fakePayload({ products: [] })
+    expect(await usage(team, { payload })).toEqual({
+      seats: '1 / ?',
+      accounts: '1 / ?',
+    })
+  })
+
+  it('reads the kit rows once however many licenses load', async () => {
+    const payload = fakePayload({ products: kits })
+    const context = {}
+
+    const rows = await Promise.all(
+      Array.from({ length: 50 }, (_, i) =>
+        usage({ ...team, id: i + 1 }, { payload, context })
+      )
+    )
+
+    expect(rows).toHaveLength(50)
+    expect(rows[49]).toEqual({ seats: '1 / 5', accounts: '1 / 3' })
+    expect(payload.find).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads outside the transaction, so a failure cannot kill a save', async () => {
+    const payload = fakePayload({ products: kits })
+    await usage(team, { payload })
+    expect(payload.find.mock.calls[0][0]).not.toHaveProperty('req')
+    expect(payload.find.mock.calls[0][0]).toMatchObject({
+      collection: 'products',
+      overrideAccess: true,
+    })
+  })
+
+  it('never reaches a read with no admin on it', async () => {
+    for (const user of [null, undefined, { collection: 'customers' }]) {
+      const payload = fakePayload({ products: kits })
+      const out = await licenseUsageFor({
+        payload,
+        license: team,
+        user,
+        context: {},
+      })
+      expect(out).toBeNull()
+      expect(payload.find).not.toHaveBeenCalled()
+    }
+  })
+
+  it('never throws, and shows what it does know, when the read fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const payload = fakePayload({ products: kits })
+    payload.find.mockRejectedValue(new Error('db down'))
+    const context = {}
+
+    expect(await usage(team, { payload, context })).toEqual({
+      seats: '1 / ?',
+      accounts: '1 / ?',
+    })
+    await usage(team, { payload, context })
+    expect(payload.find).toHaveBeenCalledTimes(1)
+    expect(error).toHaveBeenCalledTimes(1)
+    error.mockRestore()
+  })
+
+  it('copes with a request that has no context', async () => {
+    expect(
+      await licenseUsageFor({
+        payload: fakePayload({ products: kits }),
+        license: team,
+        user: admin,
+      })
+    ).toEqual({ seats: '1 / 5', accounts: '1 / 3' })
   })
 })
 

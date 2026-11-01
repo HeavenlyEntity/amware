@@ -1,6 +1,48 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Field } from 'payload'
 
-import { enterpriseLinkFor, overrideError } from '@/lib/commerce/licenseRecord'
+import {
+  enterpriseLinkFor,
+  licenseUsageFor,
+  overrideError,
+} from '@/lib/commerce/licenseRecord'
+
+/* For a field no one writes and only an admin reads. The hooks behind these
+   fields check the user themselves, as this is skipped by a Local API call
+   that overrides access. */
+const ADMIN_READ_ONLY = {
+  read: ({ req: { user } }) => user?.collection === 'users',
+  create: () => false,
+  update: () => false,
+}
+
+/* A list column worked out on read. `virtual: true` means no column and no
+   SQL; see `enterpriseLink`. */
+const usageField = (
+  name: string,
+  label: string,
+  pick: 'seats' | 'accounts',
+  description: string
+): Field => ({
+  name,
+  label,
+  type: 'text',
+  virtual: true,
+  access: ADMIN_READ_ONLY,
+  hooks: {
+    afterRead: [
+      async ({ data, req }) => {
+        const usage = await licenseUsageFor({
+          payload: req.payload,
+          license: data,
+          user: req.user,
+          context: req.context,
+        })
+        return usage?.[pick] ?? null
+      },
+    ],
+  },
+  admin: { readOnly: true, position: 'sidebar', description },
+})
 
 /* One license is one right to use a kit, however many purchases built it up.
    An upgrade adds a purchase, not a license, so seats and accounts live here
@@ -14,6 +56,8 @@ export const Licenses: CollectionConfig = {
       'ownerEmail',
       'stack',
       'tier',
+      'seatsUsage',
+      'accountsUsage',
       'needsReview',
       'tierChangedAt',
     ],
@@ -59,6 +103,10 @@ export const Licenses: CollectionConfig = {
         { label: 'Team', value: 'team' },
         { label: 'Enterprise', value: 'enterprise' },
       ],
+      /* `readOnly` is only the form. This stops a stale form posting an old
+         tier back; `recomputeTier` writes with `overrideAccess`, which skips
+         it. */
+      access: { update: () => false },
       admin: {
         readOnly: true,
         position: 'sidebar',
@@ -67,6 +115,19 @@ export const Licenses: CollectionConfig = {
           'recomputed whenever one changes. Empty means nothing is paid.',
       },
     },
+    usageField(
+      'seatsUsage',
+      'Developers',
+      'seats',
+      'Developers used and allowed. The limit is the override, or the kit ' +
+        'row for this stack and tier.'
+    ),
+    usageField(
+      'accountsUsage',
+      'Accounts',
+      'accounts',
+      'Active NetSuite accounts and how many are allowed.'
+    ),
     {
       name: 'seatOverride',
       type: 'number',
@@ -97,10 +158,11 @@ export const Licenses: CollectionConfig = {
       labels: { singular: 'Seat', plural: 'Seats' },
       admin: {
         description:
-          'Every GitHub account this license has granted, including the ' +
-          'purchaser. The length is the seats used; the limit comes from the ' +
-          'tier. Rows are appended, never replaced, so removing someone here ' +
-          'does not take their repository access away. Do that on GitHub.',
+          'Every GitHub account on this license, including the purchaser. ' +
+          'The length is the seats used; the limit is the override, or the ' +
+          'kit row for this tier. The Remove button on the license page also ' +
+          'takes repository access away. Deleting a row here does not, so ' +
+          'do that on GitHub.',
       },
       fields: [
         { name: 'githubUsername', type: 'text', required: true },
@@ -181,11 +243,7 @@ export const Licenses: CollectionConfig = {
       name: 'enterpriseLink',
       type: 'text',
       virtual: true,
-      access: {
-        read: ({ req: { user } }) => user?.collection === 'users',
-        create: () => false,
-        update: () => false,
-      },
+      access: ADMIN_READ_ONLY,
       hooks: {
         afterRead: [
           ({ data, req }) =>
@@ -211,8 +269,9 @@ export const Licenses: CollectionConfig = {
       admin: {
         position: 'sidebar',
         description:
-          'Set for disputes, partial refunds, an overpaid upgrade and ' +
-          'anything else a person should look at. Clear it when handled.',
+          'Set for disputes, partial refunds, an overpaid or refused ' +
+          'upgrade, a seat invite to send by hand and anything else a person ' +
+          'should look at. Clear it when handled.',
       },
     },
     {

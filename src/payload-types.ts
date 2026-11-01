@@ -786,6 +786,14 @@ export interface License {
    */
   tier?: ('lite' | 'pro' | 'team' | 'enterprise') | null
   /**
+   * Developers used and allowed. The limit is the override, or the kit row for this stack and tier.
+   */
+  seatsUsage?: string | null
+  /**
+   * Active NetSuite accounts and how many are allowed.
+   */
+  accountsUsage?: string | null
+  /**
    * Developers allowed. Empty except on Enterprise, where it is required; every other tier takes its limit from the product.
    */
   seatOverride?: number | null
@@ -794,7 +802,7 @@ export interface License {
    */
   accountOverride?: number | null
   /**
-   * Every GitHub account this license has granted, including the purchaser. The length is the seats used; the limit comes from the tier. Rows are appended, never replaced, so removing someone here does not take their repository access away. Do that on GitHub.
+   * Every GitHub account on this license, including the purchaser. The length is the seats used; the limit is the override, or the kit row for this tier. The Remove button on the license page also takes repository access away. Deleting a row here does not, so do that on GitHub.
    */
   seatMembers?:
     | {
@@ -833,7 +841,7 @@ export interface License {
    */
   enterpriseLink?: string | null
   /**
-   * Set for disputes, partial refunds, an overpaid upgrade and anything else a person should look at. Clear it when handled.
+   * Set for disputes, partial refunds, an overpaid or refused upgrade, a seat invite to send by hand and anything else a person should look at. Clear it when handled.
    */
   needsReview?: boolean | null
   tierChangedAt?: string | null
@@ -1289,6 +1297,8 @@ export interface LicensesSelect<T extends boolean = true> {
   ownerEmail?: T
   stack?: T
   tier?: T
+  seatsUsage?: T
+  accountsUsage?: T
   seatOverride?: T
   accountOverride?: T
   seatMembers?:
