@@ -6,6 +6,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
    define. Same reason buy-button.test.jsx lives here. */
 vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
 vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
+vi.mock('@/lib/commerce/licenseRecord', () => ({ attachPurchase: vi.fn() }))
 vi.mock('@/lib/commerce/fulfillment', () => ({
   sendBoilerplateConfirmationEmail: vi.fn(),
 }))
@@ -13,6 +14,7 @@ vi.mock('@/lib/commerce/fulfillment', () => ({
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
 import { sendBoilerplateConfirmationEmail } from '@/lib/commerce/fulfillment'
+import { attachPurchase } from '@/lib/commerce/licenseRecord'
 import { claimFreeKit } from '@/lib/commerce/claim'
 import { ClaimFreeKit } from '@/components/commerce/ClaimFreeKit'
 
@@ -21,6 +23,7 @@ const liteKit = {
   name: 'WareKit React NetSuite (Lite)',
   slug: 'warekit-react-netsuite-lite',
   type: 'boilerplate',
+  stack: 'react-netsuite',
   price: 0,
   currency: 'USD',
   githubRepo: 'amwaredotdev/warekit-react-netsuite-lite',
@@ -203,6 +206,73 @@ describe('claimFreeKit — delivery', () => {
     sendBoilerplateConfirmationEmail.mockRejectedValue(new Error('resend down'))
     const state = await claim()
     expect(state.ok).toBeTruthy()
+  })
+})
+
+describe('claimFreeKit — the license', () => {
+  it('attaches the claim to a Lite license', async () => {
+    withItem(liteKit)
+    await claim({ email: 'Buyer@Example.com' })
+
+    expect(attachPurchase).toHaveBeenCalledTimes(1)
+    const [, args] = attachPurchase.mock.calls[0]
+    expect(args).toMatchObject({
+      purchase: { id: 99 },
+      email: 'buyer@example.com',
+      stack: 'react-netsuite',
+      grantsTier: 'lite',
+      environment: 'production',
+    })
+    // The Lite username is not carried into the license's seats.
+    expect(JSON.stringify(args)).not.toContain('octocat')
+    expect(update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'licenses' })
+    )
+  })
+
+  it('does not fail the claim when the license cannot be attached', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    withItem(liteKit)
+    attachPurchase.mockRejectedValue(new Error('db down'))
+
+    const state = await claim()
+
+    expect(state.error).toBeNull()
+    expect(state.ok).toBeTruthy()
+    expect(inviteToRepo).toHaveBeenCalled()
+    expect(error).toHaveBeenCalledWith(
+      'Free claim license attach failed',
+      'free:warekit-react-netsuite-lite:octocat',
+      expect.any(Error)
+    )
+    error.mockRestore()
+  })
+
+  it('does not attach a repeat claim that already has a license', async () => {
+    withItem(liteKit, [{ id: 42, license: 7 }])
+    await claim()
+    expect(attachPurchase).not.toHaveBeenCalled()
+  })
+
+  it('attaches a repeat claim whose first attempt never got a license', async () => {
+    withItem(liteKit, [{ id: 42, email: 'first@example.com', license: null }])
+    await claim()
+    expect(attachPurchase.mock.calls[0][1]).toMatchObject({
+      purchase: { id: 42 },
+      email: 'first@example.com',
+    })
+  })
+
+  it('still delivers a kit that has no stack, and says so in the log', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    withItem({ ...liteKit, stack: undefined })
+
+    const state = await claim()
+
+    expect(state.ok).toBeTruthy()
+    expect(attachPurchase).not.toHaveBeenCalled()
+    expect(error).toHaveBeenCalled()
+    error.mockRestore()
   })
 })
 

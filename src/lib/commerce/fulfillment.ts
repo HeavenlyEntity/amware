@@ -55,9 +55,9 @@ export async function sendBoilerplateConfirmationEmail(args: {
   inviteUrl?: string | null
   /** True when GitHub reports the buyer already had access. */
   alreadyHadAccess?: boolean
-  /** Signed seat-management link. Only for licences with more than one seat. */
+  /** Signed link to the license page. Sent to every paid kit buyer. */
   seatsUrl?: string | null
-  /** How many accounts the licence covers, when more than one. */
+  /** Still passed by the Whop webhook; the email no longer reads it. */
   seats?: number
   /** Signed link back to the setup page, for a buyer who closed the tab. */
   onboardingUrl?: string | null
@@ -66,7 +66,7 @@ export async function sendBoilerplateConfirmationEmail(args: {
    * whichever branch applies -- unlike `onboardingUrl`, it asks nothing.
    */
   setupUrl?: string | null
-  /** The full licence key. This email goes only to the buyer's own address. */
+  /** The full license key. This email goes only to the buyer's own address. */
   licenseKey?: string | null
 }): Promise<void> {
   const target = args.githubUsername
@@ -121,15 +121,16 @@ GitHub sends its own email when the invitation goes out, and it does sometimes l
   }
 
   /* Appended rather than woven into each branch: whether the invitation sent
-     is a different question from how many accounts the licence covers, and
-     the team half of the email should read the same either way. */
-  if (args.seatsUrl && args.seats && args.seats > 1) {
+     is a different question from where the license lives, and this half of
+     the email should read the same either way. Every paid kit gets it, not
+     only a multi-developer one, because a Pro buyer upgrades from here. */
+  if (args.seatsUrl) {
     body += `
 
-Your licence covers ${args.seats} GitHub accounts. Add the rest of your team here, one invitation each:
+Your license page, for your key, your team and upgrades:
 ${args.seatsUrl}
 
-Keep that link — it is how you add someone later, and it does not need an account.`
+Keep that link — it is how you get back to your license, and it does not need an account.`
   }
 
   /* The setup page shows the key masked and says the full one is here; this
@@ -138,7 +139,7 @@ Keep that link — it is how you add someone later, and it does not need an acco
   if (args.licenseKey) {
     body += `
 
-Your licence key:
+Your license key:
 ${args.licenseKey}`
   }
 

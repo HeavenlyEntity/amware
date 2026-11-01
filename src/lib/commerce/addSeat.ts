@@ -64,7 +64,9 @@ export async function addSeat(
   const username = String(formData.get('githubUsername') || '').trim()
 
   const claims = verifyAccessToken(token)
-  if (!claims) {
+  // A link for a license with no purchase yet cannot add a seat until the
+  // license page reads seats from the license itself.
+  if (!claims || claims.purchaseId == null) {
     return fail(
       null,
       'This link is no longer valid. Request a fresh one from the access page.'

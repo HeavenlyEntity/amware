@@ -25,6 +25,30 @@ describe('createAccessToken', () => {
     expect(payload).toMatchObject({ ...claims, jti })
   })
 
+  it('carries a license id with no purchase', () => {
+    const { token } = createAccessToken({
+      purchaseId: null,
+      licenseId: 12,
+      itemType: 'product',
+      itemId: 3,
+    })
+    const payload = verifyAccessToken(token)
+    expect(payload).toMatchObject({ purchaseId: null, licenseId: 12 })
+  })
+
+  it('keeps both claims when a link names a purchase and a license', () => {
+    const { token } = createAccessToken({ ...claims, licenseId: 12 })
+    expect(verifyAccessToken(token)).toMatchObject({
+      purchaseId: 7,
+      licenseId: 12,
+    })
+  })
+
+  it('leaves licenseId out of a link that has none', () => {
+    const { token } = createAccessToken(claims)
+    expect(verifyAccessToken(token)).not.toHaveProperty('licenseId')
+  })
+
   it('stays loud when the secret is missing', () => {
     delete process.env.ACCESS_LINK_SECRET
     // Deliberate: a missing secret is a deployment fault, and the direct

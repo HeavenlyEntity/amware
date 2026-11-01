@@ -183,7 +183,7 @@ describe('boilerplate confirmation email', () => {
 
 /* The onboarding page tells the buyer the full key and the way back are in
    this email. These make that true. */
-describe('the setup link and the licence key', () => {
+describe('the setup link and the license key', () => {
   const SETUP = 'https://www.amware.dev/checkout/onboarding?payment_id=pay_1'
   const KEY = 'WHOPKEY-4F2A-99C1-WXYZ'
 
@@ -213,7 +213,7 @@ describe('the setup link and the licence key', () => {
     })
   }
 
-  it('gives the full licence key, since it goes to the buyer’s own address', async () => {
+  it('gives the full license key, since it goes to the buyer’s own address', async () => {
     await sendBoilerplateConfirmationEmail({
       to: 'buyer@example.com',
       itemName: 'WareKit Next NetSuite (Pro)',
@@ -233,7 +233,48 @@ describe('the setup link and the licence key', () => {
       inviteUrl: 'https://github.com/o/r/invitations',
     })
     const text = body()
-    expect(text).not.toMatch(/licence key/i)
+    expect(text).not.toMatch(/license key/i)
     expect(text).not.toMatch(/setup page/i)
+  })
+})
+
+describe('the license page link', () => {
+  const LINK = 'https://example.com/access/seats/tok'
+
+  it('goes to a single-developer buyer too', async () => {
+    await sendBoilerplateConfirmationEmail({
+      to: 'buyer@example.com',
+      itemName: 'WareKit Next NetSuite (Pro)',
+      githubUsername: 'octocat',
+      inviteUrl: 'https://github.com/o/r/invitations',
+      seats: 1,
+      seatsUrl: LINK,
+    })
+    const text = body()
+    expect(text).toContain(
+      'Your license page, for your key, your team and upgrades:'
+    )
+    expect(text.split('\n')).toContain(LINK)
+    expect(text).not.toMatch(/licence/i)
+  })
+
+  it('goes out with no seat count at all', async () => {
+    await sendBoilerplateConfirmationEmail({
+      to: 'buyer@example.com',
+      itemName: 'WareKit Next NetSuite (Team)',
+      githubUsername: 'octocat',
+      seatsUrl: LINK,
+    })
+    expect(body().split('\n')).toContain(LINK)
+  })
+
+  it('is left out when there is no link to give', async () => {
+    await sendBoilerplateConfirmationEmail({
+      to: 'buyer@example.com',
+      itemName: 'WareKit',
+      githubUsername: 'octocat',
+      seats: 5,
+    })
+    expect(body()).not.toMatch(/license page/i)
   })
 })

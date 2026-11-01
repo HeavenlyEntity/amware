@@ -2,6 +2,8 @@
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
+import { attachPurchase } from '@/lib/commerce/licenseRecord'
+import { creemEnvironment } from '@/lib/commerce/creemEnv'
 import { sendBoilerplateConfirmationEmail } from '@/lib/commerce/fulfillment'
 import {
   checkGithubUsername,
@@ -137,7 +139,8 @@ export async function claimFreeKit(
     overrideAccess: true,
   })
 
-  let purchaseId = existing.docs[0]?.id
+  let purchase = existing.docs[0]
+  let purchaseId = purchase?.id
   if (!purchaseId) {
     try {
       const created = await payload.create({
@@ -159,6 +162,7 @@ export async function claimFreeKit(
           fulfillmentStatus: 'pending_invite',
         },
       })
+      purchase = created
       purchaseId = created.id
     } catch {
       // Lost a race on the unique key: the other request created it.
@@ -168,13 +172,36 @@ export async function claimFreeKit(
         limit: 1,
         overrideAccess: true,
       })
-      purchaseId = recheck.docs[0]?.id
+      purchase = recheck.docs[0]
+      purchaseId = purchase?.id
       if (!purchaseId) {
         return fail(
           null,
           'Something went wrong recording that. Nothing was sent. Please try again.'
         )
       }
+    }
+  }
+
+  /* Every claim is a Lite license, so a later Pro sale under the same email
+     joins it instead of starting another. Attached before the invitation
+     because the claim is already recorded: a failure here is logged and must
+     never fail it. A repeat claim attaches only if the first one never did.
+     The username is not copied into the license's seats; the paid repo is a
+     different repo and its seat is recorded when the buyer onboards. */
+  if (!purchase.license) {
+    try {
+      if (!item.stack) throw new Error('kit has no stack')
+      await attachPurchase(payload, {
+        purchase,
+        email: purchase.email || email,
+        stack: item.stack,
+        grantsTier: 'lite',
+        licenseId: undefined,
+        environment: creemEnvironment(),
+      })
+    } catch (err) {
+      console.error('Free claim license attach failed', claimId, err)
     }
   }
 

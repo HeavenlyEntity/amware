@@ -1,7 +1,12 @@
 import crypto from 'crypto'
 
 export type AccessTokenPayload = {
-  purchaseId: string | number
+  /** Null on a link minted for a license that has no purchase yet, such as a
+      new Enterprise license; `licenseId` then names it. */
+  purchaseId: string | number | null
+  /** The license this link opens. Absent on links minted before licenses
+      existed, which reach their license through `purchaseId`. */
+  licenseId?: string | number
   itemType: 'product' | 'course' | 'service'
   itemId: string | number
   jti: string
@@ -63,6 +68,7 @@ export function createAccessToken(
   const exp = Date.now() + (input.ttlMs ?? DEFAULT_TTL_MS)
   const payload: AccessTokenPayload = {
     purchaseId: input.purchaseId,
+    ...(input.licenseId != null ? { licenseId: input.licenseId } : {}),
     itemType: input.itemType,
     itemId: input.itemId,
     jti,

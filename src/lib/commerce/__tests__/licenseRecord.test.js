@@ -1,0 +1,455 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  attachPurchase,
+  currentKey,
+  expectedProductIds,
+  licenseFromClaims,
+  licenseIdFrom,
+  recomputeTier,
+} from '../licenseRecord'
+
+/* A fake Payload client over canned rows. `find` answers by collection, so a
+   test states what the database holds and reads back what was written. */
+function fakePayload({
+  licenses = [],
+  purchases = [],
+  products = [],
+  matches = [],
+} = {}) {
+  const tables = { licenses, purchases, products }
+  return {
+    /* The search over licenses answers with `matches`: the licenses that
+       share the buyer's email, stack and environment. The rest of the table
+       is only reachable by id. */
+    find: vi.fn(async ({ collection }) => ({
+      docs: collection === 'licenses' ? matches : tables[collection],
+    })),
+    findByID: vi.fn(async ({ collection, id }) => {
+      const row = tables[collection].find((r) => r.id === id)
+      if (!row) throw new Error('Not Found')
+      return row
+    }),
+    create: vi.fn(async ({ collection, data }) => ({ id: 500, ...data })),
+    update: vi.fn(async ({ data }) => data),
+  }
+}
+
+const updatesTo = (payload, collection) =>
+  payload.update.mock.calls
+    .map(([arg]) => arg)
+    .filter((arg) => arg.collection === collection)
+
+const sale = {
+  purchase: { id: 7 },
+  email: 'Buyer@Example.com ',
+  stack: 'next-netsuite',
+  environment: 'production',
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+describe('licenseIdFrom', () => {
+  it('reads a string id out of checkout metadata', () => {
+    expect(licenseIdFrom('42')).toBe(42)
+    expect(licenseIdFrom(42)).toBe(42)
+  })
+
+  it('treats anything else as absent', () => {
+    for (const bad of [
+      '',
+      '0',
+      '-3',
+      '4.5',
+      '12abc',
+      'abc',
+      1.5,
+      0,
+      null,
+      undefined,
+      {},
+    ]) {
+      expect(licenseIdFrom(bad)).toBeNull()
+    }
+  })
+})
+
+describe('attachPurchase', () => {
+  it('creates a license for a first purchase', async () => {
+    const payload = fakePayload({
+      purchases: [{ id: 7, status: 'paid', grantsTier: 'pro' }],
+      licenses: [{ id: 500, tier: null }],
+    })
+
+    const license = await attachPurchase(payload, {
+      ...sale,
+      grantsTier: 'pro',
+    })
+
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'licenses',
+        data: {
+          ownerEmail: 'buyer@example.com',
+          stack: 'next-netsuite',
+          creemEnvironment: 'production',
+        },
+      })
+    )
+    expect(updatesTo(payload, 'purchases')[0]).toMatchObject({
+      id: 7,
+      data: { license: 500, grantsTier: 'pro' },
+    })
+    expect(updatesTo(payload, 'licenses')[0]).toMatchObject({
+      id: 500,
+      data: { tier: 'pro' },
+    })
+    expect(license).toMatchObject({ id: 500, tier: 'pro' })
+  })
+
+  it('looks for a license by lowercased email, stack and environment', async () => {
+    const payload = fakePayload({ purchases: [], licenses: [{ id: 500 }] })
+
+    await attachPurchase(payload, {
+      ...sale,
+      grantsTier: 'pro',
+      environment: 'sandbox',
+    })
+
+    const query = payload.find.mock.calls.find(
+      ([arg]) => arg.collection === 'licenses'
+    )[0]
+    expect(query.where.and).toEqual([
+      { ownerEmail: { equals: 'buyer@example.com' } },
+      { stack: { equals: 'next-netsuite' } },
+      { creemEnvironment: { equals: 'sandbox' } },
+    ])
+  })
+
+  it('joins a Lite license by lowercased email and raises the tier', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 31, tier: 'lite' }],
+      matches: [{ id: 31, tier: 'lite' }],
+      purchases: [
+        { id: 3, status: 'paid', grantsTier: 'lite', license: 31 },
+        { id: 7, status: 'paid', grantsTier: 'pro', license: 31 },
+      ],
+    })
+
+    const license = await attachPurchase(payload, {
+      ...sale,
+      grantsTier: 'pro',
+    })
+
+    expect(payload.create).not.toHaveBeenCalled()
+    expect(updatesTo(payload, 'purchases')[0].data).toEqual({
+      license: 31,
+      grantsTier: 'pro',
+    })
+    expect(updatesTo(payload, 'licenses')[0]).toMatchObject({
+      id: 31,
+      data: { tier: 'pro' },
+    })
+    expect(license).toMatchObject({ id: 31, tier: 'pro' })
+  })
+
+  it('starts a second license for a second purchase at the same tier', async () => {
+    const payload = fakePayload({
+      licenses: [
+        { id: 31, tier: 'pro' },
+        { id: 500, tier: null },
+      ],
+      matches: [{ id: 31, tier: 'pro' }],
+      purchases: [],
+    })
+
+    const license = await attachPurchase(payload, {
+      ...sale,
+      grantsTier: 'pro',
+    })
+
+    expect(payload.create).toHaveBeenCalledTimes(1)
+    expect(license.id).toBe(500)
+  })
+
+  it('flags a full-price Team sale joining a Pro license', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 31, tier: 'pro' }],
+      matches: [{ id: 31, tier: 'pro' }],
+      purchases: [],
+    })
+
+    await attachPurchase(payload, { ...sale, grantsTier: 'team' })
+
+    expect(updatesTo(payload, 'licenses')).toContainEqual(
+      expect.objectContaining({ id: 31, data: { needsReview: true } })
+    )
+  })
+
+  it('does not flag Pro joining a Lite license', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 31, tier: 'lite' }],
+      matches: [{ id: 31, tier: 'lite' }],
+      purchases: [],
+    })
+
+    await attachPurchase(payload, { ...sale, grantsTier: 'pro' })
+
+    expect(
+      updatesTo(payload, 'licenses').some((u) => 'needsReview' in u.data)
+    ).toBe(false)
+  })
+
+  it('does not flag an upgrade that named its license', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 31, tier: 'pro' }],
+      purchases: [{ id: 7, status: 'paid', grantsTier: 'team', license: 31 }],
+    })
+
+    await attachPurchase(payload, {
+      ...sale,
+      grantsTier: 'team',
+      licenseId: 31,
+    })
+
+    // It joined the named license without searching by email at all.
+    expect(
+      payload.find.mock.calls.some(([arg]) => arg.collection === 'licenses')
+    ).toBe(false)
+    expect(updatesTo(payload, 'purchases')[0].data.license).toBe(31)
+    expect(
+      updatesTo(payload, 'licenses').some((u) => 'needsReview' in u.data)
+    ).toBe(false)
+  })
+
+  it('ignores a license id that is not a positive integer', async () => {
+    const payload = fakePayload({ licenses: [{ id: 500 }], purchases: [] })
+
+    await attachPurchase(payload, {
+      ...sale,
+      grantsTier: 'pro',
+      licenseId: 'abc',
+    })
+
+    expect(payload.create).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('recomputeTier', () => {
+  it('derives tier from paid purchases only', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 9, tier: 'team' }],
+      purchases: [
+        { id: 1, status: 'paid', grantsTier: 'pro' },
+        { id: 2, status: 'refunded', grantsTier: 'team' },
+      ],
+    })
+
+    await expect(recomputeTier(payload, 9)).resolves.toEqual({
+      tier: 'pro',
+      changed: true,
+    })
+    expect(updatesTo(payload, 'licenses')[0].data.tier).toBe('pro')
+  })
+
+  it('sets tierChangedAt only when the tier changes', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 9, tier: 'pro' }],
+      purchases: [{ id: 1, status: 'paid', grantsTier: 'pro' }],
+    })
+
+    await expect(recomputeTier(payload, 9)).resolves.toEqual({
+      tier: 'pro',
+      changed: false,
+    })
+    expect(payload.update).not.toHaveBeenCalled()
+
+    const upgraded = fakePayload({
+      licenses: [{ id: 9, tier: 'pro' }],
+      purchases: [
+        { id: 1, status: 'paid', grantsTier: 'pro' },
+        { id: 2, status: 'paid', grantsTier: 'team' },
+      ],
+    })
+    await recomputeTier(upgraded, 9)
+    const data = updatesTo(upgraded, 'licenses')[0].data
+    expect(data.tier).toBe('team')
+    expect(Number.isNaN(Date.parse(data.tierChangedAt))).toBe(false)
+  })
+
+  it('returns tier null when no paid purchase remains', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 9, tier: 'pro' }],
+      purchases: [{ id: 1, status: 'refunded', grantsTier: 'pro' }],
+    })
+
+    await expect(recomputeTier(payload, 9)).resolves.toEqual({
+      tier: null,
+      changed: true,
+    })
+    expect(updatesTo(payload, 'licenses')[0].data.tier).toBeNull()
+  })
+
+  it('leaves a rowless license with no tier unchanged', async () => {
+    const payload = fakePayload({ licenses: [{ id: 9 }], purchases: [] })
+    await expect(recomputeTier(payload, 9)).resolves.toEqual({
+      tier: null,
+      changed: false,
+    })
+  })
+})
+
+describe('currentKey', () => {
+  it('finds the key on the newest paid purchase', async () => {
+    const payload = fakePayload({
+      purchases: [
+        { id: 1, status: 'paid', licenseKey: 'OLD', createdAt: '2026-01-01' },
+        { id: 2, status: 'paid', licenseKey: 'NEW', createdAt: '2026-03-01' },
+      ],
+    })
+    await expect(currentKey(payload, 9)).resolves.toBe('NEW')
+  })
+
+  it('skips an upgrade row, which has no key, and a refunded one', async () => {
+    const payload = fakePayload({
+      purchases: [
+        { id: 1, status: 'paid', licenseKey: 'KEPT', createdAt: '2026-01-01' },
+        { id: 2, status: 'paid', createdAt: '2026-03-01' },
+        {
+          id: 3,
+          status: 'refunded',
+          licenseKey: 'GONE',
+          createdAt: '2026-04-01',
+        },
+      ],
+    })
+    await expect(currentKey(payload, 9)).resolves.toBe('KEPT')
+  })
+
+  it('returns null when no paid purchase has a key', async () => {
+    const payload = fakePayload({
+      purchases: [{ id: 2, status: 'paid', createdAt: '2026-03-01' }],
+    })
+    await expect(currentKey(payload, 9)).resolves.toBeNull()
+  })
+})
+
+describe('licenseFromClaims', () => {
+  const rows = {
+    licenses: [{ id: 4, stack: 'next-netsuite', tier: 'team' }],
+    purchases: [{ id: 8, license: 4 }],
+    products: [{ id: 60, stack: 'next-netsuite', tier: 'team', seats: 5 }],
+  }
+
+  it('resolves through the purchase', async () => {
+    const result = await licenseFromClaims(fakePayload(rows), { purchaseId: 8 })
+    expect(result.license.id).toBe(4)
+    expect(result.purchase.id).toBe(8)
+    expect(result.product.id).toBe(60)
+  })
+
+  it('resolves from a license id with no purchase', async () => {
+    const result = await licenseFromClaims(fakePayload(rows), {
+      licenseId: 4,
+      purchaseId: null,
+    })
+    expect(result.license.id).toBe(4)
+    expect(result.purchase).toBeNull()
+  })
+
+  it('gives Enterprise no product', async () => {
+    const payload = fakePayload({
+      ...rows,
+      licenses: [{ id: 4, stack: 'next-netsuite', tier: 'enterprise' }],
+    })
+    const result = await licenseFromClaims(payload, { licenseId: 4 })
+    expect(result.product).toBeNull()
+  })
+
+  it('returns null when nothing resolves, without throwing', async () => {
+    await expect(
+      licenseFromClaims(fakePayload(rows), { purchaseId: 999 })
+    ).resolves.toBeNull()
+    // A purchase from before licenses existed has no license to find.
+    await expect(
+      licenseFromClaims(
+        fakePayload({ ...rows, purchases: [{ id: 8, license: null }] }),
+        { purchaseId: 8 }
+      )
+    ).resolves.toBeNull()
+  })
+})
+
+describe('expectedProductIds', () => {
+  const item = {
+    creemProductId: 'prod_live',
+    creemSandboxProductId: 'prod_test',
+    creemUpgradeProductId: 'up_live',
+    creemUpgradeSandboxProductId: 'up_test',
+  }
+
+  it('expects the live product in production and the test one in the sandbox', () => {
+    expect(expectedProductIds({ item, env: 'production' })).toEqual([
+      'prod_live',
+    ])
+    expect(expectedProductIds({ item, env: 'sandbox' })).toEqual(['prod_test'])
+  })
+
+  it('expects the upgrade product only for an upgrade', () => {
+    expect(
+      expectedProductIds({ item, upgrade: 'team', env: 'production' })
+    ).toEqual(['up_live'])
+    expect(
+      expectedProductIds({ item, upgrade: 'team', env: 'sandbox' })
+    ).toEqual(['up_test'])
+    expect(expectedProductIds({ item, env: 'production' })).not.toContain(
+      'up_live'
+    )
+  })
+
+  it('does not accept the full-price product for an upgrade', () => {
+    expect(
+      expectedProductIds({ item, upgrade: 'team', env: 'production' })
+    ).not.toContain('prod_live')
+  })
+
+  it('expects a license quote, but only in the license’s own environment', () => {
+    const quoted = { quoteCreemProductId: 'prod_quote' }
+    expect(
+      expectedProductIds({ item, license: quoted, env: 'production' })
+    ).toEqual(['prod_live', 'prod_quote'])
+    expect(
+      expectedProductIds({
+        item,
+        license: quoted,
+        upgrade: 'enterprise',
+        env: 'production',
+      })
+    ).toEqual(['prod_quote'])
+    expect(
+      expectedProductIds({
+        item,
+        license: { ...quoted, creemEnvironment: 'sandbox' },
+        upgrade: 'enterprise',
+        env: 'production',
+      })
+    ).toEqual([])
+  })
+
+  it('expects nothing for an Enterprise upgrade on a license with no quote', () => {
+    expect(
+      expectedProductIds({
+        item,
+        license: {},
+        upgrade: 'enterprise',
+        env: 'production',
+      })
+    ).toEqual([])
+  })
+
+  it('is empty for a missing item', () => {
+    expect(expectedProductIds({ item: null, env: 'production' })).toEqual([])
+  })
+})

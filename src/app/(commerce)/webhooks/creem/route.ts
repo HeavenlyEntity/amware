@@ -2,7 +2,14 @@ import type { Purchase } from '@/payload-types'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { verifyCreemSignature } from '@/lib/commerce/creem'
 import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
-import { seatLimit } from '@/lib/commerce/seats'
+import { creemEnvironment } from '@/lib/commerce/creemEnv'
+import { tierRank } from '@/lib/commerce/license'
+import {
+  attachPurchase,
+  expectedProductIds,
+  licenseIdFrom,
+  quoteProductIdFor,
+} from '@/lib/commerce/licenseRecord'
 import { onboardingPath } from '@/lib/commerce/onboardingLink'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
 import {
@@ -139,6 +146,7 @@ async function handleSubscriptionPaid(event) {
         item: item ? { relationTo: collection, value: item.id } : undefined,
         itemType: itemType || undefined,
         creemProductId: obj.product?.id,
+        creemEnvironment: creemEnvironment(),
         // Renewals have no order of their own; the transaction is the order.
         creemOrderId: transactionId,
         creemSubscriptionId: subscriptionId,
@@ -267,11 +275,65 @@ async function handleCheckout(event) {
   const creemDelivered = isCreemDelivered(itemType, item)
   const itemName = item?.name || item?.title || 'your purchase'
 
+  /* Checkout metadata is strings, written by our own server. A license id
+     that is not a positive integer is treated as absent, never guessed at. */
+  const env = creemEnvironment()
+  const metaLicenseId = licenseIdFrom(meta.licenseId)
+  const upgradeTarget =
+    isBoilerplate && tierRank(meta.upgrade) >= tierRank('pro')
+      ? (meta.upgrade as string)
+      : null
+  const license: any =
+    isBoilerplate && metaLicenseId
+      ? await payload
+          .findByID({
+            collection: 'licenses',
+            id: metaLicenseId,
+            depth: 0,
+            overrideAccess: true,
+          })
+          .catch(() => null)
+      : null
+
+  /* An Enterprise quote is a private Creem product that belongs to one
+     license, told apart by its product id. A quote bought on a license that
+     already holds a paid tier is an upgrade of the same repo, so it is sent
+     no second invitation. */
+  const isQuote =
+    upgradeTarget === 'enterprise' ||
+    Boolean(
+      isBoilerplate &&
+        creemProductId &&
+        creemProductId === quoteProductIdFor(license, env)
+    )
+  const grantsTier: string | null = isBoilerplate
+    ? isQuote
+      ? 'enterprise'
+      : upgradeTarget || item?.tier || null
+    : null
+  const holdsPaidTier = tierRank(license?.tier) >= tierRank('pro')
+  const isUpgrade =
+    isBoilerplate &&
+    (Boolean(upgradeTarget && upgradeTarget !== 'enterprise') ||
+      (isQuote && holdsPaidTier))
+
+  /* The ids come from the active Creem environment, so a sandbox sale is not
+     wrongly flagged and a sandbox id cannot pass in production. An upgrade is
+     held to its own product; with none to match, it is a mismatch. */
+  const expected = expectedProductIds({
+    item,
+    license,
+    upgrade: upgradeTarget,
+    env,
+  })
   const productMismatch =
     item &&
-    item.creemProductId &&
     creemProductId &&
-    item.creemProductId !== creemProductId
+    (upgradeTarget || expected.length > 0) &&
+    !expected.includes(creemProductId)
+
+  // An upgrade only means something on the license it names.
+  const upgradeWithoutLicense = isUpgrade && !license
 
   // Create the Purchase first (need its id to sign the access token).
   let purchase
@@ -284,6 +346,7 @@ async function handleCheckout(event) {
         item: item ? { relationTo: collection, value: item.id } : undefined,
         itemType,
         creemProductId,
+        creemEnvironment: env,
         creemOrderId: orderId,
         creemRequestId: requestId || undefined,
         licenseKey: licenseKey || undefined,
@@ -294,7 +357,9 @@ async function handleCheckout(event) {
           typeof subscriptionId === 'string' ? subscriptionId : undefined,
         status: 'paid',
         subscriptionStatus: subscriptionId ? 'active' : undefined,
-        fulfillmentStatus: isBoilerplate
+        fulfillmentStatus: isUpgrade
+          ? 'not_required'
+          : isBoilerplate
           ? 'pending_invite'
           : engagement || creemDelivered
           ? 'not_required'
@@ -320,7 +385,7 @@ async function handleCheckout(event) {
     console.warn('Webhook: paid product does not match item', {
       orderId,
       creemProductId,
-      itemCreemProductId: item.creemProductId,
+      expected,
     })
     await payload
       .update({
@@ -333,8 +398,64 @@ async function handleCheckout(event) {
   } else if (engagement || creemDelivered) {
     // Neither needs delivery from here. A retainer is scheduled with the
     // client out of band, and Creem sends a digital product's file itself.
+  } else if (upgradeWithoutLicense) {
+    /* The money is in, but the license it was meant for cannot be found.
+       Granting a tier here would start a fresh license for the price of the
+       difference, so it is left for a person. */
+    console.error('Upgrade names no usable license for order', orderId, {
+      licenseId: meta.licenseId,
+    })
+    await payload
+      .update({
+        collection: 'purchases',
+        id: purchase.id,
+        overrideAccess: true,
+        data: { fulfillmentStatus: 'failed' },
+      })
+      .catch(() => {})
+  } else if (isUpgrade) {
+    /* The same repo, so nothing to invite and nothing to deliver: the seats
+       simply open up. Attaching is what grants the tier, and it must never
+       lose a sale that is already recorded. */
+    try {
+      await attachPurchase(payload, {
+        purchase,
+        email,
+        stack: license.stack,
+        grantsTier,
+        licenseId: license.id,
+        environment: env,
+      })
+    } catch (err) {
+      console.error('License attach failed for order', orderId, err)
+    }
   } else if (isBoilerplate) {
     const repo = typeof item?.githubRepo === 'string' ? item.githubRepo : null
+
+    /* Attach before anything else can fail. A kit with no tier or stack, as on
+       the legacy `warekit` row, has no license to join. Never allowed to
+       throw: the sale is already recorded, and a license a person can attach
+       later is better than a 500 that makes Creem redeliver it. */
+    let attached: any = null
+    if (!grantsTier || !(license?.stack || item?.stack)) {
+      console.warn('Webhook: kit has no tier or stack, no license attached', {
+        orderId,
+        itemId,
+      })
+    } else {
+      try {
+        attached = await attachPurchase(payload, {
+          purchase,
+          email,
+          stack: license?.stack || item.stack,
+          grantsTier,
+          licenseId: metaLicenseId ?? undefined,
+          environment: env,
+        })
+      } catch (err) {
+        console.error('License attach failed for order', orderId, err)
+      }
+    }
 
     /* No username on a new order: it is collected on the onboarding page the
        buyer is being redirected to right now. So there is nothing to invite
@@ -356,21 +477,17 @@ async function handleCheckout(event) {
       })
     }
 
-    /* The buyer is seat one. Recording it here is what makes the seat page
-       honest on a team licence -- otherwise a five-seat buyer could invite
-       five more people and get six. */
-    const seats = seatLimit(item)
-    const signed =
-      seats > 1
-        ? tryCreateAccessToken({
-            purchaseId: purchase.id,
-            itemType,
-            itemId: item.id,
-          })
-        : null
-    if (signed && !signed.ok) {
+    /* Every paid kit gets the license page link, not only a multi-developer
+       one: a Pro buyer upgrades from there. */
+    const signed = tryCreateAccessToken({
+      purchaseId: purchase.id,
+      ...(attached ? { licenseId: attached.id } : {}),
+      itemType,
+      itemId: item.id,
+    })
+    if (!signed.ok) {
       console.error(
-        'Seat link could not be signed for order',
+        'License link could not be signed for order',
         orderId,
         signed.reason === 'not-configured'
           ? '— ACCESS_LINK_SECRET is not set in this environment'
@@ -386,18 +503,7 @@ async function handleCheckout(event) {
         data: {
           githubRepo: repo || undefined,
           githubInviteUrl: (invite?.ok && invite.url) || undefined,
-          ...(githubUsername
-            ? {
-                seatMembers: [
-                  {
-                    githubUsername,
-                    inviteUrl: (invite?.ok && invite.url) || undefined,
-                    addedAt: new Date().toISOString(),
-                  },
-                ],
-              }
-            : {}),
-          ...(signed?.ok ? { accessTokenJti: signed.jti } : {}),
+          ...(signed.ok ? { accessTokenJti: signed.jti } : {}),
           /* 'sent' only when access genuinely exists. Anything else stays
              'pending_invite', which is both the admin's queue of orders still
              owed a repository AND, now, the normal state of an order whose
@@ -408,6 +514,46 @@ async function handleCheckout(event) {
       .catch(() =>
         console.error('Purchase invite update failed for order', orderId)
       )
+
+    /* The buyer is seat one. Recording it on the license is what keeps the
+       limit honest -- otherwise a five-developer buyer could add five more
+       people and get six. Only orders from before the username moved reach
+       this; a new order records its seat during onboarding. */
+    if (attached && githubUsername) {
+      await payload
+        .findByID({
+          collection: 'licenses',
+          id: attached.id,
+          depth: 0,
+          overrideAccess: true,
+        })
+        .then((current) => {
+          const members = current?.seatMembers ?? []
+          const taken = members.some(
+            (m) =>
+              m.githubUsername?.toLowerCase() === githubUsername.toLowerCase()
+          )
+          if (taken) return null
+          return payload.update({
+            collection: 'licenses',
+            id: attached.id,
+            overrideAccess: true,
+            data: {
+              seatMembers: [
+                ...members,
+                {
+                  githubUsername,
+                  inviteUrl: (invite?.ok && invite.url) || undefined,
+                  addedAt: new Date().toISOString(),
+                },
+              ],
+            },
+          })
+        })
+        .catch(() =>
+          console.error('License seat update failed for order', orderId)
+        )
+    }
 
     const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
     // Best-effort: the buyer has access either way, and a bounced email must
@@ -421,9 +567,8 @@ async function handleCheckout(event) {
         inviteUrl: invite?.ok ? invite.url : null,
         alreadyHadAccess:
           invite?.ok && invite.state === 'already-a-collaborator',
-        seats,
         seatsUrl:
-          signed?.ok && site ? `${site}/access/seats/${signed.token}` : null,
+          signed.ok && site ? `${site}/access/seats/${signed.token}` : null,
         /* The way back to onboarding if the tab was closed. Without this the
            buyer's only route to the setup page is browser history. */
         onboardingUrl:
