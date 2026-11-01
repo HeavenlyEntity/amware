@@ -740,7 +740,7 @@ export interface Purchase {
   /**
    * The tier this row gives. The license takes the highest tier among its paid rows.
    */
-  grantsTier?: ('lite' | 'pro' | 'team') | null
+  grantsTier?: ('lite' | 'pro' | 'team' | 'enterprise') | null
   /**
    * Sandbox rows are Creem test-mode payments. They are kept so the whole flow can be checked, and left out of the revenue figures.
    */

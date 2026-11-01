@@ -27,10 +27,32 @@
 --
 -- Everything is in one transaction and rolls back whole if any statement fails. The final DO block
 -- raises (and so rolls back) if any kit purchase is left without a license. Re-running the whole file
--- fails at CREATE TYPE, which is the guard; the backfill alone is safe to repeat.
+-- fails at CREATE TYPE, which is the guard. Section 3 (the backfill) alone is safe to repeat, but only
+-- inside its own BEGIN ... COMMIT, because its temp table is ON COMMIT DROP.
+--
+-- Run the read-only check below FIRST, and read it before running anything else.
 --
 -- After running, until the branch is on main: no `pnpm dev` or `pnpm sim` from main or any older
 -- checkout. Their schema push would drop these tables and columns without asking.
+
+-- Pre-run check. Read-only, no emails. Run it before this file, and read it:
+--
+--   SELECT p.id, p.status, p.whop_environment,
+--          (p.github_username IS NOT NULL AND p.github_username <> '') AS has_username,
+--          (p.license_key IS NOT NULL AND p.license_key <> '') AS has_key,
+--          pr.stack, pr.tier,
+--          (SELECT count(*) FROM purchases_seat_members s WHERE s._parent_id = p.id) AS seat_rows
+--     FROM purchases p
+--     JOIN purchases_rels r ON r.parent_id = p.id AND r.path = 'item' AND r.products_id IS NOT NULL
+--     JOIN products pr ON pr.id = r.products_id
+--    WHERE pr.stack IS NOT NULL AND pr.tier IS NOT NULL
+--    ORDER BY p.id;
+--
+-- What to look for: every row here becomes one license, except any with whop_environment = 'sandbox',
+-- which are skipped. The backfill copies seat rows only; it never turns `github_username` into a seat.
+-- So a paid Pro or Team row with has_username = true and seat_rows = 0 would start its license with no
+-- developers. If you see one, stop and say so before running the file. Lite rows and refunded rows
+-- copy no seats on purpose.
 
 BEGIN;
 
@@ -40,7 +62,7 @@ CREATE TYPE "public"."enum_licenses_stack" AS ENUM('react-netsuite', 'next-netsu
 CREATE TYPE "public"."enum_licenses_tier" AS ENUM('lite', 'pro', 'team', 'enterprise');
 CREATE TYPE "public"."enum_licenses_accounts_status" AS ENUM('active', 'over_limit');
 CREATE TYPE "public"."enum_licenses_creem_environment" AS ENUM('production', 'sandbox');
-CREATE TYPE "public"."enum_purchases_grants_tier" AS ENUM('lite', 'pro', 'team');
+CREATE TYPE "public"."enum_purchases_grants_tier" AS ENUM('lite', 'pro', 'team', 'enterprise');
 CREATE TYPE "public"."enum_purchases_creem_environment" AS ENUM('production', 'sandbox');
 
 CREATE TABLE "licenses" (
@@ -201,16 +223,21 @@ COMMIT;
 
 -- Check afterwards. Every kit purchase should show one license; tier should be NULL only where the
 -- purchase is not paid; the seat counts on each side should match for paid Pro and Team rows, and
--- the license side should be 0 for Lite and refunded rows:
+-- the license side should be 0 for Lite and refunded rows. No emails are selected:
 --
---   SELECT p.id AS purchase, p.email, p.status, p.grants_tier, l.id AS license, l.owner_email,
+--   SELECT p.id AS purchase, p.status, p.grants_tier, l.id AS license,
 --          l.stack, l.tier, l.tier_changed_at,
+--          (p.github_username IS NOT NULL AND p.github_username <> '') AS has_username,
 --          (SELECT count(*) FROM purchases_seat_members s WHERE s._parent_id = p.id) AS purchase_seats,
 --          (SELECT count(*) FROM licenses_seat_members s WHERE s._parent_id = l.id) AS license_seats
 --     FROM purchases p JOIN licenses l ON l.id = p.license_id
 --    ORDER BY p.id;
 --   SELECT slug, tier, netsuite_accounts FROM products WHERE tier IS NOT NULL ORDER BY slug;
 --   SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND NOT rowsecurity;   -- expect 0
+--
+-- Then, from a checkout of this branch, re-run the dry run and expect 0 changes:
+--
+--   PAYLOAD_MIGRATING=true pnpm sim sim/licensing-ddl.sim.test.mjs
 --
 -- Rollback, only if the branch is abandoned before the code relies on it:
 --

@@ -244,6 +244,7 @@ export const Purchases: CollectionConfig = {
         { label: 'Lite', value: 'lite' },
         { label: 'Pro', value: 'pro' },
         { label: 'Team', value: 'team' },
+        { label: 'Enterprise', value: 'enterprise' },
       ],
       admin: {
         description:
