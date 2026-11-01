@@ -12,8 +12,8 @@ This file exists because the database DDL previously lived only in a git-ignored
 > (`docs/superpowers/specs/2026-10-31-warekit-licensing-design.md`) moved paid kits back to Creem, with
 > one license per customer. **Whop keeps engagement deposits only.** What that changes below:
 >
-> - Kit steps use Creem. Whop plan creation for kits is gone, and so is the Whop pixel and checkout
->   funnel for kits. The Whop webhook's kit branch stays in the file but is dormant: no Whop kit sale exists.
+> - Kit steps use Creem. Whop plan creation and the Whop checkout for kits are gone, and the Whop
+>   pixel still tracks kit events (`CreemBuyButton.jsx` and `ClaimFreeKit.jsx` fire `whopTrack`). The Whop webhook's kit branch stays in the file but is dormant: no Whop kit sale exists.
 > - `completeOnboarding` is **not** deleted. The Creem onboarding link calls it
 >   (`src/app/(site)/checkout/onboarding/page.tsx` through `OnboardingGithubForm`).
 > - Anything below about Whop that is about a kit is history. The deposit parts still apply as written.
@@ -111,7 +111,7 @@ the bare domain.
 ### 7. ~~Subscribe the Whop webhook to `membership.deactivated`~~ — no longer a gate
 
 That event only revoked a Whop kit membership, and kits are not sold on Whop now. The owner reported the
-subscription done on 2026-09-25 and it can stay. Kit revocation comes from Creem's `refund.created`; see
+subscription done on 2026-09-25 and it can stay. TODO(alec): confirm. Kit revocation comes from Creem's `refund.created`; see
 the Creem section below.
 
 ## Merging with your uncommitted branch
