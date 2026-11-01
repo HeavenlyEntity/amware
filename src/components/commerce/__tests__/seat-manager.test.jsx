@@ -1,16 +1,24 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
 /* From the components project: addSeat imports through the `@/` alias, which
    the engine project does not define. */
 vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
-vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
+vi.mock('@/lib/commerce/githubInvite', () => ({
+  inviteToRepo: vi.fn(),
+  removeFromRepo: vi.fn(),
+}))
+vi.mock('@/lib/commerce/creem', async () => {
+  const real = await vi.importActual('@/lib/commerce/creem')
+  return { ...real, deactivateLicense: vi.fn() }
+})
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
-import { inviteToRepo } from '@/lib/commerce/githubInvite'
+import { inviteToRepo, removeFromRepo } from '@/lib/commerce/githubInvite'
+import { deactivateLicense, CreemError } from '@/lib/commerce/creem'
 import { createAccessToken } from '@/lib/commerce/accessToken'
-import { addSeat } from '@/lib/commerce/addSeat'
-import { SeatManager } from '@/components/commerce/SeatManager'
+import { addSeat, removeAccount, removeSeat } from '@/lib/commerce/addSeat'
+import { AccountList, SeatManager } from '@/components/commerce/SeatManager'
 
 const REPO = 'amwaredotdev/warekit-next-netsuite'
 
@@ -30,7 +38,13 @@ const members = (...names) =>
 
 /* The database as addSeat sees it: a license, the purchase that opened it and
    the kit row for its stack and tier. */
-const world = ({ license = {}, purchase = {}, product = teamProduct } = {}) => {
+const world = ({
+  license = {},
+  purchase = {},
+  product = teamProduct,
+  others = [],
+  keyRows = [{ id: 42, status: 'paid', licenseKey: 'KEY-1' }],
+} = {}) => {
   const rows = {
     licenses: {
       id: 9,
@@ -56,7 +70,11 @@ const world = ({ license = {}, purchase = {}, product = teamProduct } = {}) => {
       }
       return row
     }),
-    find: vi.fn(async () => ({ docs: product ? [product] : [] })),
+    find: vi.fn(async ({ collection }) => {
+      if (collection === 'licenses') return { docs: others }
+      if (collection === 'purchases') return { docs: keyRows }
+      return { docs: product ? [product] : [] }
+    }),
     update,
   })
   return rows
@@ -405,5 +423,507 @@ describe('SeatManager', () => {
       'href',
       'https://github.com/octocat'
     )
+  })
+})
+
+const remove = (username, tok, extra = {}) => {
+  const fd = new FormData()
+  fd.set('token', tok ?? token())
+  fd.set('githubUsername', username)
+  for (const [k, v] of Object.entries(extra)) fd.set(k, v)
+  return removeSeat({ error: null, ok: null, seats: null }, fd)
+}
+
+const writtenSeats = () => update.mock.calls.at(-1)[0].data.seatMembers
+
+describe('removeSeat', () => {
+  beforeEach(() => {
+    removeFromRepo.mockResolvedValue({ ok: true, state: 'removed' })
+  })
+
+  it('frees the seat after GitHub removes the person', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    const state = await remove('octocat')
+
+    expect(removeFromRepo).toHaveBeenCalledWith({
+      repo: REPO,
+      username: 'octocat',
+    })
+    expect(state.error).toBeNull()
+    expect(state.removed).toEqual({
+      username: 'octocat',
+      accessKept: false,
+      unsaved: false,
+    })
+    expect(state.seats).toEqual({ used: ['owner'], limit: 5 })
+    expect(writtenSeats().map((m) => m.githubUsername)).toEqual(['owner'])
+  })
+
+  it('keeps the seat and says so when GitHub refuses', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    removeFromRepo.mockResolvedValue({ ok: false, reason: 'forbidden' })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await remove('octocat')
+    error.mockRestore()
+
+    expect(state.error?.message).toMatch(/would not remove @octocat/i)
+    expect(state.error?.message).toMatch(/seat is kept/i)
+    expect(state.removed ?? null).toBeNull()
+    expect(state.seats).toEqual({ used: ['owner', 'octocat'], limit: 5 })
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('refuses a removal with a bad token', async () => {
+    world()
+    const state = await remove('owner', 'not.a.real.token')
+    expect(state.error?.message).toMatch(/no longer valid/i)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('refuses a name that is not on the stored list, and touches nothing', async () => {
+    world()
+    const state = await remove('stranger', undefined, {
+      seatMembers: '[{"githubUsername":"stranger"}]',
+      repo: 'someone/else',
+      licenseId: '12345',
+    })
+    expect(state.error?.message).toMatch(/not on this license/i)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('acts on the stored spelling and on the token repo, not the form', async () => {
+    world({ license: { seatMembers: members('owner', 'OctoCat') } })
+    await remove('octocat', undefined, { repo: 'someone/else' })
+    expect(removeFromRepo).toHaveBeenCalledWith({
+      repo: REPO,
+      username: 'OctoCat',
+    })
+  })
+
+  it('lets the last developer go: an owner may be swapping themselves out', async () => {
+    world({ license: { seatMembers: members('owner') } })
+    const state = await remove('owner')
+    expect(state.error).toBeNull()
+    expect(state.seats).toEqual({ used: [], limit: 5 })
+    expect(writtenSeats()).toEqual([])
+  })
+
+  it('leaves repository access alone when another paid license holds the person', async () => {
+    world({
+      license: { seatMembers: members('owner', 'octocat') },
+      others: [
+        {
+          id: 31,
+          stack: 'next-netsuite',
+          tier: 'pro',
+          seatMembers: members('OctoCat'),
+        },
+      ],
+    })
+    const state = await remove('octocat')
+
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(state.removed).toMatchObject({
+      username: 'octocat',
+      accessKept: true,
+      unsaved: false,
+    })
+    // The seat here is still freed.
+    expect(state.seats.used).toEqual(['owner'])
+    expect(writtenSeats().map((m) => m.githubUsername)).toEqual(['owner'])
+  })
+
+  it('asks for other licenses of this stack only, and never this one', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    await remove('octocat')
+    const payload = await getPayloadClient()
+    const call = payload.find.mock.calls
+      .map(([arg]) => arg)
+      .find((arg) => arg.collection === 'licenses')
+    expect(call.where.and).toEqual(
+      expect.arrayContaining([
+        { stack: { equals: 'next-netsuite' } },
+        { id: { not_equals: 9 } },
+        { tier: { in: ['pro', 'team', 'enterprise'] } },
+      ])
+    )
+  })
+
+  it.each([
+    ['a refunded license', { id: 31, tier: null }],
+    ['a free Lite license', { id: 32, tier: 'lite' }],
+    [
+      'a sandbox license',
+      { id: 33, tier: 'team', creemEnvironment: 'sandbox' },
+    ],
+    ['this license itself', { id: 9, tier: 'team' }],
+  ])('does not treat %s as cover', async (_label, other) => {
+    world({
+      license: { seatMembers: members('owner', 'octocat') },
+      others: [
+        { stack: 'next-netsuite', seatMembers: members('octocat'), ...other },
+      ],
+    })
+    await remove('octocat')
+    expect(removeFromRepo).toHaveBeenCalled()
+  })
+
+  it('does not match on a longer name that contains the username', async () => {
+    world({
+      license: { seatMembers: members('owner', 'cat') },
+      others: [
+        {
+          id: 31,
+          stack: 'next-netsuite',
+          tier: 'team',
+          seatMembers: members('octocat'),
+        },
+      ],
+    })
+    await remove('cat')
+    expect(removeFromRepo).toHaveBeenCalled()
+  })
+
+  it('removes nothing when the cover check cannot run', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    const payload = await getPayloadClient()
+    payload.find.mockImplementation(async ({ collection }) => {
+      if (collection === 'licenses') throw new Error('connection terminated')
+      return { docs: [teamProduct] }
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await remove('octocat')
+    error.mockRestore()
+
+    expect(state.error?.message).toMatch(/nothing was changed/i)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('says the seat is not freed when GitHub let go but the write failed', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    update.mockRejectedValue(new Error('write failed'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await remove('octocat')
+    error.mockRestore()
+
+    expect(state.removed).toMatchObject({ username: 'octocat', unsaved: true })
+    expect(state.seats.used).toEqual(['owner', 'octocat'])
+  })
+
+  it('keeps a developer added while GitHub was being called', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    const payload = await getPayloadClient()
+    const stored = payload.findByID.getMockImplementation()
+    let reads = 0
+    payload.findByID.mockImplementation(async (args) => {
+      const row = await stored(args)
+      // The second read of the license is the fresh one before the write.
+      if (args.collection === 'licenses' && ++reads > 1) {
+        return { ...row, seatMembers: members('owner', 'octocat', 'newcomer') }
+      }
+      return row
+    })
+    const state = await remove('octocat')
+    expect(writtenSeats().map((m) => m.githubUsername)).toEqual([
+      'owner',
+      'newcomer',
+    ])
+    expect(state.seats.used).toEqual(['owner', 'newcomer'])
+  })
+
+  it('refuses a refunded license', async () => {
+    world({ license: { tier: null } })
+    const state = await remove('owner')
+    expect(state.error?.message).toMatch(/no longer active/i)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+  })
+
+  it('answers a database failure with a try-again, not a throw', async () => {
+    getPayloadClient.mockRejectedValue(new Error('connection refused'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await remove('owner')
+    error.mockRestore()
+    expect(state.error?.message).toMatch(/try again/i)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+  })
+})
+
+const accountRows = (...rows) =>
+  rows.map(([accountId, status = 'active', creemInstanceId]) => ({
+    accountId,
+    status,
+    creemInstanceId,
+  }))
+
+const removeAcct = (accountId, tok, extra = {}) => {
+  const fd = new FormData()
+  fd.set('token', tok ?? token())
+  fd.set('accountId', accountId)
+  for (const [k, v] of Object.entries(extra)) fd.set(k, v)
+  return removeAccount({ error: null, ok: null, accounts: null }, fd)
+}
+
+const writtenAccounts = () => update.mock.calls.at(-1)[0].data.accounts
+
+describe('removeAccount', () => {
+  beforeEach(() => {
+    deactivateLicense.mockResolvedValue(undefined)
+  })
+
+  it('removes an account and deactivates it in Creem', async () => {
+    world({
+      license: {
+        accounts: accountRows(
+          ['7654321', 'active', 'inst_1'],
+          ['111', 'active', 'inst_2']
+        ),
+      },
+    })
+    const state = await removeAcct('7654321')
+
+    expect(deactivateLicense).toHaveBeenCalledWith({
+      key: 'KEY-1',
+      instanceId: 'inst_1',
+    })
+    expect(state.error).toBeNull()
+    expect(state.ok).toEqual({ accountId: '7654321', creemFailed: false })
+    expect(writtenAccounts().map((a) => a.accountId)).toEqual(['111'])
+    // Nothing but what the page shows comes back: no instance ids.
+    expect(state.accounts).toEqual([{ accountId: '111', status: 'active' }])
+  })
+
+  it('still removes the account when Creem fails', async () => {
+    world({
+      license: { accounts: accountRows(['7654321', 'active', 'inst_1']) },
+    })
+    deactivateLicense.mockRejectedValue(new CreemError('down', 502))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await removeAcct('7654321')
+    error.mockRestore()
+
+    expect(state.error).toBeNull()
+    expect(state.ok).toEqual({ accountId: '7654321', creemFailed: true })
+    expect(writtenAccounts()).toEqual([])
+  })
+
+  it('just drops an over-limit row, which has no instance', async () => {
+    world({
+      license: {
+        accounts: accountRows(
+          ['111', 'active', 'inst_2'],
+          ['222', 'over_limit']
+        ),
+      },
+    })
+    const state = await removeAcct('222')
+    expect(deactivateLicense).not.toHaveBeenCalled()
+    expect(state.ok).toEqual({ accountId: '222', creemFailed: false })
+    expect(writtenAccounts().map((a) => a.accountId)).toEqual(['111'])
+  })
+
+  it('does not call Creem without a key, and still removes the account', async () => {
+    world({
+      license: { accounts: accountRows(['111', 'active', 'inst_2']) },
+      keyRows: [],
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await removeAcct('111')
+    error.mockRestore()
+    expect(deactivateLicense).not.toHaveBeenCalled()
+    expect(state.ok).toMatchObject({ accountId: '111', creemFailed: true })
+    expect(writtenAccounts()).toEqual([])
+  })
+
+  it('refuses a bad token', async () => {
+    world({ license: { accounts: accountRows(['111', 'active', 'inst_2']) } })
+    const state = await removeAcct('111', 'not.a.real.token')
+    expect(state.error?.message).toMatch(/no longer valid/i)
+    expect(deactivateLicense).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('refuses an account that is not listed, ignoring an instance id from the form', async () => {
+    world({ license: { accounts: accountRows(['111', 'active', 'inst_2']) } })
+    const state = await removeAcct('999', undefined, {
+      instanceId: 'inst_2',
+      creemInstanceId: 'inst_2',
+    })
+    expect(state.error?.message).toMatch(/not on this license/i)
+    expect(deactivateLicense).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('releases the stored instance, never one named by the form', async () => {
+    world({ license: { accounts: accountRows(['111', 'active', 'inst_2']) } })
+    await removeAcct('111', undefined, { instanceId: 'inst_evil' })
+    expect(deactivateLicense).toHaveBeenCalledWith({
+      key: 'KEY-1',
+      instanceId: 'inst_2',
+    })
+  })
+
+  it('keeps the list and asks to retry when the license cannot be written', async () => {
+    world({ license: { accounts: accountRows(['111', 'over_limit']) } })
+    update.mockRejectedValue(new Error('write failed'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await removeAcct('111')
+    error.mockRestore()
+    expect(state.error?.message).toMatch(/try again/i)
+    expect(state.accounts).toEqual([{ accountId: '111', status: 'over_limit' }])
+  })
+
+  it('refuses a refunded license', async () => {
+    world({ license: { tier: null, accounts: accountRows(['111']) } })
+    const state = await removeAcct('111')
+    expect(state.error?.message).toMatch(/no longer active/i)
+  })
+})
+
+describe('SeatManager remove buttons', () => {
+  const seats = { used: ['owner', 'octocat'], limit: 5 }
+
+  beforeEach(() => {
+    removeFromRepo.mockResolvedValue({ ok: true, state: 'removed' })
+  })
+
+  it('gives each developer a named, 44px Remove button', () => {
+    render(<SeatManager token="t" repo={REPO} initialSeats={seats} />)
+    const button = screen.getByRole('button', { name: 'Remove @octocat' })
+    expect(button).toBeInTheDocument()
+    expect(button.className).toMatch(/min-h-11/)
+    expect(screen.getByRole('button', { name: 'Remove @owner' })).toBeEnabled()
+  })
+
+  it('carries only the token and the name with a removal', () => {
+    const { container } = render(
+      <SeatManager token="signed-tok" repo={REPO} initialSeats={seats} />
+    )
+    const form = screen
+      .getByRole('button', { name: 'Remove @octocat' })
+      .closest('form')
+    expect(form.querySelector('input[name="token"]')).toHaveValue('signed-tok')
+    expect(form.querySelector('input[name="githubUsername"]')).toHaveValue(
+      'octocat'
+    )
+    expect(container.querySelectorAll('input[name="intent"]')).toHaveLength(3)
+  })
+
+  it('removes a developer through the form and shows the server count', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    render(<SeatManager token={token()} repo={REPO} initialSeats={seats} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove @octocat' }))
+    })
+
+    const status = await screen.findByRole('status')
+    expect(status).toHaveTextContent(/@octocat removed/i)
+    expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove @octocat' })).toBeNull()
+  })
+
+  it('says the seat is kept when GitHub refuses', async () => {
+    world({ license: { seatMembers: members('owner', 'octocat') } })
+    removeFromRepo.mockResolvedValue({ ok: false, reason: 'forbidden' })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<SeatManager token={token()} repo={REPO} initialSeats={seats} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove @octocat' }))
+    })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/seat is kept/i)
+    error.mockRestore()
+    expect(screen.getByText('2 / 5 developers')).toBeInTheDocument()
+  })
+
+  it('says repository access was left alone when another license covers the person', async () => {
+    world({
+      license: { seatMembers: members('owner', 'octocat') },
+      others: [
+        {
+          id: 31,
+          stack: 'next-netsuite',
+          tier: 'team',
+          seatMembers: members('octocat'),
+        },
+      ],
+    })
+    render(<SeatManager token={token()} repo={REPO} initialSeats={seats} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove @octocat' }))
+    })
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /repository access was left as it was/i
+    )
+    expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
+  })
+})
+
+describe('AccountList', () => {
+  const accounts = [
+    { accountId: '7654321', status: 'active' },
+    { accountId: '222', status: 'over_limit' },
+  ]
+
+  it('gives each account a named, 44px Remove button, and marks the over-limit one', () => {
+    render(<AccountList token="t" accounts={accounts} limit={1} />)
+    const button = screen.getByRole('button', { name: 'Remove account 222' })
+    expect(button.className).toMatch(/min-h-11/)
+    expect(screen.getByText('Over your limit')).toBeInTheDocument()
+    expect(screen.getByText('1 / 1 NetSuite accounts')).toBeInTheDocument()
+  })
+
+  it('removes an account through the form and updates the list', async () => {
+    world({
+      license: {
+        accounts: accountRows(
+          ['7654321', 'active', 'inst_1'],
+          ['222', 'over_limit']
+        ),
+      },
+    })
+    render(<AccountList token={token()} accounts={accounts} limit={1} />)
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove account 222' })
+      )
+    })
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /222 removed from your license/i
+    )
+    expect(screen.queryByText('Over your limit')).toBeNull()
+    expect(screen.queryByText('222')).toBeNull()
+    expect(screen.getByText('7654321')).toBeInTheDocument()
+  })
+
+  it('says so when Creem did not confirm, and still drops the account', async () => {
+    world({
+      license: { accounts: accountRows(['7654321', 'active', 'inst_1']) },
+    })
+    deactivateLicense.mockRejectedValue(new CreemError('down', 502))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(
+      <AccountList
+        token={token()}
+        accounts={[{ accountId: '7654321', status: 'active' }]}
+        limit={1}
+      />
+    )
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove account 7654321' })
+      )
+    })
+    error.mockRestore()
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /Creem did not confirm/i
+    )
+    expect(screen.getByText(/Shows up after your first/)).toBeInTheDocument()
   })
 })

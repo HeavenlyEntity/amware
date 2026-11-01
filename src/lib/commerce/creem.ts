@@ -117,6 +117,75 @@ export async function retrieveProduct(
   }
 }
 
+const LICENSE_TIMEOUT_MS = 8000
+
+/* The two license calls run inside a server action a person is waiting on, so
+   they are bounded, and every failure comes back as a CreemError. The caller
+   then has one thing to catch, and a dropped connection (status 0) is told
+   apart from Creem refusing (its own status). The key never appears in a
+   message: the detail is Creem's body, and only outside production. */
+async function licenseCall(
+  path: '/v1/licenses/activate' | '/v1/licenses/deactivate',
+  body: Record<string, string>
+): Promise<Response> {
+  if (!API_KEY) throw new CreemError('CREEM_API_KEY is not configured', 0)
+
+  let res: Response
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(LICENSE_TIMEOUT_MS),
+    })
+  } catch {
+    throw new CreemError('Creem license call could not reach Creem', 0)
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    const safe =
+      process.env.NODE_ENV === 'production' ? '' : detail.slice(0, 200)
+    throw new CreemError(
+      `Creem license call failed (${res.status})${safe ? ': ' + safe : ''}`,
+      res.status
+    )
+  }
+  return res
+}
+
+// POST /v1/licenses/activate — Creem does not merge repeat activations, so a
+// caller checks its own table first. `instanceName` is the NetSuite account.
+export async function activateLicense(args: {
+  key: string
+  instanceName: string
+}): Promise<{ instanceId: string }> {
+  const res = await licenseCall('/v1/licenses/activate', {
+    key: args.key,
+    instance_name: args.instanceName,
+  })
+  const data = await res.json().catch(() => null)
+  const instanceId = data?.instance?.id
+  if (typeof instanceId !== 'string' || !instanceId) {
+    throw new CreemError('Creem activation response missing instance id', 200)
+  }
+  return { instanceId }
+}
+
+// POST /v1/licenses/deactivate — frees one activation, by the instance id
+// that activate returned.
+export async function deactivateLicense(args: {
+  key: string
+  instanceId: string
+}): Promise<void> {
+  await licenseCall('/v1/licenses/deactivate', {
+    key: args.key,
+    instance_id: args.instanceId,
+  })
+}
+
 // HMAC-SHA256 of the raw request body, compared to the `creem-signature` header.
 export function verifyCreemSignature(
   rawBody: string,

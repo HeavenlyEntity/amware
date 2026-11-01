@@ -15,7 +15,7 @@ import { SeatManager } from '../SeatManager'
 
 describe('SeatManager when the seat could not be stored', () => {
   it('says the invitation went out, asks for a refresh, and does not count the account', async () => {
-    const { container } = render(
+    render(
       <SeatManager
         token="t"
         repo="amwaredotdev/x"
@@ -23,7 +23,12 @@ describe('SeatManager when the seat could not be stored', () => {
       />
     )
     await act(async () => {
-      fireEvent.submit(container.querySelector('form'))
+      // The first form is now a developer's Remove; this is the add form.
+      fireEvent.submit(
+        screen
+          .getByRole('button', { name: /add to the license/i })
+          .closest('form')
+      )
     })
 
     const status = await screen.findByRole('status')

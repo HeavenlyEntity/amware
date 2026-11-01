@@ -2,14 +2,21 @@
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { verifyAccessToken } from '@/lib/commerce/accessToken'
-import { inviteToRepo } from '@/lib/commerce/githubInvite'
+import { inviteToRepo, removeFromRepo } from '@/lib/commerce/githubInvite'
+import { CreemError, deactivateLicense } from '@/lib/commerce/creem'
 import {
   checkGithubUsername,
   usernameMessage,
 } from '@/lib/commerce/githubUsername'
-import { licenseFromClaims } from '@/lib/commerce/licenseRecord'
+import { currentKey, licenseFromClaims } from '@/lib/commerce/licenseRecord'
 import { licenseLimits } from '@/lib/commerce/license'
-import { canAddSeat, listSeats, seatsFullMessage } from './seats'
+import {
+  canAddSeat,
+  hasSeat,
+  listSeats,
+  seatsFullMessage,
+  type SeatMember,
+} from './seats'
 
 /*
  * Adding a developer to a license, after the sale.
@@ -41,6 +48,16 @@ export type AddSeatState = {
     unsaved: boolean
   } | null
   seats: { used: string[]; limit: number } | null
+  /** Set by `removeSeat` only. */
+  removed?: {
+    username: string
+    /** True when another paid license still covers the person, so their
+        repository access was left alone. */
+    accessKept: boolean
+    /** True when GitHub let them go but the seat could not be freed.
+        `seats` then still includes the account. */
+    unsaved: boolean
+  } | null
 }
 
 const fail = (
@@ -199,5 +216,310 @@ export async function addSeat(
       unsaved: !saved,
     },
     seats: { used, limit },
+  }
+}
+
+/* ------------------------------------------------------------------------
+ * Removing a developer or a NetSuite account.
+ *
+ * Both are public server actions, like `addSeat`, and each verifies the
+ * signed token itself. The form carries the token and one name; the license,
+ * its seat list and every Creem instance id are read from the database, and
+ * a name that is not on the stored list is refused rather than acted on. A
+ * hand-made POST can therefore only ever remove something the token's own
+ * license holds.
+ * ---------------------------------------------------------------------- */
+
+const lookupFailed =
+  'I could not reach your license just now, and nothing was changed. Please try again in a moment.'
+
+type Loaded = Awaited<ReturnType<typeof licenseFromClaims>>
+type Payload = Awaited<ReturnType<typeof getPayloadClient>>
+type Opened =
+  | { ok: true; payload: Payload; found: NonNullable<Loaded> }
+  | { ok: false; message: string }
+
+/* Token to license, with the same answers `addSeat` gives. `licenseFromClaims`
+   throws on anything but "not found", so a database failure is a try-again
+   and never "no longer valid". */
+async function openLicense(token: string): Promise<Opened> {
+  const claims = verifyAccessToken(token)
+  if (!claims) {
+    return {
+      ok: false,
+      message:
+        'This link is no longer valid. Request a fresh one from the access page.',
+    }
+  }
+  try {
+    const payload = await getPayloadClient()
+    const found = await licenseFromClaims(payload, claims)
+    if (!found) return { ok: false, message: 'This link is no longer valid.' }
+    return { ok: true, payload, found }
+  } catch (err) {
+    console.error('License lookup for a removal failed', err)
+    return { ok: false, message: lookupFailed }
+  }
+}
+
+const sameName = (a?: string | null, b?: string | null) =>
+  (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase()
+
+/* Tiers that are paid for. Lite is free and has its own repository, so a seat
+   on someone's Lite license is not access to this one. */
+const PAID_TIERS = ['pro', 'team', 'enterprise']
+
+/* Does another paid license, in the same Creem environment, also hold this
+   person? Pro and Team share a repository, so removing them there would
+   take away what the other license still pays for. The same check runs
+   whichever of the two licenses the owner opens.
+
+   `like` only narrows the search (it is a case-insensitive contains); the
+   decision is made on the exact name here. */
+async function coveredByAnotherLicense(
+  payload: Payload,
+  license: {
+    id: number | string
+    stack?: string | null
+    creemEnvironment?: string | null
+  },
+  username: string
+): Promise<boolean> {
+  const found = await payload.find({
+    collection: 'licenses',
+    where: {
+      and: [
+        { stack: { equals: license.stack } },
+        { id: { not_equals: license.id } },
+        { tier: { in: PAID_TIERS } },
+        { 'seatMembers.githubUsername': { like: username } },
+      ],
+    },
+    depth: 0,
+    pagination: false,
+    overrideAccess: true,
+  })
+  const env = license.creemEnvironment || 'production'
+  return (found.docs ?? []).some(
+    (other: {
+      id: number | string
+      tier?: string | null
+      creemEnvironment?: string | null
+      seatMembers?: SeatMember[] | null
+    }) =>
+      other.id !== license.id &&
+      PAID_TIERS.includes(other.tier ?? '') &&
+      (other.creemEnvironment || 'production') === env &&
+      hasSeat(other.seatMembers, username)
+  )
+}
+
+export async function removeSeat(
+  _prevState: AddSeatState,
+  formData: FormData
+): Promise<AddSeatState> {
+  const token = String(formData.get('token') || '')
+  const requested = String(formData.get('githubUsername') || '').trim()
+
+  const opened = await openLicense(token)
+  if (!opened.ok) return fail(null, opened.message)
+  const { payload } = opened
+  const { license, purchase, product } = opened.found
+
+  if (!license.tier) {
+    return fail(null, 'This license is no longer active. Get in touch.')
+  }
+  if (!product && license.tier !== 'enterprise') {
+    return fail(
+      null,
+      'I could not read the limits for this license. Get in touch.'
+    )
+  }
+
+  const members = license.seatMembers || []
+  const limit = licenseLimits(license, product).seats
+  const snapshot = { used: listSeats(members), limit }
+
+  // The stored spelling, never the form's: only a listed developer is acted on.
+  const username = snapshot.used.find((name) => sameName(name, requested))
+  if (!username) {
+    return fail(null, `@${requested} is not on this license.`, snapshot)
+  }
+
+  const repo = product?.githubRepo || purchase?.githubRepo
+  if (!repo) {
+    return fail(
+      null,
+      'This license has no repository attached. Get in touch.',
+      snapshot
+    )
+  }
+
+  let covered: boolean
+  try {
+    covered = await coveredByAnotherLicense(payload, license, username)
+  } catch (err) {
+    console.error('Seat removal coverage check failed', license.id, err)
+    return fail(null, lookupFailed, snapshot)
+  }
+
+  /* GitHub first. If it refuses, the seat stays: freeing it would let the
+     owner add someone else while the old account still reads the code. */
+  if (!covered) {
+    const gone = await removeFromRepo({ repo, username })
+    if (!gone.ok) {
+      console.error('Seat removal failed', {
+        license: license.id,
+        repo,
+        reason: gone.reason,
+      })
+      return fail(
+        null,
+        `GitHub would not remove @${username} just now, so the seat is kept. Try again in a moment, or get in touch.`,
+        snapshot
+      )
+    }
+  }
+
+  /* Written from a fresh read, not the one at the top: the GitHub call took
+     time, and someone else on the same license may have added a developer in
+     it. Payload cannot remove one array row atomically, so this narrows the
+     window instead. */
+  let saved = true
+  let used = snapshot.used.filter((name) => !sameName(name, username))
+  try {
+    const fresh = await payload.findByID({
+      collection: 'licenses',
+      id: license.id,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const kept = (fresh.seatMembers || []).filter(
+      (m: SeatMember) => !sameName(m.githubUsername, username)
+    )
+    await payload.update({
+      collection: 'licenses',
+      id: license.id,
+      overrideAccess: true,
+      data: { seatMembers: kept },
+    })
+    used = listSeats(kept)
+  } catch (err) {
+    saved = false
+    used = snapshot.used
+    console.error('Seat removal record failed', license.id, err)
+  }
+
+  return {
+    error: null,
+    ok: null,
+    removed: { username, accessKept: covered, unsaved: !saved },
+    seats: { used, limit },
+  }
+}
+
+export type RemoveAccountState = {
+  error: { message: string } | null
+  ok: {
+    accountId: string
+    /** True when Creem would not release the activation. The account is
+        removed from the license regardless. */
+    creemFailed: boolean
+  } | null
+  accounts: Array<{ accountId: string; status: string }> | null
+}
+
+const failAccount = (
+  message: string,
+  accounts: RemoveAccountState['accounts'] = null
+): RemoveAccountState => ({ error: { message }, ok: null, accounts })
+
+type AccountRow = {
+  accountId?: string | null
+  status?: string | null
+  creemInstanceId?: string | null
+}
+
+/* Only what the page shows. The instance id stays on the server. */
+const shown = (rows: AccountRow[]) =>
+  rows.map((row) => ({
+    accountId: String(row.accountId ?? ''),
+    status: row.status || 'active',
+  }))
+
+export async function removeAccount(
+  _prevState: RemoveAccountState,
+  formData: FormData
+): Promise<RemoveAccountState> {
+  const token = String(formData.get('token') || '')
+  const requested = String(formData.get('accountId') || '').trim()
+
+  const opened = await openLicense(token)
+  if (!opened.ok) return failAccount(opened.message)
+  const { payload } = opened
+  const { license } = opened.found
+
+  if (!license.tier) {
+    return failAccount('This license is no longer active. Get in touch.')
+  }
+
+  const rows: AccountRow[] = license.accounts || []
+  const current = shown(rows)
+  const row = rows.find((r) => sameName(r.accountId, requested))
+  if (!row || !requested) {
+    return failAccount(
+      `${requested || 'That account'} is not on this license.`,
+      current
+    )
+  }
+
+  /* Creem is told only for an account it accepted: an `over_limit` row never
+     got an instance, so there is nothing to release. Whatever Creem answers,
+     the account leaves the license, because the table is the authority and
+     Creem's count is a second record. */
+  let creemFailed = false
+  if (row.creemInstanceId) {
+    try {
+      const key = await currentKey(payload, license.id)
+      if (!key) throw new Error('no license key to release the activation with')
+      await deactivateLicense({ key, instanceId: row.creemInstanceId })
+    } catch (err) {
+      creemFailed = true
+      console.error('Creem deactivation failed; removing the account anyway', {
+        license: license.id,
+        accountId: row.accountId,
+        instanceId: row.creemInstanceId,
+        status: err instanceof CreemError ? err.status : undefined,
+      })
+    }
+  }
+
+  try {
+    const fresh = await payload.findByID({
+      collection: 'licenses',
+      id: license.id,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const kept = (fresh.accounts || []).filter(
+      (r: AccountRow) => !sameName(r.accountId, requested)
+    )
+    await payload.update({
+      collection: 'licenses',
+      id: license.id,
+      overrideAccess: true,
+      data: { accounts: kept },
+    })
+    return {
+      error: null,
+      ok: { accountId: String(row.accountId), creemFailed },
+      accounts: shown(kept),
+    }
+  } catch (err) {
+    console.error('Account removal record failed', license.id, err)
+    return failAccount(
+      'I could not remove that account just now. Please try again in a moment.',
+      current
+    )
   }
 }

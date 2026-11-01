@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { SeatManager } from '@/components/commerce/SeatManager'
+import { AccountList, SeatManager } from '@/components/commerce/SeatManager'
 import { LicenseKey } from '@/components/commerce/LicenseKey'
 import { listSeats } from '@/lib/commerce/seats'
 
@@ -16,10 +16,11 @@ import { listSeats } from '@/lib/commerce/seats'
  * Creem instance ids -- never reaches the browser. It receives plain data and
  * never reads the database, which is the page's job.
  *
- * Other tasks add to this, so each section stands alone: Remove for a
- * developer or an account, the upgrade button and its states, an expired link,
- * and Enterprise. `action` is what `nextAction` decided; nothing renders from
- * it yet.
+ * Remove for a developer or an account lives in the same client components
+ * (a Creem instance id is dropped here, before the list is handed over).
+ * Other tasks add to this, so each section stands alone: the upgrade button
+ * and its states, an expired link, and Enterprise. `action` is what
+ * `nextAction` decided; nothing renders from it yet.
  *
  * @param {{
  *   token: string,
@@ -57,42 +58,6 @@ function Heading({ kicker, children }) {
         {children}
       </h1>
     </>
-  )
-}
-
-function Accounts({ accounts, limit }) {
-  const rows = accounts ?? []
-  const inUse = rows.filter((row) => row.status !== 'over_limit').length
-
-  return (
-    <div className="border-[var(--amw-line)] mt-6 border-t pt-6">
-      <p className="amw-mono text-3xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
-        {`${inUse} / ${limit} NetSuite accounts`}
-      </p>
-
-      {rows.length === 0 ? (
-        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-          Shows up after your first{' '}
-          <code className="amw-mono">pnpm ns:deploy</code>.
-        </p>
-      ) : (
-        <ul className="mt-4 space-y-2">
-          {rows.map((row) => (
-            <li
-              key={row.accountId}
-              className="min-h-11 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-700 dark:text-zinc-300"
-            >
-              <span className="amw-mono">{row.accountId}</span>
-              {row.status === 'over_limit' && (
-                <span className="amw-kicker text-red-700 dark:text-red-400">
-                  Over your limit
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   )
 }
 
@@ -141,7 +106,14 @@ export function LicensePanel({
           initialSeats={{ used: seats, limit: limits.seats }}
         >
           {tracksAccounts && (
-            <Accounts accounts={license.accounts} limit={limits.accounts} />
+            <AccountList
+              token={token}
+              accounts={(license.accounts ?? []).map((row) => ({
+                accountId: row.accountId,
+                status: row.status,
+              }))}
+              limit={limits.accounts}
+            />
           )}
         </SeatManager>
       </div>
