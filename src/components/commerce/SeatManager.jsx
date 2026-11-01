@@ -4,17 +4,30 @@ import { useActionState, useCallback, useEffect, useRef, useState } from 'react'
 import { addSeat } from '@/lib/commerce/addSeat'
 import { GithubAccountField } from '@/components/commerce/GithubAccountField'
 
-/* The seat page for a team licence. The signed link in the URL is the whole
+/* The developers part of the license page. The signed link in the URL is the whole
    authentication, so it is carried in a hidden field rather than re-derived:
    the action verifies it on every submit, and a stale tab gets told the link
    expired instead of silently doing nothing.
 
    Seat counts come from the server after every submit. Optimistically
    incrementing here would be wrong in the one case that matters -- two people
-   on the same licence adding someone at the same moment -- and being wrong
-   about how many seats are left is worse than being a moment behind. */
+   on the same license adding someone at the same moment -- and being wrong
+   about how many seats are left is worse than being a moment behind.
 
-export function SeatManager({ token, initialSeats, repo }) {
+   The count lives here, not in the panel around it, because it is the one
+   number on the page that changes without a reload. The rest of the usage
+   (NetSuite accounts) arrives as `children` and renders in the same card, so
+   the page reads as one block of usage. */
+
+/**
+ * @param {{
+ *   token: string,
+ *   initialSeats: { used: string[], limit: number },
+ *   repo?: string | null,
+ *   children?: import('react').ReactNode,
+ * }} props
+ */
+export function SeatManager({ token, initialSeats, repo, children }) {
   const [state, formAction, isPending] = useActionState(addSeat, {
     error: null,
     ok: null,
@@ -40,22 +53,24 @@ export function SeatManager({ token, initialSeats, repo }) {
   return (
     <div>
       <div className="amw-card amw-ticks p-6">
-        <p className="amw-eyebrow">{'// licence'}</p>
-        <p className="mt-3 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-          {seats.used.length} / {seats.limit}
+        <p className="amw-eyebrow">{'// usage'}</p>
+        <p className="amw-mono mt-3 text-3xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
+          {`${seats.used.length} / ${seats.limit} developers`}
         </p>
         <p className="amw-kicker mt-1">
           {full
-            ? 'every seat in use'
-            : `${remaining} ${remaining === 1 ? 'seat' : 'seats'} left`}
+            ? 'no developers left'
+            : `${remaining} ${
+                remaining === 1 ? 'developer' : 'developers'
+              } left`}
         </p>
 
-        {seats.used.length > 0 && (
+        {seats.used.length > 0 ? (
           <ul className="mt-5 space-y-2">
             {seats.used.map((name) => (
               <li
                 key={name.toLowerCase()}
-                className="flex items-center justify-between gap-3 text-sm text-zinc-700 dark:text-zinc-300"
+                className="min-h-11 flex items-center justify-between gap-3 text-sm text-zinc-700 dark:text-zinc-300"
               >
                 <a
                   href={`https://github.com/${name}`}
@@ -68,13 +83,20 @@ export function SeatManager({ token, initialSeats, repo }) {
               </li>
             ))}
           </ul>
+        ) : (
+          <p className="mt-5 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+            Add your first developer
+          </p>
         )}
 
-        <p className="mt-5 text-xs text-zinc-600 dark:text-zinc-400">
-          Seats are counted per GitHub account on{' '}
-          <span className="font-medium">{repo}</span>. Removing someone from the
-          repository on GitHub frees their seat.
-        </p>
+        {repo && (
+          <p className="mt-5 text-xs text-zinc-600 dark:text-zinc-400">
+            Developers are counted per GitHub account on{' '}
+            <span className="font-medium">{repo}</span>.
+          </p>
+        )}
+
+        {children}
       </div>
 
       {state.ok && (
@@ -84,13 +106,12 @@ export function SeatManager({ token, initialSeats, repo }) {
         >
           {state.ok.manual ? (
             <p className="text-zinc-700 dark:text-zinc-300">
-              @{state.ok.username} is on the licence, but the invitation could
-              not be sent automatically. I am granting access by hand within one
-              business day.
+              @{state.ok.username} is on the license. I&apos;ll send the invite
+              by hand.
             </p>
           ) : (
             <p className="text-zinc-700 dark:text-zinc-300">
-              @{state.ok.username} has been invited.{' '}
+              @{state.ok.username} invited.{' '}
               {state.ok.inviteUrl && (
                 <a
                   href={state.ok.inviteUrl}
@@ -130,16 +151,16 @@ export function SeatManager({ token, initialSeats, repo }) {
             ? 'Inviting…'
             : gated
             ? 'Confirm the account'
-            : 'Add to the licence'}
+            : 'Add to the license'}
         </button>
 
         {/* Shown rather than disabling the form: someone already on the
-            licence can still be re-invited when a full team needs it, and a
+            license can still be re-invited when a full team needs it, and a
             dead form with no explanation is the worse failure. */}
         {full && (
           <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-            Every seat is in use. You can still re-send an invitation to someone
-            already on the licence.
+            All developers are in use. You can still re-send an invitation to
+            someone already on the license.
           </p>
         )}
       </form>

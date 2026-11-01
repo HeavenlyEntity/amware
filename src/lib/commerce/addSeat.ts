@@ -7,20 +7,27 @@ import {
   checkGithubUsername,
   usernameMessage,
 } from '@/lib/commerce/githubUsername'
-import { canAddSeat, listSeats, seatLimit, seatsFullMessage } from './seats'
+import { licenseFromClaims } from '@/lib/commerce/licenseRecord'
+import { licenseLimits } from '@/lib/commerce/license'
+import { canAddSeat, listSeats, seatsFullMessage } from './seats'
 
 /*
- * Adding a collaborator to a team licence, after the sale.
+ * Adding a developer to a license, after the sale.
  *
  * A Team buyer does not know all five of their people at checkout, so seats
  * are filled over weeks from a signed link emailed at purchase. That link is
  * the authentication: `verifyAccessToken` already proves "you are the person
- * who made this purchase" without an account, which is the same mechanism the
+ * who holds this license" without an account, which is the same mechanism the
  * digital downloads use. No login to build, nothing new to secure.
  *
- * The seat limit is read from the product every time rather than copied onto
- * the purchase, so the number on the pricing page and the number enforced
- * here cannot drift.
+ * This is a public server action, so a hand-made POST reaches it as easily as
+ * the form does. Nothing is trusted from the form but the token and the
+ * username: the license, its seats and its limit are all read from the
+ * database on every call. The limit comes from `licenseLimits`, the same
+ * answer the license page shows, so the two cannot drift.
+ *
+ * Seats live on the license, which an upgrade does not replace, and the token
+ * may name the license directly (an Enterprise license has no purchase yet).
  */
 
 export type AddSeatState = {
@@ -64,9 +71,7 @@ export async function addSeat(
   const username = String(formData.get('githubUsername') || '').trim()
 
   const claims = verifyAccessToken(token)
-  // A link for a license with no purchase yet cannot add a seat until the
-  // license page reads seats from the license itself.
-  if (!claims || claims.purchaseId == null) {
+  if (!claims) {
     return fail(
       null,
       'This link is no longer valid. Request a fresh one from the access page.'
@@ -76,38 +81,46 @@ export async function addSeat(
   const problem = checkGithubUsername(username)
   if (problem) return fail('githubUsername', usernameMessage(problem)!)
 
-  const payload = await getPayloadClient()
-  const purchase = await payload
-    .findByID({
-      collection: 'purchases',
-      id: claims.purchaseId,
-      depth: 1,
-      overrideAccess: true,
-    })
-    .catch(() => null)
-
-  if (!purchase || purchase.status !== 'paid') {
-    return fail(null, 'This link is no longer valid.')
+  let payload: Awaited<ReturnType<typeof getPayloadClient>>
+  let found: Awaited<ReturnType<typeof licenseFromClaims>>
+  try {
+    payload = await getPayloadClient()
+    found = await licenseFromClaims(payload, claims)
+  } catch (err) {
+    console.error('Seat license lookup failed', err)
+    return fail(
+      null,
+      'I could not reach your license just now, and nothing was sent. Please try again in a moment.'
+    )
   }
 
-  const product =
-    purchase.item && typeof purchase.item === 'object'
-      ? (purchase.item as { value?: unknown }).value
-      : null
-  const productDoc = (
-    product && typeof product === 'object' ? product : null
-  ) as { seats?: number | null; githubRepo?: string | null } | null
+  if (!found) return fail(null, 'This link is no longer valid.')
+  const { license, purchase, product } = found
 
-  const repo = productDoc?.githubRepo || purchase.githubRepo
+  // A refunded license has no tier, and no developers to add.
+  if (!license.tier) {
+    return fail(null, 'This license is no longer active. Get in touch.')
+  }
+  /* Enterprise has no kit row and takes its limits from the license itself.
+     Any other tier without its row has no limit to read, and guessing one
+     would either lock a buyer out or give seats away. */
+  if (!product && license.tier !== 'enterprise') {
+    return fail(
+      null,
+      'I could not read the limits for this license. Get in touch.'
+    )
+  }
+
+  const repo = product?.githubRepo || purchase?.githubRepo
   if (!repo) {
-    return fail(null, 'This licence has no repository attached. Get in touch.')
+    return fail(null, 'This license has no repository attached. Get in touch.')
   }
 
-  const members = purchase.seatMembers || []
-  const limit = seatLimit(productDoc)
+  const members = license.seatMembers || []
+  const limit = licenseLimits(license, product).seats
   const snapshot = { used: listSeats(members), limit }
 
-  const verdict = canAddSeat(members, username, productDoc)
+  const verdict = canAddSeat(members, username, limit)
   if (!verdict.allowed) {
     return fail(
       'githubUsername',
@@ -129,20 +142,20 @@ export async function addSeat(
   const invite = await inviteToRepo({ repo, username })
   if (!invite.ok) {
     console.error('Seat invite failed', {
-      purchase: purchase.id,
+      license: license.id,
       repo,
       reason: invite.reason,
     })
   }
 
-  /* Appended only when the account is genuinely new to the licence. Writing a
+  /* Appended only when the account is genuinely new to the license. Writing a
      row for someone already on it would spend a seat on a re-invitation,
      which is how a full team locks itself out by retrying. */
   if (verdict.reason === 'new') {
     await payload
       .update({
-        collection: 'purchases',
-        id: purchase.id,
+        collection: 'licenses',
+        id: license.id,
         overrideAccess: true,
         data: {
           seatMembers: [
@@ -155,7 +168,7 @@ export async function addSeat(
           ],
         },
       })
-      .catch(() => console.error('Seat record failed', purchase.id))
+      .catch(() => console.error('Seat record failed', license.id))
   }
 
   const used =
