@@ -5,6 +5,8 @@ import {
   editionLead,
   editionStates,
   editionView,
+  enterpriseHref,
+  kitLimits,
   recommendEdition,
   setupCopy,
 } from '../kitEditions'
@@ -19,6 +21,14 @@ const pro = {
   seats: 1,
   status: 'published',
   creemProductId: 'prod_1',
+}
+const team = {
+  ...pro,
+  slug: 'renamed-team',
+  tier: 'team',
+  price: 999,
+  seats: 5,
+  netsuiteAccounts: 3,
 }
 const IDS = [
   'react-lite',
@@ -86,20 +96,26 @@ describe('editionStates', () => {
     expect(states['react-pro'].slug).toBe('warekit-react-netsuite-pro')
   })
 
-  it('reads price, seats and slug from a row on sale', () => {
-    const team = {
-      ...pro,
-      slug: 'renamed-team',
-      tier: 'team',
-      price: 999,
-      seats: 5,
-    }
+  it('reads price, seats, accounts and slug from a row on sale', () => {
     expect(editionStates([team])['next-team']).toEqual({
       state: 'ready',
       price: 999,
       seats: 5,
+      netsuiteAccounts: 3,
       slug: 'renamed-team',
     })
+  })
+
+  it('reads a missing account count as 1', () => {
+    const states = editionStates([{ ...team, netsuiteAccounts: null }])
+    expect(states['next-team'].netsuiteAccounts).toBe(1)
+    expect(editionStates([pro])['next-pro'].netsuiteAccounts).toBe(1)
+  })
+
+  it('tracks no accounts for Lite, whatever its row says', () => {
+    const lite = { ...pro, tier: 'lite', price: 0, netsuiteAccounts: 1 }
+    expect(editionStates([lite])['next-lite'].netsuiteAccounts).toBeNull()
+    expect(editionStates([])['next-lite'].netsuiteAccounts).toBeNull()
   })
 
   // Review Focus 2: only the reduced shape leaves the server.
@@ -108,7 +124,7 @@ describe('editionStates', () => {
       Object.keys(
         editionStates([{ ...pro, githubRepo: 'a/b' }])['next-pro']
       ).sort()
-    ).toEqual(['price', 'seats', 'slug', 'state'])
+    ).toEqual(['netsuiteAccounts', 'price', 'seats', 'slug', 'state'])
   })
 
   it('carries nothing from a draft row', () => {
@@ -117,6 +133,7 @@ describe('editionStates', () => {
       state: 'planned',
       price: null,
       seats: 1,
+      netsuiteAccounts: 1,
       slug: 'warekit-next-netsuite-pro',
     })
   })
@@ -142,7 +159,7 @@ describe('editionView', () => {
       state: 'planned',
       badge: 'Not on sale yet',
       price: 'Planned',
-      priceSub: 'One GitHub collaborator',
+      priceSub: '1 developer · 1 NetSuite account',
       cta: 'Get notified',
       tone: 'quiet',
       rec: false,
@@ -155,7 +172,7 @@ describe('editionView', () => {
     expect(view('next-pro', states)).toMatchObject({
       badge: 'Available',
       price: '$499.00',
-      priceSub: 'One-time · one GitHub collaborator',
+      priceSub: 'One-time · 1 developer · 1 NetSuite account',
       cta: 'Buy Pro',
       tone: 'solid',
       rec: true,
@@ -176,10 +193,62 @@ describe('editionView', () => {
     expect(view('next-lite', states)).toMatchObject({
       badge: 'Free to claim',
       price: 'Free',
-      priceSub: 'One GitHub account',
+      priceSub: '1 developer',
       cta: 'Get Lite',
       href: '/products/next-lite',
     })
+  })
+
+  it('prices Team with developers and accounts', () => {
+    expect(view('next-team', editionStates([team])).priceSub).toBe(
+      'One-time · 5 developers · 3 NetSuite accounts'
+    )
+  })
+
+  it('uses singular words for Pro', () => {
+    expect(view('next-pro', editionStates([pro])).priceSub).toBe(
+      'One-time · 1 developer · 1 NetSuite account'
+    )
+  })
+
+  it('follows the data when Team changes', () => {
+    const bigger = { ...team, seats: 8, netsuiteAccounts: 4 }
+    expect(view('next-team', editionStates([bigger])).priceSub).toBe(
+      'One-time · 8 developers · 4 NetSuite accounts'
+    )
+  })
+
+  it('shows planned limits from the defaults, also on a failed read', () => {
+    expect(view('next-team', {}).priceSub).toBe(
+      '5 developers · 3 NetSuite accounts'
+    )
+    expect(view('react-pro', undefined).priceSub).toBe(
+      '1 developer · 1 NetSuite account'
+    )
+  })
+
+  it('never says a Lite edition has a NetSuite account', () => {
+    const row = { ...pro, tier: 'lite', price: 0, netsuiteAccounts: 1 }
+    const states = editionStates([row])
+    for (const id of ['next-lite', 'react-lite']) {
+      expect(view(id, states).priceSub).not.toMatch(/NetSuite/)
+      expect(view(id, {}).priceSub).toBe('1 developer')
+    }
+    expect(view('next-lite', states).priceSub).toBe('1 developer')
+  })
+
+  it('marks which editions are paid, and their tier', () => {
+    const states = editionStates([pro, { ...team, slug: 'next-team' }])
+    expect(view('next-pro', states)).toMatchObject({ paid: true, tier: 'pro' })
+    expect(view('next-team', states)).toMatchObject({
+      paid: true,
+      tier: 'team',
+    })
+    expect(view('react-lite', states)).toMatchObject({
+      paid: false,
+      tier: 'lite',
+    })
+    expect(view('react-team', states).paid).toBe(false)
   })
 
   it('only points at React Lite while it can be reached', () => {
@@ -283,6 +352,14 @@ describe('setupCopy', () => {
     )
   })
 
+  it('tells the buyer to add the key to .env, beside the account id', () => {
+    const { steps } = setupCopy({ free: true, paid: true })
+    const configure = steps.find((s) => s.title === 'Configure your account')
+    expect(configure.copy).toContain('WAREKIT_LICENSE_KEY')
+    expect(configure.copy).toContain('.env')
+    expect(configure.copy).toContain('NS_ACCOUNT_ID')
+  })
+
   it('keeps the other three steps', () => {
     const { steps } = setupCopy({ free: false, paid: false })
     expect(steps.map((step) => step.title)).toEqual([
@@ -371,6 +448,81 @@ describe('compareTable', () => {
     ).toEqual(['Free', '$499.00 one-time', 'Planned'])
   })
 
+  it('labels the compare rows Developers and NetSuite accounts', () => {
+    for (const family of ['inside', 'connected']) {
+      const labels = compareTable(family, {}).rows.map((r) => r.label)
+      expect(labels).toContain('Developers')
+      expect(labels).toContain('NetSuite accounts')
+      expect(labels).not.toContain('Code seats')
+    }
+  })
+
+  it('fills the limits from the data, the same in both families', () => {
+    const states = editionStates([
+      pro,
+      team,
+      { ...pro, tier: 'lite', price: 0, creemProductId: null },
+    ])
+    const table = compareTable('connected', states)
+    expect(row(table, 'Developers').cells.map((c) => c.value)).toEqual([
+      '1',
+      '1',
+      '5',
+    ])
+    expect(row(table, 'NetSuite accounts').cells.map((c) => c.value)).toEqual([
+      'Not tracked',
+      '1',
+      '3',
+    ])
+    expect(
+      row(compareTable('inside', {}), 'NetSuite accounts').cells.map(
+        (c) => c.value
+      )
+    ).toEqual(['Not tracked', '1', '3'])
+  })
+
+  it('says sandboxes do not count under the accounts row', () => {
+    for (const family of ['inside', 'connected']) {
+      const accounts = row(compareTable(family, {}), 'NetSuite accounts')
+      expect(accounts.note).toBe(
+        "Yours or a client's. Sandboxes and Release Preview don't count."
+      )
+    }
+    expect(
+      row(compareTable('connected', {}), 'Developers').note
+    ).toBeUndefined()
+  })
+
+  it('tells buyers they can pay the difference later, once Team can be bought', () => {
+    const both = compareTable('connected', editionStates([pro, team]))
+    expect(both.notes).toContain(
+      'Start with Pro. Move to Team later and pay only the difference.'
+    )
+    const proOnly = compareTable('connected', editionStates([pro]))
+    expect(proOnly.notes.join(' ')).not.toMatch(/pay only the difference/)
+  })
+
+  it('tells buyers the app never checks a license', () => {
+    const sale = compareTable('connected', editionStates([pro]))
+    expect(sale.notes).toContain(
+      'Your app never checks a license. Nothing stops working if you go over a limit.'
+    )
+    expect(compareTable('connected', {}).notes).toEqual([])
+  })
+
+  it('offers Enterprise as a line with no price', () => {
+    const { enterprise } = compareTable('connected', editionStates([pro]))
+    expect(enterprise).toEqual({
+      lead: 'More than five developers or three accounts?',
+      cta: 'Talk to me about Enterprise',
+      href: '/contact/enterprise?kit=next-netsuite&tier=team',
+    })
+    expect(compareTable('inside', {}).enterprise.href).toBe(
+      '/contact/enterprise?kit=react-netsuite&tier=team'
+    )
+    expect(JSON.stringify(enterprise)).not.toMatch(/\$/)
+  })
+
   it('keeps the recommended column only while that edition is on sale', () => {
     expect(compareTable('connected', {}).rec).toBeNull()
     const table = compareTable('connected', editionStates([pro]))
@@ -384,7 +536,65 @@ describe('compareTable', () => {
   })
 })
 
+describe('enterpriseHref', () => {
+  it('names the kit and tier, and drops a tier without a kit', () => {
+    expect(enterpriseHref('next-netsuite', 'pro')).toBe(
+      '/contact/enterprise?kit=next-netsuite&tier=pro'
+    )
+    expect(enterpriseHref(undefined, 'team')).toBe('/contact/enterprise')
+  })
+})
+
+describe('kitLimits', () => {
+  it('reads a missing count as 1 and gives Lite no accounts', () => {
+    expect(kitLimits({ tier: 'pro' })).toEqual({
+      seats: 1,
+      netsuiteAccounts: 1,
+    })
+    expect(kitLimits({ tier: 'team', seats: 5, netsuiteAccounts: 3 })).toEqual({
+      seats: 5,
+      netsuiteAccounts: 3,
+    })
+    expect(kitLimits({ tier: 'lite', seats: 1, netsuiteAccounts: 1 })).toEqual({
+      seats: 1,
+      netsuiteAccounts: null,
+    })
+  })
+})
+
 describe('recommendEdition', () => {
+  describe('more than five developers', () => {
+    it('ends at Enterprise with the kit and tier filled in', () => {
+      const rec = recommendEdition(
+        { where: 'connected', who: 'dev', sessions: 'ns', seats: 'more' },
+        {}
+      )
+      expect(rec).toMatchObject({
+        name: 'Enterprise',
+        cta: 'Talk to me about Enterprise',
+        action: {
+          type: 'link',
+          href: '/contact/enterprise?kit=next-netsuite&tier=team',
+        },
+      })
+      expect(
+        recommendEdition({ where: 'inside', seats: 'more' }, {}).action.href
+      ).toBe('/contact/enterprise?kit=react-netsuite&tier=team')
+    })
+
+    it('still opens the form before the app is placed', () => {
+      expect(recommendEdition({ seats: 'more' }, {}).action.href).toBe(
+        '/contact/enterprise'
+      )
+    })
+
+    it('leaves a build request on the services path', () => {
+      expect(
+        recommendEdition({ who: 'build', seats: 'more' }, {}).action.href
+      ).toBe('/services')
+    })
+  })
+
   const free = editionStates([
     { ...pro, tier: 'lite', price: 0, slug: 'next-lite' },
     {
@@ -435,7 +645,7 @@ describe('recommendEdition', () => {
       expect(
         recommendEdition({ where: 'inside', seats: 'five' }, free).why
       ).toBe(
-        'React Lite is the available foundation inside NetSuite. The five-seat React Team edition is still planned.'
+        'React Lite is the available foundation inside NetSuite. The five-developer React Team edition is still planned.'
       )
     })
 
@@ -456,7 +666,7 @@ describe('recommendEdition', () => {
       expect(rec.cta).toBe('Get notified')
       expect(rec.why).not.toMatch(/available/i)
       expect(rec.why).toContain(
-        'The five-seat React Team edition is still planned.'
+        'The five-developer React Team edition is still planned.'
       )
     })
 
@@ -510,7 +720,7 @@ describe('recommendEdition', () => {
       ).toEqual({
         kicker: 'Recommended',
         name: 'Next / Pro',
-        why: 'Sessions live in NetSuite with caching to reduce repeated reads. One collaborator is all you need.',
+        why: 'Sessions live in NetSuite with caching to reduce repeated reads. One developer is all you need.',
         cta: 'Buy Pro',
         action: { type: 'link', href: '/products/warekit-next-netsuite-pro' },
       })
@@ -525,7 +735,7 @@ describe('recommendEdition', () => {
       ).toEqual({
         kicker: 'Recommended',
         name: 'Next / Team',
-        why: 'The Pro codebase with sessions in NetSuite, licensed for up to five GitHub collaborators.',
+        why: 'The Pro codebase with sessions in NetSuite, licensed for up to five developers.',
         cta: 'Buy Team',
         action: { type: 'link', href: '/products/next-team' },
       })

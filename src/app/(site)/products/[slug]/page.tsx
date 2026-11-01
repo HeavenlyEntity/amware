@@ -12,7 +12,13 @@ import { planId } from '@/lib/commerce/whopEnv'
 import { checkoutRoute } from '@/lib/commerce/checkoutRoute'
 import { ClaimFreeKit } from '@/components/commerce/ClaimFreeKit'
 import { StackLogos } from '@/components/commerce/StackChips'
-import { seatLine } from '@/lib/commerce/pricingTable'
+import {
+  accountsLabel,
+  developersLabel,
+  kitLimits,
+} from '@/lib/commerce/kitEditions'
+import { KitBuyNotes } from '@/components/warekit/kit-buy-notes'
+import { ACCOUNTS_NOTE } from '@/content/site/warekit'
 import { usd } from '@/lib/commerce/money'
 import { typeMeta } from '@/components/commerce/storefront'
 
@@ -91,6 +97,10 @@ export default async function ProductPage({
   // Whop plan. Nothing is on sale until the route says so.
   const route = checkoutRoute(product)
   const price = typeof product.price === 'number' ? product.price : undefined
+  // Developers and NetSuite accounts come from the row, never from copy.
+  const limits = kitLimits(product)
+  // The refund terms belong to a paid kit with a checkout, nothing else.
+  const paidKit = isBoilerplate && !isFree && route === 'creem'
 
   return (
     <Container className="mt-16 sm:mt-32">
@@ -215,19 +225,32 @@ export default async function ProductPage({
                   </div>
                 )}
                 {isBoilerplate && (
-                  /* The license, on the page where it is bought. The pricing
-                     table states it and the seat page enforces it; this card,
-                     where the money actually changes hands, did not. */
-                  <div className="amw-spec">
-                    <dt>license</dt>
-                    <dd>{seatLine({ seats: product.seats })}</dd>
-                  </div>
+                  /* The license, on the page where it is bought, in the same
+                     words as the pricing table. Lite tracks no accounts, so
+                     it has no accounts row to say "1" on. */
+                  <>
+                    <div className="amw-spec">
+                      <dt>developers</dt>
+                      <dd>{developersLabel(limits.seats)}</dd>
+                    </div>
+                    {limits.netsuiteAccounts !== null && (
+                      <div className="amw-spec">
+                        <dt>netsuite accounts</dt>
+                        <dd>{accountsLabel(limits.netsuiteAccounts)}</dd>
+                      </div>
+                    )}
+                  </>
                 )}
                 <div className="amw-spec">
                   <dt>delivery</dt>
                   <dd>{isBoilerplate ? 'GitHub invite' : 'instant link'}</dd>
                 </div>
               </dl>
+              {isBoilerplate && limits.netsuiteAccounts !== null && (
+                <p className="amw-kicker mt-3 normal-case tracking-normal">
+                  {ACCOUNTS_NOTE}
+                </p>
+              )}
 
               {isFree && isBoilerplate ? (
                 <ClaimFreeKit slug={product.slug} />
@@ -258,6 +281,12 @@ export default async function ProductPage({
                     : 'not yet available'}
                 </p>
               )}
+
+              <KitBuyNotes
+                paid={paidKit}
+                tier={product.tier}
+                className="mt-4 space-y-1.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400"
+              />
 
               {demoHref && (
                 <a
