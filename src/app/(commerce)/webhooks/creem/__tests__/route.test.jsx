@@ -712,6 +712,209 @@ const members = (...names) =>
   names.map((githubUsername) => ({ githubUsername }))
 const needsReview = (tables) => tables.licenses[0].needsReview === true
 
+/* The rulings on a payment that does not move a license up. The real
+   `attachPurchase` runs here against the in-memory rows, because whether the
+   row lands, what the tier becomes and whether a person is told are one
+   behaviour. */
+describe('Creem checkout.completed: an upgrade that raises nothing', () => {
+  // A string, as checkout metadata carries it: this database compares strictly.
+  const teamKit = {
+    id: '21',
+    type: 'boilerplate',
+    name: 'WareKit Next NetSuite (Team)',
+    tier: 'team',
+    stack: 'next-netsuite',
+    creemProductId: 'prod_team',
+    creemUpgradeProductId: 'prod_upgrade',
+  }
+  const upgradeRow = (over) =>
+    kitPurchase({ id: 2, grantsTier: 'team', creemOrderId: 'ord_up', ...over })
+
+  const paying = async (rows) => {
+    const actual = await vi.importActual('@/lib/commerce/licenseRecord')
+    attachPurchase.mockImplementation(actual.attachPurchase)
+    const db = database({ products: [teamKit], ...rows })
+    db.payload.create.mockImplementation(async ({ collection, data }) => {
+      const row = { id: 500, ...data }
+      db.tables[collection].push(row)
+      return row
+    })
+    return db
+  }
+  const upgrade = (metadata = {}) =>
+    completed({
+      itemType: 'product',
+      itemId: 21,
+      productId: 'prod_upgrade',
+      orderId: 'ord_second',
+      metadata: { licenseId: '41', upgrade: 'team', ...metadata },
+    })
+  const quote = () =>
+    completed({
+      itemType: 'product',
+      itemId: 21,
+      productId: 'prod_quote',
+      orderId: 'ord_second',
+      metadata: { licenseId: '41', upgrade: 'enterprise' },
+    })
+  const newRow = (tables) =>
+    tables.purchases.find((row) => row.creemOrderId === 'ord_second')
+  const licenseOf = (over) => ({
+    id: 41,
+    stack: 'next-netsuite',
+    creemEnvironment: 'production',
+    ...over,
+  })
+
+  it('keeps a second Team payment, attaches it and asks a person to look', async () => {
+    const { tables } = await paying({
+      purchases: [kitPurchase(), upgradeRow()],
+      licenses: [licenseOf({ tier: 'team' })],
+    })
+
+    const res = await POST(upgrade())
+
+    expect(res.status).toBe(200)
+    expect(newRow(tables)).toMatchObject({
+      license: 41,
+      grantsTier: 'team',
+      status: 'paid',
+      fulfillmentStatus: 'not_required',
+    })
+    expect(tables.licenses[0].tier).toBe('team')
+    expect(needsReview(tables)).toBe(true)
+    expect(inviteToRepo).not.toHaveBeenCalled()
+  })
+
+  it('flags a Team payment on an Enterprise license and keeps Enterprise', async () => {
+    const { tables } = await paying({
+      purchases: [kitPurchase({ grantsTier: 'enterprise' })],
+      licenses: [licenseOf({ tier: 'enterprise' })],
+    })
+
+    await POST(upgrade())
+
+    expect(newRow(tables).license).toBe(41)
+    expect(tables.licenses[0].tier).toBe('enterprise')
+    expect(needsReview(tables)).toBe(true)
+  })
+
+  it('flags a second quote payment on an Enterprise license', async () => {
+    const { tables } = await paying({
+      purchases: [kitPurchase({ grantsTier: 'enterprise' })],
+      licenses: [
+        licenseOf({ tier: 'enterprise', quoteCreemProductId: 'prod_quote' }),
+      ],
+    })
+
+    await POST(quote())
+
+    expect(newRow(tables)).toMatchObject({
+      license: 41,
+      grantsTier: 'enterprise',
+    })
+    expect(needsReview(tables)).toBe(true)
+  })
+
+  it('does not flag the first upgrade from Pro', async () => {
+    const { tables } = await paying({
+      purchases: [kitPurchase()],
+      licenses: [licenseOf({ tier: 'pro' })],
+    })
+
+    await POST(upgrade())
+
+    expect(tables.licenses[0].tier).toBe('team')
+    expect(needsReview(tables)).toBe(false)
+  })
+
+  it('does not flag a quote that moves Team to Enterprise', async () => {
+    const { tables } = await paying({
+      purchases: [kitPurchase({ grantsTier: 'team' })],
+      licenses: [
+        licenseOf({ tier: 'team', quoteCreemProductId: 'prod_quote' }),
+      ],
+    })
+
+    await POST(quote())
+
+    expect(tables.licenses[0].tier).toBe('enterprise')
+    expect(needsReview(tables)).toBe(false)
+  })
+
+  it('grants nothing to a stale upgrade paid on a refunded license', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { tables } = await paying({
+      purchases: [kitPurchase({ status: 'refunded' })],
+      licenses: [licenseOf({ tier: null })],
+    })
+
+    const res = await POST(upgrade())
+
+    expect(res.status).toBe(200)
+    expect(newRow(tables)).toMatchObject({
+      status: 'paid',
+      fulfillmentStatus: 'failed',
+    })
+    expect(newRow(tables).license).toBeUndefined()
+    expect(newRow(tables).grantsTier).toBeUndefined()
+    expect(tables.licenses[0].tier).toBeNull()
+    expect(needsReview(tables)).toBe(true)
+    expect(attachPurchase).not.toHaveBeenCalled()
+    expect(inviteToRepo).not.toHaveBeenCalled()
+    error.mockRestore()
+  })
+
+  it('grants nothing to an upgrade paid on a Lite license', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { tables } = await paying({
+      purchases: [kitPurchase({ grantsTier: 'lite' })],
+      licenses: [licenseOf({ tier: 'lite' })],
+    })
+
+    const res = await POST(upgrade())
+
+    expect(res.status).toBe(200)
+    expect(newRow(tables).fulfillmentStatus).toBe('failed')
+    expect(tables.licenses[0].tier).toBe('lite')
+    expect(needsReview(tables)).toBe(true)
+    expect(attachPurchase).not.toHaveBeenCalled()
+    error.mockRestore()
+  })
+
+  it('still answers 200 when the flag cannot be written', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { payload, tables } = await paying({
+      purchases: [],
+      licenses: [licenseOf({ tier: null })],
+    })
+    payload.update.mockRejectedValue(new Error('db down'))
+
+    const res = await POST(upgrade())
+
+    expect(res.status).toBe(200)
+    expect(newRow(tables).fulfillmentStatus).toBe('failed')
+    error.mockRestore()
+  })
+
+  it('still treats a quote on a brand-new license as its first sale', async () => {
+    const { tables } = await paying({
+      purchases: [],
+      licenses: [licenseOf({ tier: null, quoteCreemProductId: 'prod_quote' })],
+    })
+
+    await POST(quote())
+
+    expect(newRow(tables)).toMatchObject({
+      license: 41,
+      grantsTier: 'enterprise',
+    })
+    expect(newRow(tables).fulfillmentStatus).not.toBe('failed')
+    expect(tables.licenses[0].tier).toBe('enterprise')
+    expect(needsReview(tables)).toBe(false)
+  })
+})
+
 describe('Creem refund.created', () => {
   it('marks a full refund and recomputes the tier', async () => {
     const { payload, tables } = database({

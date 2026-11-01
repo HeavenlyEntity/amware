@@ -15,7 +15,7 @@ import {
   creemUpgradeProductIdFor,
 } from './creemEnv'
 import { tryCreateAccessToken } from './accessToken'
-import { highestTier, joinDecision } from './license'
+import { highestTier, joinDecision, tierRank } from './license'
 
 /**
  * Checkout metadata values are strings. Anything that is not a positive
@@ -78,6 +78,9 @@ export function expectedProductIds({
 }
 
 const isPaid = (row) => row?.status === 'paid'
+
+const awaitsQuotePayment = (license) =>
+  !license?.tier && String(license?.quoteCreemProductId ?? '').trim() !== ''
 
 /**
  * Recompute a license's tier from its paid purchases and store it when it
@@ -183,9 +186,15 @@ export async function syncTierAfterChange({
  * one. Returns the license, with its tier refreshed.
  *
  * `licenseId` comes from checkout metadata our server wrote, already coerced
- * with `licenseIdFrom`. A Pro owner who pays full price for Team joins their
- * Pro license and moves up, having overpaid, so that license is flagged for
- * a person to refund the difference.
+ * with `licenseIdFrom`. Two sales are flagged for a person to refund: a Pro
+ * owner who pays full price for Team joins their Pro license and moves up,
+ * having overpaid, and a payment on a named license that already holds that
+ * tier or above, such as a second tab's upgrade, raises nothing at all.
+ *
+ * A license with no tier that holds a quote is a deal waiting to be paid, not
+ * a refund, so an unnamed purchase never joins it. Without that, a free Lite
+ * claim, which needs no sign-in, could land on someone's pending Enterprise
+ * license just by using its address.
  */
 export async function attachPurchase(
   payload,
@@ -201,8 +210,9 @@ export async function attachPurchase(
      whoever calls. The caller's own check is not the only line of defence:
      this is the function that writes the tier. The buyer's email is not
      compared, because someone else's card can pay for a named upgrade. */
+  let target = null
   if (named != null) {
-    const target = await payload.findByID({
+    target = await payload.findByID({
       collection: 'licenses',
       id: named,
       depth: 0,
@@ -234,7 +244,7 @@ export async function attachPurchase(
       sort: 'createdAt',
       overrideAccess: true,
     })
-    candidates = found.docs ?? []
+    candidates = (found.docs ?? []).filter((c) => !awaitsQuotePayment(c))
   }
 
   const decision = joinDecision({
@@ -248,7 +258,10 @@ export async function attachPurchase(
   if (decision.join != null) {
     license = { id: decision.join }
     const joined = candidates.find((c) => c.id === decision.join)
-    overpaid = named == null && joined?.tier === 'pro' && grantsTier === 'team'
+    overpaid =
+      named != null
+        ? tierRank(target?.tier) >= tierRank(grantsTier)
+        : joined?.tier === 'pro' && grantsTier === 'team'
   } else {
     license = await payload.create({
       collection: 'licenses',

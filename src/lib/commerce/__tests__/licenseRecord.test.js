@@ -229,6 +229,94 @@ describe('attachPurchase', () => {
     ).toBe(false)
   })
 
+  it('flags a named license the purchase does not raise', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 31, tier: 'team', stack: 'next-netsuite' }],
+      purchases: [{ id: 7, status: 'paid', grantsTier: 'team', license: 31 }],
+    })
+
+    await attachPurchase(payload, {
+      ...sale,
+      grantsTier: 'team',
+      licenseId: 31,
+    })
+
+    expect(updatesTo(payload, 'purchases')[0].data.license).toBe(31)
+    expect(updatesTo(payload, 'licenses')).toContainEqual(
+      expect.objectContaining({ id: 31, data: { needsReview: true } })
+    )
+  })
+
+  it('does not flag a first payment on a named license with no tier', async () => {
+    const payload = fakePayload({
+      licenses: [
+        {
+          id: 31,
+          tier: null,
+          stack: 'next-netsuite',
+          quoteCreemProductId: 'prod_quote',
+        },
+      ],
+      purchases: [
+        { id: 7, status: 'paid', grantsTier: 'enterprise', license: 31 },
+      ],
+    })
+
+    await attachPurchase(payload, {
+      ...sale,
+      grantsTier: 'enterprise',
+      licenseId: 31,
+    })
+
+    expect(
+      updatesTo(payload, 'licenses').some((u) => 'needsReview' in u.data)
+    ).toBe(false)
+  })
+
+  it('never lets an unnamed purchase join a license waiting on a quote', async () => {
+    const waiting = { id: 31, tier: null, quoteCreemProductId: 'prod_quote' }
+    const payload = fakePayload({
+      licenses: [waiting, { id: 500, tier: null }],
+      matches: [waiting],
+      purchases: [],
+    })
+
+    const license = await attachPurchase(payload, {
+      ...sale,
+      grantsTier: 'lite',
+    })
+
+    expect(payload.create).toHaveBeenCalledTimes(1)
+    expect(license.id).toBe(500)
+    expect(updatesTo(payload, 'purchases')[0].data.license).toBe(500)
+  })
+
+  it('still joins a refunded license that holds no quote', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 31, tier: null, quoteCreemProductId: '  ' }],
+      matches: [{ id: 31, tier: null, quoteCreemProductId: '  ' }],
+      purchases: [],
+    })
+
+    await attachPurchase(payload, { ...sale, grantsTier: 'pro' })
+
+    expect(payload.create).not.toHaveBeenCalled()
+    expect(updatesTo(payload, 'purchases')[0].data.license).toBe(31)
+  })
+
+  it('lets a quote that has been paid stay a join candidate', async () => {
+    const paid = { id: 31, tier: 'pro', quoteCreemProductId: 'prod_quote' }
+    const payload = fakePayload({
+      licenses: [paid],
+      matches: [paid],
+      purchases: [],
+    })
+
+    await attachPurchase(payload, { ...sale, grantsTier: 'team' })
+
+    expect(payload.create).not.toHaveBeenCalled()
+  })
+
   describe('a named license', () => {
     const named = (over) => ({
       id: 31,

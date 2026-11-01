@@ -578,6 +578,12 @@ async function handleCheckout(event) {
     isBoilerplate &&
     (Boolean(upgradeTarget && upgradeTarget !== 'enterprise') ||
       (isQuote && holdsPaidTier))
+  /* Team's price here is the difference from Pro, so it is only a fair price
+     from Pro. A stale tab paid after a refund, or a Lite license, has no Pro
+     to stand on: the sale is kept for a person and no tier comes of it. A
+     license already on Team or above is `attachPurchase`'s to flag. */
+  const upgradeRefused =
+    isUpgrade && !isQuote && license != null && !holdsPaidTier
 
   /* The ids come from the active Creem environment, so a sandbox sale is not
      wrongly flagged and a sandbox id cannot pass in production. An upgrade is
@@ -632,7 +638,9 @@ async function handleCheckout(event) {
           typeof subscriptionId === 'string' ? subscriptionId : undefined,
         status: 'paid',
         subscriptionStatus: subscriptionId ? 'active' : undefined,
-        fulfillmentStatus: isUpgrade
+        fulfillmentStatus: upgradeRefused
+          ? 'failed'
+          : isUpgrade
           ? 'not_required'
           : isBoilerplate
           ? 'pending_invite'
@@ -689,6 +697,14 @@ async function handleCheckout(event) {
         data: { fulfillmentStatus: 'failed' },
       })
       .catch(() => {})
+  } else if (upgradeRefused) {
+    console.error('Upgrade paid on a license below Pro for order', orderId, {
+      license: license.id,
+      tier: license.tier ?? null,
+    })
+    await flagForReview(payload, license.id).catch((err) =>
+      console.error('Upgrade review flag failed for order', orderId, err)
+    )
   } else if (isUpgrade) {
     /* The same repo, so nothing to invite and nothing to deliver: the seats
        simply open up. Attaching is what grants the tier, and it must never
