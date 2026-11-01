@@ -1,5 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
+import { enterpriseLinkFor, overrideError } from '@/lib/commerce/licenseRecord'
+
 /* One license is one right to use a kit, however many purchases built it up.
    An upgrade adds a purchase, not a license, so seats and accounts live here
    and the purchase rows only record what was paid. `tier` is derived from the
@@ -69,6 +71,8 @@ export const Licenses: CollectionConfig = {
       name: 'seatOverride',
       type: 'number',
       min: 1,
+      validate: (value, { siblingData }) =>
+        overrideError(value, siblingData, 'Developers'),
       admin: {
         description:
           'Developers allowed. Empty except on Enterprise, where it is ' +
@@ -79,6 +83,8 @@ export const Licenses: CollectionConfig = {
       name: 'accountOverride',
       type: 'number',
       min: 1,
+      validate: (value, { siblingData }) =>
+        overrideError(value, siblingData, 'NetSuite accounts'),
       admin: {
         description:
           'NetSuite accounts allowed. Empty except on Enterprise, where it ' +
@@ -163,6 +169,39 @@ export const Licenses: CollectionConfig = {
         description:
           'The private Creem product for an Enterprise quote. Empty on ' +
           'every other license.',
+      },
+    },
+    {
+      /* A way into the license, so it is kept out of every response that is not
+         an admin's. `virtual: true` means Payload makes no column for it (the
+         database adapter skips virtual fields when it builds the schema), so it
+         needs no SQL. The hook mints it on read and checks the user itself, as
+         the field access below is skipped by a Local API call that overrides
+         access. Nothing can write it: `update: () => false`. */
+      name: 'enterpriseLink',
+      type: 'text',
+      virtual: true,
+      access: {
+        read: ({ req: { user } }) => user?.collection === 'users',
+        create: () => false,
+        update: () => false,
+      },
+      hooks: {
+        afterRead: [
+          ({ data, req }) =>
+            enterpriseLinkFor({
+              payload: req.payload,
+              license: data,
+              user: req.user,
+            }),
+        ],
+      },
+      admin: {
+        readOnly: true,
+        description:
+          'The signed checkout link to send this customer by hand. Shown ' +
+          'only to you, and only once a quote is saved. It lasts 30 days; ' +
+          'the page offers to email a fresh one.',
       },
     },
     {

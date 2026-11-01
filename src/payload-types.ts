@@ -829,6 +829,10 @@ export interface License {
    */
   quoteCreemProductId?: string | null
   /**
+   * The signed checkout link to send this customer by hand. Shown only to you, and only once a quote is saved. It lasts 30 days; the page offers to email a fresh one.
+   */
+  enterpriseLink?: string | null
+  /**
    * Set for disputes, partial refunds, an overpaid upgrade and anything else a person should look at. Clear it when handled.
    */
   needsReview?: boolean | null
@@ -1307,6 +1311,7 @@ export interface LicensesSelect<T extends boolean = true> {
         id?: T
       }
   quoteCreemProductId?: T
+  enterpriseLink?: T
   needsReview?: T
   tierChangedAt?: T
   lastLinkSentAt?: T

@@ -275,6 +275,42 @@ describe('addSeat: the license limit', () => {
     expect(inviteToRepo).not.toHaveBeenCalled()
   })
 
+  it('adds a developer to an Enterprise license from a link that names only the license', async () => {
+    /* Enterprise has no kit row and a new license has no purchase, so the
+       repository can only come from the Team row of its stack. */
+    world({
+      license: {
+        tier: 'enterprise',
+        seatOverride: 8,
+        seatMembers: members('owner'),
+      },
+    })
+    const state = await add(
+      'octocat',
+      token({ purchaseId: null, licenseId: 9 })
+    )
+    expect(state.error).toBeNull()
+    expect(inviteToRepo).toHaveBeenCalledWith({
+      repo: REPO,
+      username: 'octocat',
+    })
+    expect(state.seats).toEqual({ used: ['owner', 'octocat'], limit: 8 })
+    expect(update.mock.calls[0][0].data.seatMembers).toHaveLength(2)
+  })
+
+  it('still refuses an Enterprise license whose stack has no Team repository', async () => {
+    world({
+      license: { tier: 'enterprise', seatOverride: 8 },
+      product: { ...teamProduct, githubRepo: null },
+    })
+    const state = await add(
+      'octocat',
+      token({ purchaseId: null, licenseId: 9 })
+    )
+    expect(state.error?.message).toMatch(/no repository attached/i)
+    expect(inviteToRepo).not.toHaveBeenCalled()
+  })
+
   it('does not guess a limit when the kit row is missing', async () => {
     world({ product: null })
     const state = await add('octocat')
@@ -508,6 +544,51 @@ describe('removeSeat', () => {
       repo: REPO,
       username: 'OctoCat',
     })
+  })
+
+  it('removes a developer from an Enterprise license from a link that names only the license', async () => {
+    world({
+      license: {
+        tier: 'enterprise',
+        seatOverride: 8,
+        seatMembers: invited('owner', 'octocat'),
+      },
+    })
+    const state = await remove(
+      'octocat',
+      token({ purchaseId: null, licenseId: 9 })
+    )
+    expect(removeFromRepo).toHaveBeenCalledWith({
+      repo: REPO,
+      username: 'octocat',
+    })
+    expect(state.error).toBeNull()
+    expect(state.seats).toEqual({ used: ['owner'], limit: 8 })
+  })
+
+  it('says it could not look, and changes nothing, when the repository read fails', async () => {
+    world({
+      license: {
+        tier: 'enterprise',
+        seatOverride: 8,
+        seatMembers: invited('owner', 'octocat'),
+      },
+    })
+    const db = await getPayloadClient()
+    const ok = db.find.getMockImplementation()
+    db.find.mockImplementation(async (q) => {
+      if (q.collection === 'products') throw new Error('connection terminated')
+      return ok(q)
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await remove(
+      'octocat',
+      token({ purchaseId: null, licenseId: 9 })
+    )
+    error.mockRestore()
+    expect(state.error?.message).toMatch(/nothing was changed/i)
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('lets the last developer go: an owner may be swapping themselves out', async () => {

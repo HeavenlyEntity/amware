@@ -11,6 +11,7 @@ import { ContactSubmissions } from '../../collections/ContactSubmissions'
 import {
   RED_FLAGS_SUBJECT,
   isKitWaitlist,
+  kitEnterpriseSubject,
   kitWaitlistSubject,
 } from '../contact-intents'
 import { sendContactEmails } from '../resend'
@@ -49,6 +50,16 @@ describe('contact intents', () => {
     expect(isKitWaitlist('Courses waitlist · Core · Fast')).toBe(false)
     expect(isKitWaitlist(undefined)).toBe(false)
     expect(isKitWaitlist(null)).toBe(false)
+  })
+
+  it('kitEnterpriseSubject names kit and tier', () => {
+    expect(kitEnterpriseSubject('Next.js + NetSuite', 'Team')).toBe(
+      'WareKit Enterprise · Next.js + NetSuite · Team'
+    )
+    // Its own prefix: an Enterprise enquiry is not a waitlist sign-up.
+    expect(
+      isKitWaitlist(kitEnterpriseSubject('Next.js + NetSuite', 'Team'))
+    ).toBe(false)
   })
 
   it('names the Red Flags subject', () => {

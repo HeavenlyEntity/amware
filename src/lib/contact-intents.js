@@ -13,3 +13,9 @@ export function kitWaitlistSubject(edition, pick) {
 export function isKitWaitlist(subject) {
   return typeof subject === 'string' && subject.startsWith(KIT_WAITLIST_PREFIX)
 }
+
+/* The subject on the contact form when a license holder asks about
+   Enterprise, so the enquiry arrives already naming the kit and the tier. */
+export function kitEnterpriseSubject(kit, tier) {
+  return `WareKit Enterprise · ${kit} · ${tier}`
+}

@@ -76,3 +76,85 @@ describe('licenseRepo', () => {
     await expect(licenseRepo(payload, { id: 1 })).rejects.toThrow('down')
   })
 })
+
+describe('licenseRepo for Enterprise', () => {
+  /* Enterprise has no `products` row, so with no sale on the license naming a
+     repository the Team row of its stack is the source: the same repository
+     the Team kit invites to. `find` answers by collection. */
+  const world = ({ purchases = [], products = [] } = {}) => ({
+    find: vi.fn(async ({ collection }) => ({
+      docs: collection === 'purchases' ? purchases : products,
+    })),
+  })
+  const team = { id: 60, githubRepo: 'a/team-kit' }
+
+  it('takes the Team row of the license stack when no sale names one', async () => {
+    const payload = world({ products: [team] })
+    const license = { id: 1, tier: 'enterprise', stack: 'next-netsuite' }
+    expect(await licenseRepo(payload, license)).toBe('a/team-kit')
+
+    const query = payload.find.mock.calls
+      .map(([q]) => q)
+      .find((q) => q.collection === 'products')
+    expect(query.where.and).toEqual([
+      { stack: { equals: 'next-netsuite' } },
+      { tier: { equals: 'team' } },
+      { status: { equals: 'published' } },
+    ])
+  })
+
+  it('also serves a quoted license that has no tier yet, or lost it to a refund', async () => {
+    const payload = world({ products: [team] })
+    const license = {
+      id: 1,
+      tier: null,
+      stack: 'next-netsuite',
+      quoteCreemProductId: 'prod_quote',
+    }
+    expect(await licenseRepo(payload, license)).toBe('a/team-kit')
+  })
+
+  it('prefers a repository a sale on the license names', async () => {
+    const payload = world({
+      purchases: [{ grantsTier: 'enterprise', githubRepo: 'a/sold' }],
+      products: [team],
+    })
+    const license = { id: 1, tier: 'enterprise', stack: 'next-netsuite' }
+    expect(await licenseRepo(payload, license)).toBe('a/sold')
+    expect(payload.find).toHaveBeenCalledTimes(1)
+  })
+
+  it('is null when the stack has no Team row', async () => {
+    const license = { id: 1, tier: 'enterprise', stack: 'next-netsuite' }
+    expect(await licenseRepo(world(), license)).toBeNull()
+  })
+
+  it('does not hand a license that was never paid for the paid repository', async () => {
+    const payload = world({ products: [team] })
+    for (const license of [
+      { id: 1, tier: null, stack: 'next-netsuite' },
+      { id: 1, tier: 'lite', stack: 'next-netsuite' },
+    ]) {
+      expect(await licenseRepo(payload, license)).toBeNull()
+    }
+    expect(
+      payload.find.mock.calls.some(([q]) => q.collection === 'products')
+    ).toBe(false)
+  })
+
+  it('throws when the Team row cannot be read', async () => {
+    const payload = {
+      find: vi.fn(async ({ collection }) => {
+        if (collection === 'products') throw new Error('down')
+        return { docs: [] }
+      }),
+    }
+    await expect(
+      licenseRepo(payload, {
+        id: 1,
+        tier: 'enterprise',
+        stack: 'next-netsuite',
+      })
+    ).rejects.toThrow('down')
+  })
+})

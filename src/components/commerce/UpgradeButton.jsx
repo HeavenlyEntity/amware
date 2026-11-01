@@ -13,9 +13,10 @@ import { startUpgrade } from '@/lib/commerce/licenseUpgrade'
  * all read by the action. Pressed twice, the second press is refused by the
  * pending state here and by the tier check there.
  *
- * It is teal only when a limit has been reached (`urgent`). The rest of the
- * time the page's one teal button belongs to adding a developer, and this
- * stays available but quiet. */
+ * It is teal only when it is the thing to do (`urgent`): a limit has been
+ * reached, or an Enterprise quote is waiting. The rest of the time it stays
+ * available but quiet. Adding a developer is never teal, so whichever button
+ * is teal here is the page's only one. */
 
 const quietClass =
   'inline-flex min-h-11 w-full items-center justify-center rounded-md border border-[var(--amw-line-strong)] px-5 py-2.5 text-sm font-semibold leading-tight text-zinc-800 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amw-accent-ink)] disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-100 dark:hover:bg-zinc-800/60'

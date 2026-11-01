@@ -14,6 +14,7 @@ import {
   creemProductIdFor,
   creemUpgradeProductIdFor,
 } from './creemEnv'
+import { tryCreateAccessToken } from './accessToken'
 import { highestTier, joinDecision } from './license'
 
 /**
@@ -328,6 +329,81 @@ export async function teamProductFor(payload, stack) {
     overrideAccess: true,
   })
   return found?.docs?.[0] ?? null
+}
+
+/* The slug of the one auth collection, Users. Only a signed-in member of it is
+   an admin; there is no other kind of account on this site. */
+const ADMIN_COLLECTION = 'users'
+
+/**
+ * The signed link to send an Enterprise customer, for the admin to read.
+ *
+ * Minted on read, for a signed-in admin only, and only for a license that
+ * holds a quote: it is a way into a license, so it must never reach a public
+ * response or a server read that has no user. A Local API call with
+ * `overrideAccess` and no `user`, which is how the webhook and every license
+ * route read, gets null. Nothing here throws: a missing secret, site address
+ * or Team row, or a database that cannot be read, is a null field, because
+ * this runs while an admin page is loading.
+ *
+ * The token names the license and no purchase, since a new Enterprise license
+ * has none yet. Its item is the stack's Team row, the same row `startUpgrade`
+ * charges against. Like every license link it lives 30 days, and the page
+ * behind it offers to email a fresh one.
+ */
+export async function enterpriseLinkFor({ payload, license, user }) {
+  if (user?.collection !== ADMIN_COLLECTION) return null
+  if (!license?.id || !String(license.quoteCreemProductId ?? '').trim()) {
+    return null
+  }
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
+  if (!site) return null
+
+  let team
+  try {
+    team = await teamProductFor(payload, license.stack)
+  } catch (err) {
+    console.error('Enterprise link: Team row lookup failed', license.id, err)
+    return null
+  }
+  if (!team) return null
+
+  const signed = tryCreateAccessToken({
+    purchaseId: null,
+    licenseId: license.id,
+    itemType: 'product',
+    itemId: team.id,
+  })
+  if (!signed.ok) {
+    console.error('Enterprise link could not be signed', signed.reason)
+    return null
+  }
+  return `${site}/access/seats/${signed.token}`
+}
+
+/**
+ * The validator for `seatOverride` and `accountOverride`: `true`, or the
+ * message to show. Both are required once a license is Enterprise or holds a
+ * quote, because Enterprise has no kit row to take a limit from. Anywhere else
+ * they may be empty, so editing an unrelated field on an old license passes.
+ * A value that is given must be a positive number, whatever the tier.
+ *
+ * `data` is the whole license as it will be saved, which Payload builds from
+ * the stored row and the edit, so a partial server update is checked against
+ * the full record too.
+ */
+export function overrideError(value, data, label) {
+  const sold =
+    data?.tier === 'enterprise' ||
+    String(data?.quoteCreemProductId ?? '').trim() !== ''
+  if (value == null || value === '') {
+    return sold ? `${label} is required on an Enterprise license.` : true
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return `${label} must be a positive number.`
+  }
+  return true
 }
 
 /* Payload throws with status 404 for a document that is not there. That is

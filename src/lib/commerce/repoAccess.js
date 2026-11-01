@@ -9,6 +9,7 @@
  * Imports are relative so the engine test project can load it.
  */
 
+import { teamProductFor } from './licenseRecord'
 import { hasSeat } from './seats'
 
 /* Tiers that are paid for. Lite is free and has its own repository, so a seat
@@ -22,11 +23,18 @@ export function repoOf({ product, purchase } = {}) {
 }
 
 /**
- * The repository for a license that has lost its tier, so no kit row can be
- * found from it. Each sale copied `githubRepo` from the product at purchase
- * time, so a purchase on the license still names it. Only a paid tier's rows
- * are read: a Lite row names the Lite repository, which no paid seat was
- * invited to. An upgrade row names none; the original sale does.
+ * The repository for a license whose kit row cannot be found from its tier:
+ * one that has lost it, and Enterprise, which never had one. Each sale copied
+ * `githubRepo` from the product at purchase time, so a purchase on the license
+ * still names it. Only a paid tier's rows are read: a Lite row names the Lite
+ * repository, which no paid seat was invited to. An upgrade row names none;
+ * the original sale does.
+ *
+ * Failing that, a license that is paid for, or holds an Enterprise quote, uses
+ * the published Team row of its own stack. Enterprise has no `products` row of
+ * its own, and the Team kit is the code it is sold. A license that was never
+ * paid for does not: a refunded Lite license, say, has no claim on the paid
+ * repository.
  *
  * Throws on a database failure, so a caller cannot mistake "could not look"
  * for "there is no repository".
@@ -49,7 +57,13 @@ export async function licenseRepo(payload, license) {
     (purchase) =>
       purchase?.githubRepo && PAID_TIERS.includes(purchase.grantsTier ?? '')
   )
-  return row?.githubRepo ?? null
+  if (row?.githubRepo) return row.githubRepo
+
+  const sold =
+    PAID_TIERS.includes(license.tier ?? '') ||
+    String(license.quoteCreemProductId ?? '').trim() !== ''
+  if (!sold) return null
+  return (await teamProductFor(payload, license.stack))?.githubRepo || null
 }
 
 /* Does another paid license also hold this person? Pro and Team share a

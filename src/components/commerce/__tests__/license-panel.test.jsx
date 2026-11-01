@@ -309,7 +309,7 @@ describe('LicensePanel upgrade', () => {
     ).toBeInTheDocument()
   })
 
-  it('does not draw an upgrade for a quote or a Team limit yet', () => {
+  it('does not offer the move to Team for a quote or a Team limit', () => {
     for (const kind of ['enterprise-quote', 'enterprise-contact']) {
       panel({ action: { kind, urgent: true } })
       expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
@@ -485,5 +485,143 @@ describe('LicensePanel upgrade', () => {
       })
       expect(screen.getByText(/this license was refunded/i)).toBeInTheDocument()
     })
+  })
+})
+
+describe('LicensePanel Enterprise', () => {
+  const COMPLETE = 'Complete your Enterprise upgrade'
+  const quoted = {
+    action: { kind: 'enterprise-quote', urgent: false },
+    upgrade: null,
+  }
+  const teal = () =>
+    [...document.querySelectorAll('.amw-cta')].map((el) => el.textContent)
+
+  it('shows Complete your Enterprise upgrade when a quote exists', () => {
+    panel({
+      ...quoted,
+      license: { ...pro.license, seatOverride: 12, accountOverride: 4 },
+    })
+    expect(screen.getByRole('button', { name: COMPLETE })).toBeInTheDocument()
+    // The numbers are the license's own, not copy.
+    expect(
+      screen.getByText(
+        'Your quote covers 12 developers and 4 NetSuite accounts.'
+      )
+    ).toBeInTheDocument()
+    // The Team move is not offered beside it.
+    expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+  })
+
+  it('posts the signed link and Enterprise as the target, and nothing else', () => {
+    panel(quoted)
+    const form = screen.getByRole('button', { name: COMPLETE }).closest('form')
+    expect([...new FormData(form).entries()]).toEqual([
+      ['token', 'signed-tok'],
+      ['target', 'enterprise'],
+    ])
+  })
+
+  it('offers the quote on a license with no tier yet, and never calls it refunded', () => {
+    panel({
+      ...quoted,
+      license: {
+        ...pro.license,
+        tier: null,
+        seatMembers: [],
+        accounts: [],
+        seatOverride: 12,
+        accountOverride: 4,
+      },
+      product: null,
+      limits: { seats: 12, accounts: null },
+    })
+    expect(screen.getByRole('button', { name: COMPLETE })).toBeInTheDocument()
+    expect(screen.queryByText(/was refunded/i)).toBeNull()
+    expect(
+      screen.getByText(
+        'Your quote covers 12 developers and 4 NetSuite accounts.'
+      )
+    ).toBeInTheDocument()
+    // Nothing to manage until it is paid for.
+    expect(
+      screen.queryByRole('button', { name: /add to the license/i })
+    ).toBeNull()
+    expect(screen.queryByText(/license key/i)).toBeNull()
+  })
+
+  it('still says refunded for a license with no tier and no quote', () => {
+    panel({
+      license: { ...pro.license, tier: null },
+      product: null,
+      limits: { seats: 1, accounts: null },
+      action: { kind: null, urgent: false },
+    })
+    expect(screen.getByText(/this license was refunded/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: COMPLETE })).toBeNull()
+  })
+
+  it('names the terms only when the license has both numbers', () => {
+    panel({ ...quoted, license: { ...pro.license, seatOverride: 12 } })
+    expect(screen.getByRole('button', { name: COMPLETE })).toBeInTheDocument()
+    expect(screen.queryByText(/your quote covers/i)).toBeNull()
+  })
+
+  it('makes the Enterprise action the page’s one teal button', () => {
+    panel(quoted)
+    expect(teal()).toEqual([COMPLETE])
+    expect(
+      screen.getByRole('button', { name: /add to the license/i })
+    ).not.toHaveClass('amw-cta')
+  })
+
+  it('keeps the add-developer button quiet when the upgrade is teal', () => {
+    panel({ action: { kind: 'upgrade-team', urgent: true } })
+    expect(teal()).toEqual([MOVE])
+    expect(
+      screen.getByRole('button', { name: /add to the license/i })
+    ).toBeEnabled()
+  })
+
+  it('links a full Team license to a prefilled contact form', () => {
+    panel({
+      license: { ...pro.license, tier: 'team', stack: 'next-netsuite' },
+      action: { kind: 'enterprise-contact', urgent: true },
+      upgrade: null,
+      limits: { seats: 5, accounts: 3 },
+    })
+    const link = screen.getByRole('link', {
+      name: 'Talk to me about Enterprise',
+    })
+    expect(link).toHaveAttribute(
+      'href',
+      '/contact/enterprise?kit=next-netsuite&tier=team'
+    )
+    // It is the page's one teal action, and not a payment button.
+    expect(link).toHaveClass('amw-cta')
+    expect(teal()).toEqual(['Talk to me about Enterprise'])
+    expect(screen.queryByRole('button', { name: COMPLETE })).toBeNull()
+  })
+
+  it('leaves Enterprise contact off a license that is not Team', () => {
+    for (const tier of ['pro', 'enterprise']) {
+      panel({
+        license: { ...pro.license, tier, stack: 'next-netsuite' },
+        action: { kind: 'enterprise-contact', urgent: true },
+        upgrade: null,
+      })
+      expect(screen.queryByRole('link', { name: /talk to me/i })).toBeNull()
+      cleanupAll()
+    }
+  })
+
+  it('offers nothing to a license that is already Enterprise, even if told to', () => {
+    panel({
+      license: { ...pro.license, tier: 'enterprise' },
+      action: { kind: 'enterprise-quote', urgent: false },
+      upgrade: null,
+      limits: { seats: 12, accounts: 4 },
+    })
+    expect(screen.queryByRole('button', { name: COMPLETE })).toBeNull()
   })
 })

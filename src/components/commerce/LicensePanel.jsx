@@ -35,6 +35,13 @@ import { listSeats } from '@/lib/commerce/seats'
  *    checks again until `attempt` runs out, then offers a refresh and contact.
  *  - "You're on Team." once the license has reached it.
  *  - "Move to Team" for a Pro license, when `upgrade` has the numbers.
+ *  - "Complete your Enterprise upgrade" when the license holds a quote and is
+ *    not Enterprise yet, with the terms the quote sets. A brand new Enterprise
+ *    license has no tier until this is paid, which is not a refund, so it gets
+ *    the same offer instead of the refunded notice.
+ *  - "Talk to me about Enterprise" for a Team license at a limit.
+ * The action is the page's one teal button. The add-developer button is quiet
+ * so that this is the only one, whenever there is one.
  * `upgraded` is read from the URL, which anyone can write. It only picks
  * wording, compared with the tier the database holds. It unlocks nothing.
  *
@@ -58,6 +65,15 @@ import { listSeats } from '@/lib/commerce/seats'
 
 const linkClass =
   'text-teal-700 underline underline-offset-4 dark:text-teal-300'
+
+/* Where "Talk to me about Enterprise" goes. The kit and tier travel as ids and
+   are turned into words on the far side, which only accepts the ones it knows;
+   `kitEnterpriseSubject` builds the subject there. */
+const enterpriseContactHref = (license) =>
+  `/contact/enterprise?${new URLSearchParams({
+    kit: license.stack ?? '',
+    tier: license.tier ?? '',
+  })}`
 
 const TIER_LABEL = {
   lite: 'Lite',
@@ -90,6 +106,33 @@ const gains = ({ seats, accounts }) =>
         accounts,
         'NetSuite account'
       )}`
+
+/* The terms of a quote, from the license's own overrides. Said only when both
+   numbers are there, since half a quote is not one. */
+const quoteTerms = (license) =>
+  Number.isFinite(license?.seatOverride) &&
+  Number.isFinite(license?.accountOverride)
+    ? `Your quote covers ${gains({
+        seats: license.seatOverride,
+        accounts: license.accountOverride,
+      })}.`
+    : null
+
+/* The Enterprise payment. It is the page's one action, so it is always the
+   teal one. */
+function EnterpriseQuote({ token, license }) {
+  const terms = quoteTerms(license)
+  return (
+    <div>
+      <UpgradeButton token={token} target="enterprise" urgent>
+        Complete your Enterprise upgrade
+      </UpgradeButton>
+      {terms && (
+        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{terms}</p>
+      )}
+    </div>
+  )
+}
 
 /* Said while a payment is on its way and again once the checks run out, so a
    buyer who has just paid is never invited to pay a second time. */
@@ -160,6 +203,19 @@ export function LicensePanel({
         </>
       )
     }
+    /* A quote on a license with no tier is a license waiting to be paid for. */
+    if (action?.kind === 'enterprise-quote') {
+      return (
+        <>
+          <Heading kicker="Enterprise quote">
+            {product?.name || 'Your kit'}
+          </Heading>
+          <div className="mt-6">
+            <EnterpriseQuote token={token} license={license} />
+          </div>
+        </>
+      )
+    }
     return (
       <>
         <Heading kicker="license">{product?.name || 'Your kit'}</Heading>
@@ -195,6 +251,17 @@ export function LicensePanel({
       >
         {`You're on ${TIER_LABEL[returned.target]}.`}
       </p>
+    )
+  } else if (
+    action?.kind === 'enterprise-quote' &&
+    license.tier !== 'enterprise'
+  ) {
+    upgradeAction = <EnterpriseQuote token={token} license={license} />
+  } else if (action?.kind === 'enterprise-contact' && license.tier === 'team') {
+    upgradeAction = (
+      <Link href={enterpriseContactHref(license)} className="amw-cta">
+        Talk to me about Enterprise
+      </Link>
     )
   } else if (
     action?.kind === 'upgrade-team' &&

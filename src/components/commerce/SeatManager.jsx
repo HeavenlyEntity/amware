@@ -33,6 +33,12 @@ import { GithubAccountField } from '@/components/commerce/GithubAccountField'
    true on a refresh that keeps this component mounted, and it has to work
    there as well as on a fresh load. */
 
+/* The add-developer button is the secondary style. The license page has one
+   teal button, the upgrade or Enterprise action, and adding a developer is
+   routine next to it. */
+const quietButtonClass =
+  'inline-flex min-h-11 w-full items-center justify-center rounded-md border border-[var(--amw-line-strong)] px-5 py-2.5 text-sm font-semibold leading-tight text-zinc-800 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amw-accent-ink)] disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-100 dark:hover:bg-zinc-800/60'
+
 /**
  * @param {{
  *   token: string,
@@ -244,7 +250,11 @@ export function SeatManager({
           onGateChange={setGated}
         />
 
-        <button type="submit" className="amw-cta" disabled={isPending || gated}>
+        <button
+          type="submit"
+          className={quietButtonClass}
+          disabled={isPending || gated}
+        >
           {isPending
             ? 'Working…'
             : gated

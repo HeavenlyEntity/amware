@@ -187,9 +187,13 @@ export default async function LicensePage({ params, searchParams }) {
 
   const limits = licenseLimits(license, product)
   const accounts = license.accounts ?? []
+  /* The quote stays on the license after it is paid. `nextAction` puts a
+     quote ahead of everything, so without this a license already on
+     Enterprise would be asked to pay again. */
   const action = nextAction({
     license,
-    hasQuote: Boolean(license.quoteCreemProductId),
+    hasQuote:
+      Boolean(license.quoteCreemProductId) && license.tier !== 'enterprise',
     seatsUsed: listSeats(license.seatMembers).length,
     seatLimit: limits.seats,
     accountsUsed: accounts.filter((row) => row.status !== 'over_limit').length,

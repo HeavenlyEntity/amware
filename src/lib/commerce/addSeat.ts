@@ -24,6 +24,7 @@ import {
 import { licenseLimits, upgradeReturn } from '@/lib/commerce/license'
 import {
   coveredByAnotherLicense,
+  licenseRepo,
   PAID_TIERS,
   repoOf,
 } from '@/lib/commerce/repoAccess'
@@ -151,7 +152,21 @@ export async function addSeat(
     )
   }
 
-  const repo = repoOf({ product, purchase })
+  /* The kit row or the purchase the link names, else the license's own
+     source: Enterprise has no kit row, and a link minted for a new license
+     names no purchase. */
+  let repo = repoOf({ product, purchase })
+  if (!repo) {
+    try {
+      repo = await licenseRepo(payload, license)
+    } catch (err) {
+      console.error('Seat repository lookup failed', license.id, err)
+      return fail(
+        null,
+        'I could not reach your license just now, and nothing was sent. Please try again in a moment.'
+      )
+    }
+  }
   if (!repo) {
     return fail(null, 'This license has no repository attached. Get in touch.')
   }
@@ -313,7 +328,15 @@ export async function removeSeat(
     return fail(null, `@${requested} is not on this license.`, snapshot)
   }
 
-  const repo = repoOf({ product, purchase })
+  let repo = repoOf({ product, purchase })
+  if (!repo) {
+    try {
+      repo = await licenseRepo(payload, license)
+    } catch (err) {
+      console.error('Seat repository lookup failed', license.id, err)
+      return fail(null, lookupFailed, snapshot)
+    }
+  }
   if (!repo) {
     return fail(
       null,

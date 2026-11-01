@@ -3,13 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   attachPurchase,
   currentKey,
+  enterpriseLinkFor,
   expectedProductIds,
   licenseFromClaims,
   licenseIdFrom,
+  overrideError,
   recomputeTier,
   syncTierAfterChange,
   teamProductFor,
 } from '../licenseRecord'
+import { readAccessToken } from '../accessToken'
 
 /* A fake Payload client over canned rows. `find` answers by collection, so a
    test states what the database holds and reads back what was written. */
@@ -783,5 +786,154 @@ describe('syncTierAfterChange', () => {
       expect(error).toHaveBeenCalled()
       error.mockRestore()
     })
+  })
+})
+
+describe('enterpriseLinkFor', () => {
+  const admin = { id: 1, collection: 'users', email: 'alec@amware.dev' }
+  const quoted = {
+    id: 31,
+    stack: 'next-netsuite',
+    quoteCreemProductId: 'prod_quote',
+  }
+  const withTeamRow = () =>
+    fakePayload({
+      products: [{ id: 60, stack: 'next-netsuite', tier: 'team' }],
+    })
+
+  beforeEach(() => {
+    process.env.ACCESS_LINK_SECRET = 'enterprise-link-secret'
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://www.amware.dev/'
+  })
+
+  it('builds an admin link only for a license with a quote', async () => {
+    const link = await enterpriseLinkFor({
+      payload: withTeamRow(),
+      license: quoted,
+      user: admin,
+    })
+    expect(link).toMatch(/^https:\/\/www\.amware\.dev\/access\/seats\/.+\..+$/)
+
+    /* The link opens the license itself: it names the license and no
+       purchase, because a new Enterprise license has none yet. */
+    const read = readAccessToken(link.split('/access/seats/')[1])
+    expect(read.state).toBe('valid')
+    expect(read.claims).toMatchObject({
+      purchaseId: null,
+      licenseId: 31,
+      itemType: 'product',
+      itemId: 60,
+    })
+
+    for (const none of [undefined, null, '', '   ']) {
+      await expect(
+        enterpriseLinkFor({
+          payload: withTeamRow(),
+          license: { ...quoted, quoteCreemProductId: none },
+          user: admin,
+        })
+      ).resolves.toBeNull()
+    }
+  })
+
+  it('gives nothing to anyone who is not a signed-in admin', async () => {
+    const payload = withTeamRow()
+    for (const user of [
+      undefined,
+      null,
+      {},
+      { id: 2, collection: 'customers' },
+      { id: 1 },
+    ]) {
+      await expect(
+        enterpriseLinkFor({ payload, license: quoted, user })
+      ).resolves.toBeNull()
+    }
+    // Refused before anything is read or signed.
+    expect(payload.find).not.toHaveBeenCalled()
+  })
+
+  it('is null, and does not throw, when the secret is missing', async () => {
+    delete process.env.ACCESS_LINK_SECRET
+    delete process.env.ACCESS_TOKEN_SECRET
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await expect(
+      enterpriseLinkFor({
+        payload: withTeamRow(),
+        license: quoted,
+        user: admin,
+      })
+    ).resolves.toBeNull()
+    error.mockRestore()
+  })
+
+  it('is null when the site address, the Team row or the database is missing', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    delete process.env.NEXT_PUBLIC_SITE_URL
+    await expect(
+      enterpriseLinkFor({
+        payload: withTeamRow(),
+        license: quoted,
+        user: admin,
+      })
+    ).resolves.toBeNull()
+
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://www.amware.dev'
+    await expect(
+      enterpriseLinkFor({
+        payload: fakePayload({ products: [] }),
+        license: quoted,
+        user: admin,
+      })
+    ).resolves.toBeNull()
+    await expect(
+      enterpriseLinkFor({
+        payload: { find: vi.fn().mockRejectedValue(new Error('down')) },
+        license: quoted,
+        user: admin,
+      })
+    ).resolves.toBeNull()
+    error.mockRestore()
+  })
+})
+
+describe('overrideError', () => {
+  const enterprise = { tier: 'enterprise' }
+  const quote = { quoteCreemProductId: 'prod_quote' }
+
+  it('requires both overrides on an Enterprise license', () => {
+    for (const data of [enterprise, quote, { ...enterprise, ...quote }]) {
+      for (const empty of [undefined, null, '']) {
+        expect(overrideError(empty, data, 'Developers')).toBe(
+          'Developers is required on an Enterprise license.'
+        )
+      }
+      expect(overrideError(12, data, 'Developers')).toBe(true)
+      expect(overrideError(4, data, 'NetSuite accounts')).toBe(true)
+    }
+  })
+
+  it('wants a positive number wherever one is given', () => {
+    for (const bad of [0, -3, NaN, Infinity, '5']) {
+      expect(overrideError(bad, enterprise, 'Developers')).toBe(
+        'Developers must be a positive number.'
+      )
+      expect(overrideError(bad, {}, 'Developers')).toBe(
+        'Developers must be a positive number.'
+      )
+    }
+  })
+
+  it('leaves an unrelated edit to an old license alone', () => {
+    for (const data of [
+      {},
+      { tier: 'pro' },
+      { tier: 'team', quoteCreemProductId: null },
+      { tier: null, quoteCreemProductId: '  ' },
+    ]) {
+      expect(overrideError(undefined, data, 'Developers')).toBe(true)
+      expect(overrideError(null, data, 'NetSuite accounts')).toBe(true)
+    }
+    expect(overrideError(undefined, undefined, 'Developers')).toBe(true)
   })
 })

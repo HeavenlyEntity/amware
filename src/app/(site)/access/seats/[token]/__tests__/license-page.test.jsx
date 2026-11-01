@@ -389,6 +389,77 @@ describe('License page', () => {
     })
   })
 
+  describe('an Enterprise quote', () => {
+    const quote = { quoteCreemProductId: 'prod_quote' }
+    const enterprise = {
+      seatOverride: 12,
+      accountOverride: 4,
+      ...quote,
+    }
+    const COMPLETE = 'Complete your Enterprise upgrade'
+
+    it('offers the quote to a new Enterprise license, which is not a refund', async () => {
+      mockDb({
+        license: license({ tier: null, seatMembers: [], ...enterprise }),
+        purchase: null,
+        product: null,
+      })
+      await renderPage(token({ purchaseId: null, licenseId: 9 }))
+      expect(screen.getByRole('button', { name: COMPLETE })).toBeInTheDocument()
+      expect(screen.queryByText(/was refunded/i)).toBeNull()
+      expect(
+        screen.getByText(
+          'Your quote covers 12 developers and 4 NetSuite accounts.'
+        )
+      ).toBeInTheDocument()
+    })
+
+    it('offers the quote to a Pro license that holds one, ahead of Team', async () => {
+      mockDb({
+        license: license({ tier: 'pro', ...enterprise }),
+        purchase: { id: 42, license: 9 },
+        products: [proKit, teamRow],
+      })
+      await renderPage(token())
+      expect(screen.getByRole('button', { name: COMPLETE })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /move to team/i })).toBeNull()
+    })
+
+    it('never offers the quote again to a license that has paid for Enterprise', async () => {
+      mockDb({
+        license: license({ tier: 'enterprise', ...enterprise }),
+        purchase: { id: 42, license: 9 },
+        product: null,
+      })
+      await renderPage(token())
+      expect(screen.queryByRole('button', { name: COMPLETE })).toBeNull()
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      expect(screen.getByText('Enterprise license')).toBeInTheDocument()
+      // The license itself is all there: 12 developers, 4 accounts.
+      expect(screen.getByText('1 / 12 developers')).toBeInTheDocument()
+      expect(screen.getByText('0 / 4 NetSuite accounts')).toBeInTheDocument()
+    })
+
+    it('takes a full Team license without a quote to the Enterprise contact form', async () => {
+      mockDb({
+        license: license({
+          tier: 'team',
+          seatMembers: ['a', 'b', 'c', 'd', 'e'].map((githubUsername) => ({
+            githubUsername,
+          })),
+        }),
+        purchase: { id: 42, license: 9 },
+      })
+      await renderPage(token())
+      expect(
+        screen.getByRole('link', { name: 'Talk to me about Enterprise' })
+      ).toHaveAttribute(
+        'href',
+        '/contact/enterprise?kit=next-netsuite&tier=team'
+      )
+    })
+  })
+
   describe('an expired link', () => {
     const expiredToken = (claims = {}) => token({ ttlMs: -1, ...claims })
     const OWNER = 'jane@acme.com'
