@@ -9,6 +9,7 @@
  */
 
 import { checkoutRoute } from './checkoutRoute'
+import { developersLabel } from './kitEditions'
 
 export type PricingKit = {
   id: number | string
@@ -55,15 +56,14 @@ export function periodLabel(kit: PricingKit): string {
 }
 
 /* Generated from the same field the seat page enforces, never typed into the
-   bullets by hand -- a pricing page promising six seats on a five-seat
-   license is a refund, not a typo. */
-/* Takes only the field it reads, not a whole PricingKit: the product page
-   needs this line too, and a license is a license whether it is being
-   compared on the pricing table or bought on the product page. Asking for
-   the full shape would have meant faking an id and a name to get a string. */
+   bullets by hand -- a pricing page promising six developers on a five-
+   developer license is a refund, not a typo. The wording is
+   `developersLabel`'s, the same words /products uses, so a tier reads the
+   same on every page. Takes only the field it reads, not a whole PricingKit,
+   so a caller needs no fake id or name to get a string. */
 export function seatLine(kit: { seats?: number | null }): string {
   const n = typeof kit.seats === 'number' && kit.seats >= 1 ? kit.seats : 1
-  return n === 1 ? 'Access for 1 user (only you)' : `Up to ${n} collaborators`
+  return developersLabel(n)
 }
 
 /* Published and purchasable are different things, and the page has to say

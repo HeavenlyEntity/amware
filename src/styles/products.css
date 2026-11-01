@@ -1023,10 +1023,20 @@
 .pr-note p {
   margin: 0;
 }
-.pr-note a {
-  color: var(--pj-t-strong);
+
+/* The upgrade link, on the board card and on the product page. A 44px hit
+   area, and underlined so it reads as a link beside the refund sentence. */
+.kit-note-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--pj-t-strong, var(--amw-ink));
   text-decoration: underline;
   text-underline-offset: 3px;
+  transition: color 0.2s;
+}
+.kit-note-link:hover {
+  color: var(--pj-accent-ink, var(--amw-accent-ink));
 }
 
 /* ---- 04: setup path --------------------------------------------------------- */

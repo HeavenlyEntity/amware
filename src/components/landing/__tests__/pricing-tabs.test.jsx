@@ -67,7 +67,7 @@ describe('Pricing tabs', () => {
     expect(within(p).getByText('Free')).toBeInTheDocument()
     expect(within(p).getByText('$499')).toBeInTheDocument()
     expect(within(p).getByText('$999')).toBeInTheDocument()
-    expect(within(p).getByText('Up to 5 collaborators')).toBeInTheDocument()
+    expect(within(p).getByText('5 developers')).toBeInTheDocument()
     expect(within(p).queryByText('Advisor')).toBeNull()
   })
 

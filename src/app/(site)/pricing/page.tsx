@@ -23,7 +23,7 @@ export const metadata = withSocialImage(
   {
     title: 'Pricing',
     description:
-      'WareKit pricing: free Lite kits, single-seat Pro licences and five-seat Team licences for the AMWARE NetSuite starter kits.',
+      'WareKit pricing: free Lite kits, one-developer Pro licenses and five-developer Team licenses for the AMWARE NetSuite starter kits.',
   },
   'pricing'
 )

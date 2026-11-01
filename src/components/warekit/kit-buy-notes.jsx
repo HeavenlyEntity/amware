@@ -13,7 +13,9 @@ export function KitBuyNotes({ paid, tier, className }) {
       <p>{REFUND_NOTE}</p>
       {tier === 'team' && (
         <p>
-          <Link href={UPGRADE_HREF}>{UPGRADE_NOTE}</Link>
+          <Link href={UPGRADE_HREF} className="kit-note-link">
+            {UPGRADE_NOTE}
+          </Link>
         </p>
       )}
     </div>

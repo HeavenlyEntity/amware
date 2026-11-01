@@ -44,19 +44,19 @@ describe('priceLabel', () => {
 
 describe('seatLine', () => {
   it('matches MakerKit’s framing for a single seat', () => {
-    expect(seatLine(kit({ seats: 1 }))).toBe('Access for 1 user (only you)')
+    expect(seatLine(kit({ seats: 1 }))).toBe('1 developer')
   })
 
-  it('counts collaborators above one', () => {
-    expect(seatLine(kit({ seats: 5 }))).toBe('Up to 5 collaborators')
+  it('counts developers above one', () => {
+    expect(seatLine(kit({ seats: 5 }))).toBe('5 developers')
   })
 
   /* The page must never promise more seats than the seat page enforces, and
      the seat rules treat a missing limit as one. These two have to agree. */
   it('treats a missing seat count as one, never as unlimited', () => {
-    expect(seatLine(kit({ seats: null }))).toMatch(/1 user/)
-    expect(seatLine(kit({ seats: 0 }))).toMatch(/1 user/)
-    expect(seatLine(kit({ seats: undefined }))).toMatch(/1 user/)
+    expect(seatLine(kit({ seats: null }))).toBe('1 developer')
+    expect(seatLine(kit({ seats: 0 }))).toBe('1 developer')
+    expect(seatLine(kit({ seats: undefined }))).toBe('1 developer')
   })
 })
 
