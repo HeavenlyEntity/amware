@@ -55,6 +55,9 @@ const world = ({
 } = {}) => {
   const db = {
     find: vi.fn(async ({ collection, where, sort }) => {
+      if (collection === 'licenses') {
+        return { docs: licenses.filter((row) => matches(row, where)) }
+      }
       if (collection !== 'purchases') throw new Error('unexpected read')
       const docs = purchases.filter((row) =>
         (where.and ?? []).every((clause) => matches(row, clause))
@@ -91,6 +94,10 @@ const submit = (email, extra = {}) => {
 
 const sent = () => sendLicenseLinkEmail.mock.calls.at(-1)[0]
 const tokenOf = (url) => url.split('/access/seats/')[1]
+const mailedLicenses = () =>
+  sendLicenseLinkEmail.mock.calls.map(
+    ([mail]) => readAccessToken(tokenOf(mail.url)).claims.licenseId
+  )
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -164,10 +171,15 @@ describe('resend for a kit buyer', () => {
     expect(sendAccessLinkEmail).not.toHaveBeenCalled()
   })
 
-  it('reads the license from a relationship that arrives as an object', async () => {
-    world({ purchases: [kitRow({ license: { id: 9 } })] })
+  it('mints from a row someone else paid, for the owner of the license', async () => {
+    // The owner's address is on no purchase here: a colleague's card paid.
+    world({ purchases: [upgradeRow({ email: 'payer@elsewhere.test' })] })
     await submit(OWNER)
-    expect(readAccessToken(tokenOf(sent().url)).claims.licenseId).toBe(9)
+    expect(sent().to).toBe(OWNER)
+    expect(readAccessToken(tokenOf(sent().url)).claims).toMatchObject({
+      purchaseId: 77,
+      licenseId: 9,
+    })
   })
 
   it('sends only to the license owner, never to someone else who paid on it', async () => {
@@ -181,19 +193,177 @@ describe('resend for a kit buyer', () => {
     expect(sendAccessLinkEmail).not.toHaveBeenCalled()
   })
 
-  it('compares owner addresses without regard to case', async () => {
-    world({
+  it('finds licenses by the lowercased address', async () => {
+    const db = world({
       purchases: [kitRow({ email: 'Jane@Acme.com' })],
-      licenses: [{ id: 9, ownerEmail: 'jane@acme.com' }],
+      licenses: [{ id: 9, ownerEmail: 'jane@acme.com', tier: 'pro' }],
     })
-    await submit('Jane@Acme.com')
+    await submit('  Jane@Acme.COM ')
+
+    const query = db.find.mock.calls
+      .map(([arg]) => arg)
+      .find((arg) => arg.collection === 'licenses')
+    expect(query.where).toEqual({ ownerEmail: { equals: 'jane@acme.com' } })
+    expect(query.overrideAccess).toBe(true)
     expect(sent().to).toBe('jane@acme.com')
+  })
+
+  it('asks for the newest paid row of that license', async () => {
+    const db = world({ purchases: [kitRow()] })
+    await submit(OWNER)
+
+    const query = db.find.mock.calls
+      .map(([arg]) => arg)
+      .find((arg) => arg.where.and?.[0].license)
+    expect(query).toMatchObject({
+      collection: 'purchases',
+      sort: '-createdAt',
+      limit: 1,
+    })
+    expect(query.where.and).toEqual([
+      { license: { equals: 9 } },
+      { status: { equals: 'paid' } },
+    ])
   })
 
   it('sends nothing, and says nothing different, when the license is gone', async () => {
     world({ purchases: [kitRow()], licenses: [] })
     expect(await submit(OWNER)).toEqual({ done: true, error: null })
     expect(sendLicenseLinkEmail).not.toHaveBeenCalled()
+  })
+})
+
+describe('resend for an owner of several licenses', () => {
+  const MINUTE = 60 * 1000
+  const ago = (minutes) => new Date(Date.now() - minutes * MINUTE).toISOString()
+  const DONE = { done: true, error: null }
+  const owned = (id, tier, over = {}) => ({
+    id,
+    ownerEmail: OWNER,
+    tier,
+    ...over,
+  })
+  const rows = (...ids) =>
+    ids.map((id) => kitRow({ id: 100 + id, license: id }))
+
+  it('mails every license that holds a tier, each with its own id', async () => {
+    world({
+      purchases: rows(1, 2, 3),
+      licenses: [owned(1, 'pro'), owned(2, 'team'), owned(3, 'enterprise')],
+    })
+
+    expect(await submit(OWNER)).toEqual(DONE)
+
+    expect(mailedLicenses().sort()).toEqual([1, 2, 3])
+    expect(sendLicenseLinkEmail.mock.calls.map(([mail]) => mail.to)).toEqual([
+      OWNER,
+      OWNER,
+      OWNER,
+    ])
+    expect(readAccessToken(tokenOf(sent().url)).claims.purchaseId).toBe(103)
+  })
+
+  it('skips a license with no tier, and another owner’s', async () => {
+    world({
+      purchases: rows(1, 2, 3),
+      licenses: [
+        owned(1, 'pro'),
+        owned(2, null),
+        owned(3, 'pro', { ownerEmail: 'someone@else.test' }),
+      ],
+    })
+
+    await submit(OWNER)
+
+    expect(mailedLicenses()).toEqual([1])
+  })
+
+  it('mails a Lite license too, on a plain resend', async () => {
+    world({
+      purchases: rows(1, 2),
+      licenses: [owned(1, 'lite'), owned(2, 'pro')],
+    })
+
+    await submit(OWNER)
+
+    expect(mailedLicenses().sort()).toEqual([1, 2])
+  })
+
+  it('keeps each license inside its own window', async () => {
+    const db = world({
+      purchases: rows(1, 2),
+      licenses: [
+        owned(1, 'pro', { lastLinkSentAt: ago(1) }),
+        owned(2, 'pro', { lastLinkSentAt: ago(11) }),
+      ],
+    })
+
+    await submit(OWNER)
+
+    expect(mailedLicenses()).toEqual([2])
+    expect(db.update).toHaveBeenCalledTimes(1)
+    expect(db.update.mock.calls[0][0].id).toBe(2)
+  })
+
+  it('skips Lite with intent=upgrade when a paid license exists', async () => {
+    world({
+      purchases: rows(1, 2),
+      licenses: [owned(1, 'lite'), owned(2, 'pro')],
+    })
+
+    await submit(OWNER, { intent: 'upgrade' })
+
+    expect(mailedLicenses()).toEqual([2])
+    expect(sent().reason).toBe('upgrade')
+  })
+
+  it('still mails Lite with intent=upgrade when it is all there is', async () => {
+    world({ purchases: rows(1), licenses: [owned(1, 'lite')] })
+
+    await submit(OWNER, { intent: 'upgrade' })
+
+    expect(mailedLicenses()).toEqual([1])
+  })
+
+  it('carries on past a mail that fails, with the same answer', async () => {
+    world({
+      purchases: rows(1, 2),
+      licenses: [owned(1, 'pro'), owned(2, 'pro')],
+    })
+    sendLicenseLinkEmail.mockRejectedValueOnce(new Error('resend is down'))
+
+    expect(await submit(OWNER)).toEqual(DONE)
+
+    expect(sendLicenseLinkEmail).toHaveBeenCalledTimes(2)
+  })
+
+  it('carries on past a license whose purchases cannot be read', async () => {
+    const db = world({
+      purchases: rows(1, 2),
+      licenses: [owned(1, 'pro'), owned(2, 'pro')],
+    })
+    const ok = db.find.getMockImplementation()
+    db.find.mockImplementation(async (query) => {
+      if (query.where.and?.[0].license?.equals === 1) {
+        throw new Error('connection terminated')
+      }
+      return ok(query)
+    })
+
+    expect(await submit(OWNER)).toEqual(DONE)
+
+    expect(mailedLicenses()).toEqual([2])
+  })
+
+  it('answers the same for an owner of many as for an unknown address', async () => {
+    world({
+      purchases: rows(1, 2),
+      licenses: [owned(1, 'pro'), owned(2, 'lite')],
+    })
+    const known = await submit(OWNER)
+    const unknown = await submit('nobody@nowhere.test')
+
+    expect(unknown).toEqual(known)
   })
 })
 
@@ -221,6 +391,25 @@ describe('resend for a purchase with no license', () => {
       itemType: 'course',
       itemId: 3,
     })
+  })
+
+  it('sends both to an owner of a license who also bought a course', async () => {
+    world({
+      purchases: [
+        kitRow(),
+        kitRow({
+          id: 12,
+          license: null,
+          item: { relationTo: 'courses', value: 3 },
+          itemType: 'course',
+        }),
+      ],
+    })
+
+    expect(await submit(OWNER)).toEqual({ done: true, error: null })
+
+    expect(mailedLicenses()).toEqual([9])
+    expect(sendAccessLinkEmail).toHaveBeenCalledTimes(1)
   })
 
   it('still skips a purchase that has nothing to link to', async () => {
@@ -310,7 +499,7 @@ describe('resend answers every email the same way', () => {
 
   it('does not call a failing license read an unknown email', async () => {
     const db = world({ purchases: [kitRow()] })
-    db.findByID.mockRejectedValue(
+    db.find.mockRejectedValue(
       Object.assign(new Error('connection terminated'), { status: 500 })
     )
     const answer = await submit(OWNER)
