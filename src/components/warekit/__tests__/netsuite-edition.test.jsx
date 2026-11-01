@@ -463,6 +463,19 @@ describe('beside the buy button', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('styles the Already on Pro link as a 44px link', () => {
+    mount({ ...nextPro, ...nextTeam })
+    const link = screen.getByRole('link', { name: /Already on Pro/ })
+    for (const cls of [
+      'inline-flex',
+      'min-h-11',
+      'items-center',
+      'underline',
+    ]) {
+      expect(link).toHaveClass(cls)
+    }
+  })
+
   it('keeps Already on Pro off a Team that is not on sale', () => {
     const { container } = mount(nextPro)
     expect(container).not.toHaveTextContent('Already on Pro')

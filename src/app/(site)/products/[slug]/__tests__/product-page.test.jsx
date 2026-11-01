@@ -129,6 +129,19 @@ describe('/products/[slug]', () => {
     ).toHaveAttribute('href', '/access/resend?intent=upgrade')
   })
 
+  it('styles that link with utilities, since this page loads no board css', async () => {
+    await show(team)
+    const link = screen.getByRole('link', { name: /Already on Pro/ })
+    for (const cls of [
+      'inline-flex',
+      'min-h-11',
+      'items-center',
+      'underline',
+    ]) {
+      expect(link).toHaveClass(cls)
+    }
+  })
+
   it('keeps Already on Pro off Pro', async () => {
     await show(kit)
     expect(screen.queryByText(/Already on Pro/)).not.toBeInTheDocument()
