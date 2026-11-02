@@ -21,6 +21,9 @@ async function resendLink(formData) {
         { email: { equals: email } },
         { status: { equals: 'paid' } },
         { fulfillmentStatus: { not_equals: 'pending_invite' } },
+        // Nothing to link to: Creem delivers digital products itself, and a
+        // retainer has no access page.
+        { fulfillmentStatus: { not_equals: 'not_required' } },
       ],
     },
     sort: '-createdAt',
@@ -69,7 +72,8 @@ export default function ResendPage() {
         </h1>
         <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
           Enter the email you purchased with. If we find a purchase, we&apos;ll
-          email a fresh link.
+          email a fresh link. For a digital product, the download link is in
+          your receipt from Creem.
         </p>
         <form action={resendLink} className="mt-6 flex gap-3">
           <input

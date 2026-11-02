@@ -70,7 +70,7 @@ export default async function CoursePage({
         course={course}
         lessons={lessons}
         cta={
-          course.creemProductId ? (
+          planId(course) ? (
             <BuyButton
               planId={planId(course)}
               itemType="course"

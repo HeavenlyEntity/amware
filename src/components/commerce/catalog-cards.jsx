@@ -10,6 +10,7 @@ import { DepositCheckout } from '@/components/commerce/DepositCheckout'
 import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
 import { calLinkFromUrl } from '@/lib/commerce/calLink'
 import { depositPlanId, planId } from '@/lib/commerce/whopEnv'
+import { checkoutRoute } from '@/lib/commerce/checkoutRoute'
 import { usd } from '@/lib/commerce/money'
 import { cn } from '@/lib/utils'
 import { typeMeta } from '@/components/commerce/catalog-meta'
@@ -143,7 +144,7 @@ export function ProductCard({ product, index = 0 }) {
               product.priceLabel || `${product.currency ?? 'USD'} · one time`
             }
           />
-          <Pill>{product.creemProductId ? 'View spec' : 'Details'}</Pill>
+          <Pill>{checkoutRoute(product) ? 'View spec' : 'Details'}</Pill>
         </div>
       </div>
 

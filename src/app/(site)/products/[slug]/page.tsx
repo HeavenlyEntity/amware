@@ -7,7 +7,9 @@ import { RichText } from '@/components/site/RichText'
 import { inlineCode } from '@/components/site/inline-code'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { BuyButton } from '@/components/commerce/BuyButton'
+import { DigitalBuyButton } from '@/components/commerce/DigitalBuyButton'
 import { planId } from '@/lib/commerce/whopEnv'
+import { checkoutRoute } from '@/lib/commerce/checkoutRoute'
 import { ClaimFreeKit } from '@/components/commerce/ClaimFreeKit'
 import { StackLogos } from '@/components/commerce/StackChips'
 import { seatLine } from '@/lib/commerce/pricingTable'
@@ -80,20 +82,25 @@ export default async function ProductPage({
   const features = Array.isArray(product.features) ? product.features : []
   const demoHref = safeHref(product.demoUrl)
   const isBoilerplate = product.type === 'boilerplate'
+  const isDigital = product.type === 'digital'
   /* Free is a price of exactly 0, not a missing price. A kit with no price
      set is unfinished and shows "Soon"; a kit priced at 0 is a deliberate
      free tier and is claimed rather than bought. */
   const isFree = product.price === 0
+  // Kits sell through Whop and digital products through Creem. Neither is on
+  // sale until the route says so.
+  const route = checkoutRoute(product)
+  const price = typeof product.price === 'number' ? product.price : undefined
 
   return (
     <Container className="mt-16 sm:mt-32">
       <TrackView type={product.type} id={product.slug} name={product.name} />
       <div className="amw">
         <Link
-          href="/products"
+          href={isDigital ? '/digital-products' : '/products'}
           className="amw-kicker hover:text-[var(--amw-accent)] inline-flex items-center gap-2 transition-colors"
         >
-          ← all products
+          {isDigital ? '← all digital products' : '← all products'}
         </Link>
 
         <div className="mt-7 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_330px] lg:gap-14">
@@ -224,23 +231,27 @@ export default async function ProductPage({
 
               {isFree && isBoilerplate ? (
                 <ClaimFreeKit slug={product.slug} />
-              ) : product.creemProductId ? (
+              ) : route === 'whop' ? (
                 <BuyButton
                   planId={planId(product)}
                   itemType="product"
                   slug={product.slug}
-                  price={
-                    typeof product.price === 'number'
-                      ? product.price
-                      : undefined
-                  }
+                  price={price}
                   name={product.name}
                 />
+              ) : route === 'creem' ? (
+                <DigitalBuyButton
+                  slug={product.slug}
+                  name={product.name}
+                  price={price}
+                >
+                  Buy now
+                </DigitalBuyButton>
               ) : (
                 /* The same dashed panel the pricing table uses, rather than a
                    line of grey text that reads like something failed to
-                   load. A priced kit with no Creem product is in development,
-                   which is a different thing from unfinished. */
+                   load. A priced product with no checkout behind it is in
+                   development, which is a different thing from unfinished. */
                 <p className="amw-kicker amw-cta-pending mt-8">
                   {typeof product.price === 'number'
                     ? 'in development'

@@ -10,10 +10,10 @@ export const metadata = {
   robots: { index: false },
 }
 
-/* Where a download buyer lands after Creem. Delivery is the access link the
-   webhook emails, so this page grants nothing and knows nothing it has to
-   protect; what it does do is report the sale to the ads pixel with its real
-   amount.
+/* Where a download buyer lands after Creem. Creem delivers the file through
+   its purchase email and customer portal, so this page grants nothing and
+   knows nothing it has to protect; what it does do is report the sale to the
+   ads pixel with its real amount.
 
    The request id in the URL is unsigned, which is fine for that one job: it
    is a UUID, so it cannot be enumerated, and the worst a guessed one reveals
@@ -64,14 +64,13 @@ export default async function CheckoutSuccess({ searchParams }) {
           Thank you — payment received
         </h1>
         <p className="mt-6 text-base text-zinc-600 dark:text-zinc-400">
-          Check your email. For a kit it carries the link that sets up your
-          repository access; for a download it carries the file. Didn&apos;t get
-          it?{' '}
+          Check your email. Your receipt from Creem carries the download link,
+          and the file stays in your Creem customer portal. Didn&apos;t get it?{' '}
           <Link
-            href="/access/resend"
+            href="/contact"
             className="text-teal-700 underline underline-offset-4 dark:text-teal-300"
           >
-            Resend my access link
+            Get in touch
           </Link>
           .
         </p>

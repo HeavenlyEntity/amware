@@ -1,11 +1,9 @@
 import { withSocialImage } from '@/lib/social/metadata'
-import { Container } from '@/components/Container'
 import { getPayloadClient } from '@/lib/getPayloadClient'
-import {
-  StoreHero,
-  StoreEmpty,
-  ProductCard,
-} from '@/components/commerce/storefront'
+import { editionStates } from '@/lib/commerce/kitEditions'
+import { NetsuiteEdition } from '@/components/warekit/netsuite-edition'
+import '@/styles/portfolio.css'
+import '@/styles/products.css'
 
 export const revalidate = 60
 
@@ -13,52 +11,36 @@ export const metadata = withSocialImage(
   {
     title: 'Products',
     description:
-      'Engineering-grade boilerplates and digital tooling for founders, wired, typed and documented so you ship the product, not the plumbing.',
+      'WareKit: engineering-grade NetSuite foundations from a fractional CTO. Choose a React app inside NetSuite or a Next.js app connected to it, and start with a working foundation.',
   },
   'products'
 )
 
+/* The query reads drafts on purpose: a draft is an edition still planned.
+   Rows stay on this side of the boundary, and only editionStates' reduced
+   shape reaches the client. A failed read renders every edition as planned
+   rather than failing the page. */
 export default async function ProductsPage() {
-  const payload = await getPayloadClient()
-  const { docs } = await payload.find({
-    collection: 'products',
-    where: { status: { equals: 'published' } },
-    sort: 'order',
-    depth: 1,
-    limit: 100,
-  })
+  let states = {}
+  try {
+    const payload = await getPayloadClient()
+    const { docs } = await payload.find({
+      collection: 'products',
+      where: {
+        line: { equals: 'warekit' },
+        edition: { equals: 'netsuite' },
+      },
+      depth: 0,
+      limit: 100,
+    })
+    states = editionStates(docs)
+  } catch (error) {
+    console.error('Products: could not load the NetSuite editions', error)
+  }
 
   return (
-    <Container className="mt-16 sm:mt-32">
-      <div className="amw">
-        <StoreHero
-          eyebrow="// AMWARE · ENGINEERING-GRADE TEMPLATES"
-          title="Boilerplates built to ship, not to demo."
-          intro="Production starter kits and digital tooling, wired, typed and documented so you can build the product instead of the plumbing."
-          meta={
-            <>
-              <span className="amw-chip amw-chip--accent amw-chip--dot">
-                {docs.length} available
-              </span>
-              <span className="amw-chip">one-time purchase</span>
-              <span className="amw-chip">instant delivery</span>
-            </>
-          }
-        />
-
-        {docs.length === 0 ? (
-          <StoreEmpty label="products" />
-        ) : (
-          <>
-            <h2 className="sr-only">Available products</h2>
-            <ul className="mt-10 grid grid-cols-1 gap-6 sm:mt-12 md:gap-8">
-              {docs.map((product, i) => (
-                <ProductCard key={product.id} product={product} index={i} />
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
-    </Container>
+    <div className="amw pr overflow-x-clip pb-24 pt-4 md:pt-8">
+      <NetsuiteEdition states={states} />
+    </div>
   )
 }

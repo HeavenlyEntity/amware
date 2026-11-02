@@ -25,7 +25,7 @@ export const creemProductField = (
     type: 'text',
     admin: {
       description:
-        'Creem prod_… id. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.',
+        'Creem prod_… id. Creem sells digital products only; kits sell through Whop. A published digital product with an id is on sale, so attach its file in Creem first. Absence ⇒ not purchasable. Editing this auto-fills the price from Creem.',
       components: {
         Field: {
           path: '@/fields/creem/CreemProductField#CreemProductField',

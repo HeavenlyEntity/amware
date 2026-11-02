@@ -34,7 +34,7 @@ const catalogue = [
     name: 'Pro',
     tier: 'pro',
     price: 499,
-    creemProductId: 'p',
+    whopPlanId: 'plan_pro',
   }),
   kit({ slug: 'team', name: 'Team', tier: 'team', price: 999, seats: 5 }),
 ]

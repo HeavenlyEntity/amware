@@ -38,6 +38,12 @@ const SUBSCRIPTION_STATES = new Set([
 const isEngagement = (itemType: string, item: any) =>
   itemType === 'service' || item?.type === 'service-package'
 
+/* The paid file is attached to the product in Creem's dashboard, and Creem
+   sends it through its purchase email and customer portal. Recording the sale
+   is the whole job here; an access link would only point at an empty page. */
+const isCreemDelivered = (itemType: string, item: any) =>
+  itemType === 'product' && item?.type === 'digital'
+
 export async function POST(req) {
   const raw = await req.text()
   if (raw.length > 65536) {
@@ -258,6 +264,7 @@ async function handleCheckout(event) {
 
   const isBoilerplate = itemType === 'product' && item?.type === 'boilerplate'
   const engagement = isEngagement(itemType, item)
+  const creemDelivered = isCreemDelivered(itemType, item)
   const itemName = item?.name || item?.title || 'your purchase'
 
   const productMismatch =
@@ -289,7 +296,7 @@ async function handleCheckout(event) {
         subscriptionStatus: subscriptionId ? 'active' : undefined,
         fulfillmentStatus: isBoilerplate
           ? 'pending_invite'
-          : engagement
+          : engagement || creemDelivered
           ? 'not_required'
           : 'pending',
       },
@@ -323,9 +330,9 @@ async function handleCheckout(event) {
         data: { fulfillmentStatus: 'failed' },
       })
       .catch(() => {})
-  } else if (engagement) {
-    // A retainer needs no delivery. It was recorded, which is the whole job;
-    // the engagement itself is scheduled with the client out of band.
+  } else if (engagement || creemDelivered) {
+    // Neither needs delivery from here. A retainer is scheduled with the
+    // client out of band, and Creem sends a digital product's file itself.
   } else if (isBoilerplate) {
     const repo = typeof item?.githubRepo === 'string' ? item.githubRepo : null
 
