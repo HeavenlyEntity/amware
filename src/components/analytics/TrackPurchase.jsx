@@ -11,9 +11,9 @@ import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
  *
  * The event id is the Creem request id, which is unique per checkout and
  * identical on the webhook. A refresh of the landing page sends the same id
- * again and Whop folds it into the one sale. Email is passed only when the
- * page could verify who is looking (a signed link); the anonymous success
- * page reports the sale without it.
+ * again and Whop folds it into the one sale. The anonymous success page
+ * reports the sale without an email. The pixel stays off a signed link, so
+ * nothing reports from one (see privatePaths.js).
  *
  * Typed through JSDoc because this is a .jsx file used from .tsx pages:
  * without it TypeScript takes every destructured prop as required, and a page

@@ -8,9 +8,11 @@
  * a pixel loaded on an earlier page is still in memory after a client-side
  * move back to a license page.
  *
- * `/checkout/onboarding` keeps the pixel, which its purchase event needs. Its
- * `r` and `s` are a bearer link of their own, so Analytics gets the address
- * without them.
+ * `/checkout/onboarding` is two pages. With `r` and `s` it is Creem's signed
+ * link, a bearer link of its own that never expires, can answer an unanswered
+ * purchase, and shows a license link: the pixel stays off it, and Analytics
+ * gets the address without them. With Whop's `ref` or `payment_id` it holds no
+ * secret and keeps the pixel.
  *
  * Both also send the `Referrer-Policy` set in next.config.mjs, so the page a
  * buyer moves to next never holds these addresses in `document.referrer`.
@@ -24,6 +26,14 @@ const SECRET_PARAMS = ['r', 's']
 /** True on a path no third-party script may run on. */
 export function isBearerPath(pathname) {
   return typeof pathname === 'string' && /^\/access(\/|$)/.test(pathname)
+}
+
+/** True on an onboarding address that carries the signed link. */
+export function isSignedOnboarding(pathname, search) {
+  if (typeof pathname !== 'string') return false
+  if (pathname.replace(/\/$/, '') !== ONBOARDING) return false
+  const params = new URLSearchParams(search ?? '')
+  return SECRET_PARAMS.some((param) => params.has(param))
 }
 
 /**

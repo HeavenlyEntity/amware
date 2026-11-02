@@ -3,8 +3,6 @@ import { Container } from '@/components/Container'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { OnboardingSteps } from '@/components/commerce/OnboardingSteps'
 import { OnboardingGithubForm } from '@/components/commerce/OnboardingGithubForm'
-import { TrackPurchase } from '@/components/analytics/TrackPurchase'
-import { centsToValue } from '@/lib/analytics/whop'
 import { NextStep } from '@/components/commerce/NextStep'
 import { PendingRefresh } from '@/components/commerce/PendingRefresh'
 import {
@@ -441,16 +439,6 @@ export default async function OnboardingPage({
 
   return (
     <Shell title={`${itemName} is yours`}>
-      {/* One report per render, with the amount Creem charged. The event id
-          is the request id, so a refresh or the email link folds into the
-          same sale. No email: this page can show a link, not who holds it. */}
-      <TrackPurchase
-        eventId={link.r}
-        value={centsToValue(purchase.amount ?? 0)}
-        currency={(purchase.currency || 'USD').toUpperCase()}
-        contentName={itemName}
-      />
-
       <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
         {delivered
           ? 'Payment received. Here is everything you need.'

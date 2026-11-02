@@ -72,14 +72,44 @@ describe('the pixel', () => {
     expect(window.whop).toBeUndefined()
   })
 
-  it('stays on /checkout/onboarding, which the purchase event needs', () => {
+  it.each([
+    '/checkout/onboarding?r=req_1&s=sig_1',
+    '/checkout/onboarding?r=req_1',
+    '/checkout/onboarding?s=sig_1',
+  ])('stays off the signed link %s', (address) => {
     pathname = '/checkout/onboarding'
+    window.history.pushState({}, '', address)
+    render(<WhopPixel />)
+    expect(scripts).not.toHaveBeenCalled()
+    expect(window.whop).toBeUndefined()
+  })
+
+  it.each([
+    '/checkout/onboarding?ref=abc',
+    '/checkout/onboarding?payment_id=pay_1',
+    '/checkout/onboarding',
+  ])('stays on the Whop return %s', (address) => {
+    pathname = '/checkout/onboarding'
+    window.history.pushState({}, '', address)
     render(<WhopPixel />)
     expect(scripts).toHaveBeenCalledTimes(1)
   })
 
-  it('is there before a page component fires its purchase', () => {
+  /* Next updates the address after it renders the new route, so the pixel has
+     to go by the new path, not a query left over from the signed link. */
+  it('mounts on the next page even while the signed address lingers', () => {
     pathname = '/checkout/onboarding'
+    window.history.pushState({}, '', '/checkout/onboarding?r=req_1&s=sig_1')
+    const { rerender } = render(<WhopPixel />)
+    expect(scripts).not.toHaveBeenCalled()
+
+    pathname = '/contact'
+    rerender(<WhopPixel />)
+    expect(scripts).toHaveBeenCalledTimes(1)
+  })
+
+  it('is there before a page component fires its purchase', () => {
+    pathname = '/checkout/success'
     render(
       <>
         <WhopPixel />
@@ -149,6 +179,22 @@ describe('where the pixel is not loaded', () => {
 
     expect(whopTrack(WHOP_EVENT.beginCheckout, { value: 1 })).toBe(false)
     expect(track).not.toHaveBeenCalled()
+  })
+
+  it('whopTrack refuses on a signed link even with a pixel in memory', () => {
+    window.whop = { track }
+    window.history.pushState({}, '', '/checkout/onboarding?r=req_1&s=sig_1')
+
+    expect(whopTrack(WHOP_EVENT.page)).toBe(false)
+    expect(track).not.toHaveBeenCalled()
+  })
+
+  it('whopTrack still fires on a Whop return to the same page', () => {
+    window.whop = { track }
+    window.history.pushState({}, '', '/checkout/onboarding?ref=abc')
+
+    expect(whopTrack(WHOP_EVENT.page)).toBe(true)
+    expect(track).toHaveBeenCalledTimes(1)
   })
 })
 

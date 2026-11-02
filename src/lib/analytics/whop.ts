@@ -23,7 +23,7 @@
  * its own sales and rejects the duplicate.
  */
 
-import { isBearerPath } from './privatePaths'
+import { isBearerPath, isSignedOnboarding } from './privatePaths'
 
 export const WHOP_EVENT = {
   /** A page view. The head snippet fires the first; route changes fire the rest. */
@@ -67,7 +67,10 @@ type WhopGlobal = { track: (...args: unknown[]) => void }
 
 function pixel(): WhopGlobal | null {
   if (typeof window === 'undefined') return null
-  if (isBearerPath(window.location?.pathname)) return null
+  const { pathname, search } = window.location ?? {}
+  if (isBearerPath(pathname) || isSignedOnboarding(pathname, search)) {
+    return null
+  }
   const w = (window as unknown as { whop?: WhopGlobal }).whop
   return w && typeof w.track === 'function' ? w : null
 }

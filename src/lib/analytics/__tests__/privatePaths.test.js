@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { isBearerPath, redactAnalyticsEvent } from '../privatePaths'
+import {
+  isBearerPath,
+  isSignedOnboarding,
+  redactAnalyticsEvent,
+} from '../privatePaths'
 
 const TOKEN = 'eyJhbGciOi.signed.token'
 
@@ -26,6 +30,29 @@ describe('isBearerPath', () => {
     undefined,
   ])('leaves %s alone', (path) => {
     expect(isBearerPath(path)).toBe(false)
+  })
+})
+
+describe('isSignedOnboarding', () => {
+  it.each([
+    ['/checkout/onboarding', '?r=req_1&s=sig_1'],
+    ['/checkout/onboarding/', '?r=req_1&s=sig_1'],
+    ['/checkout/onboarding', '?r=req_1'],
+    ['/checkout/onboarding', '?s=sig_1'],
+    ['/checkout/onboarding', '?utm=x&s=sig_1'],
+  ])('is true for %s%s', (pathname, search) => {
+    expect(isSignedOnboarding(pathname, search)).toBe(true)
+  })
+
+  it.each([
+    ['/checkout/onboarding', ''],
+    ['/checkout/onboarding', '?ref=abc'],
+    ['/checkout/onboarding', '?payment_id=pay_1&status=success'],
+    ['/checkout/onboarding', undefined],
+    ['/contact', '?r=req_1&s=sig_1'],
+    [undefined, '?r=req_1'],
+  ])('is false for %s%s', (pathname, search) => {
+    expect(isSignedOnboarding(pathname, search)).toBe(false)
   })
 })
 

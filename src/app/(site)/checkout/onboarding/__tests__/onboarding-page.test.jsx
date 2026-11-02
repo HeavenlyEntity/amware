@@ -743,20 +743,12 @@ describe('Onboarding page for a Creem kit buyer', () => {
     expect(screen.getByLabelText(/github username/i)).toHaveValue('')
   })
 
-  it('reports the purchase with its real amount once', async () => {
+  /* The pixel stays off a signed link, so a kit sale reports nothing here,
+     before or after delivery. See privatePaths.js. */
+  it('reports no purchase on a signed link', async () => {
     purchases = [creemRow({ amount: 99900, currency: 'usd' })]
-    await renderPage(link())
-
-    expect(track).toHaveBeenCalledTimes(1)
-    expect(track).toHaveBeenCalledWith('purchase', {
-      value: 999,
-      currency: 'USD',
-      event_id: REQUEST_ID,
-      content_name: 'WareKit Next NetSuite (Team)',
-    })
-  })
-
-  it('reports it once after delivery too, and never the email', async () => {
+    const first = await renderPage(link())
+    first.unmount()
     purchases = [
       creemRow({
         amount: 99900,
@@ -766,8 +758,7 @@ describe('Onboarding page for a Creem kit buyer', () => {
     ]
     await renderPage(link())
 
-    expect(track).toHaveBeenCalledTimes(1)
-    expect(JSON.stringify(track.mock.calls)).not.toContain('buyer@example.com')
+    expect(track).not.toHaveBeenCalled()
   })
 
   it('reports nothing before the payment has arrived or for a refunded row', async () => {

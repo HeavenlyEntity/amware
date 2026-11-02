@@ -5,6 +5,7 @@ import Script from 'next/script'
 import { Analytics } from '@vercel/analytics/next'
 import {
   isBearerPath,
+  isSignedOnboarding,
   redactAnalyticsEvent,
 } from '@/lib/analytics/privatePaths'
 import { WHOP_PIXEL } from '@/lib/analytics/whop-pixel'
@@ -24,11 +25,24 @@ import { WhopRouteEvents } from '@/components/analytics/WhopRouteEvents'
  * matters because the snippet's `page` event is outside its own guard. That
  * event also reports the page the pixel loaded on, and `WhopRouteEvents`
  * skips its first render, so the two never count one view twice.
+ *
+ * The signed onboarding link differs from Whop's return only in its query.
+ * useSearchParams here would put every static page behind a client render, so
+ * the pixel reads the address itself. That is safe to differ from the server,
+ * which renders nothing for an afterInteractive inline script.
  */
+
+function isPixelBarred(pathname) {
+  if (isBearerPath(pathname)) return true
+  return (
+    typeof window !== 'undefined' &&
+    isSignedOnboarding(pathname, window.location.search)
+  )
+}
 
 export function WhopPixel() {
   const pathname = usePathname()
-  if (isBearerPath(pathname)) return null
+  if (isPixelBarred(pathname)) return null
   return (
     <Script
       id="whop-pixel"
