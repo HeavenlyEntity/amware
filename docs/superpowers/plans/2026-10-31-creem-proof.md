@@ -58,6 +58,33 @@ The refund API (`POST /v1/refunds`) is full only. Partial refunds are dashboard 
 
 The first API refund failed with `400 Insufficient balance. Please wait for incoming payments before requesting this refund.` A full dashboard refund on the same payment succeeded about two minutes later, after a second payment had come in. The cause isn't established. Before promising the 14-day refund in live mode, check how a refund behaves with a low store balance, especially on the first sale.
 
+## Preview run
+
+Task 15, run on 2026-11-03 against the branch preview (`amware-preview.vercel.app`, build `my-next-spotlight-1iagvjrgr`) in Creem test mode, through the real webhook route. The Next Pro and Team rows held the test ids from the setup above and were published only for the run. The browser was gstack's Chromium at desktop width.
+
+| Step                                                                       | Result                                                                                                                              |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Pro product page: $499, 1 developer, 1 NetSuite account, no console errors | Pass                                                                                                                                |
+| Buy Pro, `checkout.completed` writes the purchase and the license          | Pass: one paid sandbox purchase, a Pro license, signed onboarding link resolved                                                     |
+| Onboarding with a GitHub account that already has access                   | Pass: "already has access", link to the license page, no invitation sent                                                            |
+| License page `1 / 1`, key Reveal and Copy                                  | Pass                                                                                                                                |
+| Move to Team, return to the license page                                   | Pass: "You're on Team.", `1 / 5` developers, `0 / 3` accounts. "Confirming…" was not caught on screen; the webhook had landed first |
+| Add and remove a developer                                                 | Pass: `2 / 5` and a read invitation on GitHub, then `1 / 5` and the invitation gone                                                 |
+| Save the license once in the admin                                         | Pass: only `updatedAt` changed                                                                                                      |
+| Refund the upgrade in Creem                                                | Pass: upgrade purchase `refunded`, license back to Pro, `refund.created` answered 200                                               |
+| Mobile width (375px)                                                       | **Not checked**                                                                                                                     |
+
+The plan expected the upgrade refund to flag the license. It isn't flagged, and that is correct: the route flags an upgrade refund only when seats or accounts are over the lower tier's limits, and this license had one developer and no accounts.
+
+Cleanup: the two sandbox purchases and the sandbox license were deleted (Alec approved the counts), the test invitation was already gone, and both product rows are back to draft. Production answers 404 on both product pages.
+
+What the run found:
+
+- **A protected preview needs the bypass on the webhook URL.** Vercel Authentication answers a bare `/webhooks/creem` with 401 before our code runs, and those requests never appear in the function logs. The Creem endpoint has to be `…/webhooks/creem?x-vercel-protection-bypass=<automation bypass secret>`. Production isn't protected, so its endpoint stays bare.
+- **Creem retries a failed delivery on its own schedule,** hours apart, and its dashboard has a Resend button per event. Resending after fixing the URL wrote the purchase at once.
+- **An old upgrade return link outlives a refund.** `/access/seats/<token>?upgraded=team…` still says "Confirming your upgrade" after the upgrade is refunded, because the page reads `upgraded` from the URL alone. The plain license link shows the right state. Left as a follow-up.
+- **Remove takes access away on one click,** with no confirmation step. Left as is.
+
 ## Payloads
 
 ### Kit `checkout.completed`
