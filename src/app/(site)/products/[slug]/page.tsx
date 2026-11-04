@@ -7,12 +7,18 @@ import { RichText } from '@/components/site/RichText'
 import { inlineCode } from '@/components/site/inline-code'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { BuyButton } from '@/components/commerce/BuyButton'
-import { DigitalBuyButton } from '@/components/commerce/DigitalBuyButton'
+import { CreemBuyButton } from '@/components/commerce/CreemBuyButton'
 import { planId } from '@/lib/commerce/whopEnv'
 import { checkoutRoute } from '@/lib/commerce/checkoutRoute'
 import { ClaimFreeKit } from '@/components/commerce/ClaimFreeKit'
 import { StackLogos } from '@/components/commerce/StackChips'
-import { seatLine } from '@/lib/commerce/pricingTable'
+import {
+  accountsLabel,
+  developersLabel,
+  kitLimits,
+} from '@/lib/commerce/kitEditions'
+import { KitBuyNotes } from '@/components/warekit/kit-buy-notes'
+import { ACCOUNTS_NOTE } from '@/content/site/warekit'
 import { usd } from '@/lib/commerce/money'
 import { typeMeta } from '@/components/commerce/storefront'
 
@@ -87,10 +93,14 @@ export default async function ProductPage({
      set is unfinished and shows "Soon"; a kit priced at 0 is a deliberate
      free tier and is claimed rather than bought. */
   const isFree = product.price === 0
-  // Kits sell through Whop and digital products through Creem. Neither is on
-  // sale until the route says so.
+  // Kits and digital products sell through Creem; anything else keeps its
+  // Whop plan. Nothing is on sale until the route says so.
   const route = checkoutRoute(product)
   const price = typeof product.price === 'number' ? product.price : undefined
+  // Developers and NetSuite accounts come from the row, never from copy.
+  const limits = kitLimits(product)
+  // The refund terms belong to a paid kit with a checkout, nothing else.
+  const paidKit = isBoilerplate && !isFree && route === 'creem'
 
   return (
     <Container className="mt-16 sm:mt-32">
@@ -215,19 +225,32 @@ export default async function ProductPage({
                   </div>
                 )}
                 {isBoilerplate && (
-                  /* The licence, on the page where it is bought. The pricing
-                     table states it and the seat page enforces it; this card,
-                     where the money actually changes hands, did not. */
-                  <div className="amw-spec">
-                    <dt>licence</dt>
-                    <dd>{seatLine({ seats: product.seats })}</dd>
-                  </div>
+                  /* The license, on the page where it is bought, in the same
+                     words as the pricing table. Lite tracks no accounts, so
+                     it has no accounts row to say "1" on. */
+                  <>
+                    <div className="amw-spec">
+                      <dt>developers</dt>
+                      <dd>{developersLabel(limits.seats)}</dd>
+                    </div>
+                    {limits.netsuiteAccounts !== null && (
+                      <div className="amw-spec">
+                        <dt>netsuite accounts</dt>
+                        <dd>{accountsLabel(limits.netsuiteAccounts)}</dd>
+                      </div>
+                    )}
+                  </>
                 )}
                 <div className="amw-spec">
                   <dt>delivery</dt>
                   <dd>{isBoilerplate ? 'GitHub invite' : 'instant link'}</dd>
                 </div>
               </dl>
+              {isBoilerplate && limits.netsuiteAccounts !== null && (
+                <p className="amw-kicker mt-3 normal-case tracking-normal">
+                  {ACCOUNTS_NOTE}
+                </p>
+              )}
 
               {isFree && isBoilerplate ? (
                 <ClaimFreeKit slug={product.slug} />
@@ -240,13 +263,13 @@ export default async function ProductPage({
                   name={product.name}
                 />
               ) : route === 'creem' ? (
-                <DigitalBuyButton
+                <CreemBuyButton
                   slug={product.slug}
                   name={product.name}
                   price={price}
                 >
                   Buy now
-                </DigitalBuyButton>
+                </CreemBuyButton>
               ) : (
                 /* The same dashed panel the pricing table uses, rather than a
                    line of grey text that reads like something failed to
@@ -258,6 +281,12 @@ export default async function ProductPage({
                     : 'not yet available'}
                 </p>
               )}
+
+              <KitBuyNotes
+                paid={paidKit}
+                tier={product.tier}
+                className="mt-4 space-y-1.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400"
+              />
 
               {demoHref && (
                 <a

@@ -6,6 +6,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
    define. Same reason buy-button.test.jsx lives here. */
 vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
 vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
+vi.mock('@/lib/commerce/licenseRecord', () => ({ attachPurchase: vi.fn() }))
 vi.mock('@/lib/commerce/fulfillment', () => ({
   sendBoilerplateConfirmationEmail: vi.fn(),
 }))
@@ -13,6 +14,7 @@ vi.mock('@/lib/commerce/fulfillment', () => ({
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
 import { sendBoilerplateConfirmationEmail } from '@/lib/commerce/fulfillment'
+import { attachPurchase } from '@/lib/commerce/licenseRecord'
 import { claimFreeKit } from '@/lib/commerce/claim'
 import { ClaimFreeKit } from '@/components/commerce/ClaimFreeKit'
 
@@ -21,6 +23,7 @@ const liteKit = {
   name: 'WareKit React NetSuite (Lite)',
   slug: 'warekit-react-netsuite-lite',
   type: 'boilerplate',
+  stack: 'react-netsuite',
   price: 0,
   currency: 'USD',
   githubRepo: 'amwaredotdev/warekit-react-netsuite-lite',
@@ -35,12 +38,35 @@ const form = (fields) => {
 const create = vi.fn()
 const update = vi.fn()
 
-const withItem = (item, existingClaims = []) => {
-  const find = vi.fn(({ collection }) =>
-    Promise.resolve({
-      docs: collection === 'products' ? (item ? [item] : []) : existingClaims,
-    })
-  )
+const nextLite = {
+  ...liteKit,
+  id: 1,
+  name: 'WareKit Next NetSuite (Lite)',
+  slug: 'warekit-next-netsuite-lite',
+  stack: 'next-netsuite',
+  githubRepo: 'amwaredotdev/warekit-next-netsuite-lite',
+}
+
+const nextPro = {
+  id: 2,
+  slug: 'warekit-next-netsuite-pro',
+  type: 'boilerplate',
+  stack: 'next-netsuite',
+  tier: 'pro',
+  status: 'published',
+  price: 499,
+  creemProductId: 'prod_pro',
+}
+
+/* `proRows` is what the Pro lookup finds. The claim's own product read names
+   a slug; the Pro lookup does not, which is how the stub tells them apart. */
+const withItem = (item, existingClaims = [], proRows = []) => {
+  const find = vi.fn(({ collection, where }) => {
+    if (collection !== 'products')
+      return Promise.resolve({ docs: existingClaims })
+    if (where?.slug) return Promise.resolve({ docs: item ? [item] : [] })
+    return Promise.resolve({ docs: proRows })
+  })
   create.mockResolvedValue({ id: 99 })
   update.mockResolvedValue({})
   getPayloadClient.mockResolvedValue({ find, create, update })
@@ -206,6 +232,167 @@ describe('claimFreeKit — delivery', () => {
   })
 })
 
+describe('claimFreeKit — the license', () => {
+  it('attaches the claim to a Lite license', async () => {
+    withItem(liteKit)
+    await claim({ email: 'Buyer@Example.com' })
+
+    expect(attachPurchase).toHaveBeenCalledTimes(1)
+    const [, args] = attachPurchase.mock.calls[0]
+    expect(args).toMatchObject({
+      purchase: { id: 99 },
+      email: 'buyer@example.com',
+      stack: 'react-netsuite',
+      grantsTier: 'lite',
+      environment: 'production',
+    })
+    // The Lite username is not carried into the license's seats.
+    expect(JSON.stringify(args)).not.toContain('octocat')
+    expect(update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'licenses' })
+    )
+  })
+
+  it('does not fail the claim when the license cannot be attached', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    withItem(liteKit)
+    attachPurchase.mockRejectedValue(new Error('db down'))
+
+    const state = await claim()
+
+    expect(state.error).toBeNull()
+    expect(state.ok).toBeTruthy()
+    expect(inviteToRepo).toHaveBeenCalled()
+    expect(error).toHaveBeenCalledWith(
+      'Free claim license attach failed',
+      'free:warekit-react-netsuite-lite:octocat',
+      expect.any(Error)
+    )
+    error.mockRestore()
+  })
+
+  it('does not attach a repeat claim that already has a license', async () => {
+    withItem(liteKit, [{ id: 42, license: 7 }])
+    await claim()
+    expect(attachPurchase).not.toHaveBeenCalled()
+  })
+
+  it('attaches a repeat claim whose first attempt never got a license', async () => {
+    withItem(liteKit, [{ id: 42, email: 'first@example.com', license: null }])
+    await claim()
+    expect(attachPurchase.mock.calls[0][1]).toMatchObject({
+      purchase: { id: 42 },
+      email: 'first@example.com',
+    })
+  })
+
+  it('still delivers a kit that has no stack, and says so in the log', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    withItem({ ...liteKit, stack: undefined })
+
+    const state = await claim()
+
+    expect(state.ok).toBeTruthy()
+    expect(attachPurchase).not.toHaveBeenCalled()
+    expect(error).toHaveBeenCalled()
+    error.mockRestore()
+  })
+})
+
+describe('claimFreeKit — the route to Pro', () => {
+  const claimNext = () =>
+    claim({ slug: 'warekit-next-netsuite-lite', githubUsername: 'octocat' })
+
+  it('hands the page and the email the Pro page while Pro is on sale', async () => {
+    withItem(nextLite, [], [nextPro])
+    const state = await claimNext()
+
+    expect(state.ok?.proPath).toBe('/products/warekit-next-netsuite-pro')
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proPath: '/products/warekit-next-netsuite-pro',
+      })
+    )
+  })
+
+  it('looks for a published Pro on the same stack, nothing else', async () => {
+    const find = withItem(nextLite, [], [nextPro])
+    await claimNext()
+
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'products',
+        where: {
+          and: [
+            { stack: { equals: 'next-netsuite' } },
+            { tier: { equals: 'pro' } },
+            { status: { equals: 'published' } },
+          ],
+        },
+      })
+    )
+  })
+
+  it('says nothing while Pro is off sale: no row, as React has today', async () => {
+    withItem(liteKit, [], [])
+    const state = await claim()
+
+    expect(state.ok?.proPath).toBeNull()
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ proPath: null })
+    )
+  })
+
+  it('says nothing for a Pro row with no Creem product, which cannot be bought', async () => {
+    withItem(nextLite, [], [{ ...nextPro, creemProductId: null }])
+    const state = await claimNext()
+    expect(state.ok?.proPath).toBeNull()
+  })
+
+  it('says nothing for a row that is not Pro, whatever the lookup returned', async () => {
+    withItem(nextLite, [], [{ ...nextPro, tier: 'team' }])
+    const state = await claimNext()
+    expect(state.ok?.proPath).toBeNull()
+  })
+
+  it('gives React Lite the line by itself once React Pro sells', async () => {
+    withItem(
+      liteKit,
+      [],
+      [
+        {
+          ...nextPro,
+          slug: 'warekit-react-netsuite-pro',
+          stack: 'react-netsuite',
+        },
+      ]
+    )
+    const state = await claim()
+    expect(state.ok?.proPath).toBe('/products/warekit-react-netsuite-pro')
+  })
+
+  it('never fails the claim or its email when the lookup fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const find = withItem(nextLite, [], [nextPro])
+    const original = find.getMockImplementation()
+    find.mockImplementation((args) =>
+      args.collection === 'products' && !args.where?.slug
+        ? Promise.reject(new Error('db down'))
+        : original(args)
+    )
+
+    const state = await claimNext()
+
+    expect(state.error).toBeNull()
+    expect(state.ok?.proPath).toBeNull()
+    expect(inviteToRepo).toHaveBeenCalled()
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ proPath: null, to: 'buyer@example.com' })
+    )
+    error.mockRestore()
+  })
+})
+
 describe('ClaimFreeKit form', () => {
   it('renders no error before submission', () => {
     render(<ClaimFreeKit slug="warekit-react-netsuite-lite" />)
@@ -250,5 +437,39 @@ describe('ClaimFreeKit form', () => {
     expect(
       screen.getByRole('link', { name: /accept invitation/i })
     ).toHaveAttribute('href', expect.stringContaining('/invitations'))
+  })
+
+  const submit = async (slug) => {
+    render(<ClaimFreeKit slug={slug} />)
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: 'buyer@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText(/github username/i), {
+      target: { value: 'octocat' },
+    })
+    fireEvent.submit(screen.getByLabelText(/^email$/i).closest('form'))
+    return screen.findByRole('status')
+  }
+
+  it('adds one line on what Pro adds to the claim result, linking to Pro', async () => {
+    withItem(nextLite, [], [nextPro])
+    const status = await submit('warekit-next-netsuite-lite')
+
+    expect(status).toHaveTextContent(
+      'Want sessions in NetSuite? Pro adds them.'
+    )
+    expect(screen.getAllByText(/pro adds them/i)).toHaveLength(1)
+    expect(
+      screen.getByRole('link', { name: /pro adds them/i })
+    ).toHaveAttribute('href', '/products/warekit-next-netsuite-pro')
+  })
+
+  it('shows no line, and nothing else about paying, while Pro is off sale', async () => {
+    withItem(liteKit, [], [])
+    const status = await submit('warekit-react-netsuite-lite')
+
+    expect(status).not.toHaveTextContent(/pro adds|want sessions/i)
+    expect(screen.queryByRole('link', { name: /pro/i })).toBeNull()
+    expect(status).not.toHaveTextContent(/\$|upgrade|pay/i)
   })
 })

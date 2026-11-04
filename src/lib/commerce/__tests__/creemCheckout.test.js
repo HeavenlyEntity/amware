@@ -24,7 +24,8 @@ vi.mock('next/navigation', () => ({
 import { getPayloadClient } from '../../getPayloadClient'
 import { CreemError, createCheckoutSession } from '../creem'
 import { redirect } from 'next/navigation'
-import { startDigitalCheckout } from '../digitalCheckout'
+import { verifyOnboardingLink } from '../onboardingLink'
+import { startCreemCheckout } from '../creemCheckout'
 
 const NOT_ON_SALE = {
   error: {
@@ -41,6 +42,15 @@ const guide = {
   creemProductId: 'prod_guide',
 }
 
+const kit = {
+  id: 31,
+  slug: 'warekit-next-netsuite-pro',
+  type: 'boilerplate',
+  status: 'published',
+  creemProductId: 'prod_kit',
+  creemSandboxProductId: 'prod_kit_test',
+}
+
 const form = (fields) => {
   const fd = new FormData()
   for (const [k, v] of Object.entries(fields)) fd.set(k, v)
@@ -54,7 +64,7 @@ const withDoc = (doc) => {
 }
 
 const run = (fields = { slug: guide.slug }) =>
-  startDigitalCheckout({ error: null }, form(fields))
+  startCreemCheckout({ error: null }, form(fields))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -62,12 +72,14 @@ beforeEach(() => {
   process.env.CREEM_WEBHOOK_SECRET = 'test-webhook-secret'
   delete process.env.ACCESS_LINK_SECRET
   delete process.env.ACCESS_TOKEN_SECRET
+  delete process.env.CREEM_ENV
+  delete process.env.NEXT_PUBLIC_CREEM_ENV
   createCheckoutSession.mockResolvedValue({
     checkoutUrl: 'https://creem.io/pay/abc',
   })
 })
 
-describe('startDigitalCheckout', () => {
+describe('startCreemCheckout', () => {
   it('looks the product up by slug among published products', async () => {
     const find = withDoc(guide)
     await run().catch(() => {})
@@ -88,9 +100,15 @@ describe('startDigitalCheckout', () => {
     expect(createCheckoutSession).not.toHaveBeenCalled()
   })
 
-  it('returns the not-on-sale error for a non-digital product', async () => {
-    withDoc({ ...guide, type: 'boilerplate' })
+  it('returns the not-on-sale error for a service, which sells through Whop', async () => {
+    withDoc({ ...guide, type: 'service' })
     expect(await run()).toEqual(NOT_ON_SALE)
+    expect(createCheckoutSession).not.toHaveBeenCalled()
+  })
+
+  it('returns the not-on-sale error for a kit with only a Whop plan', async () => {
+    withDoc({ ...kit, creemProductId: null, whopPlanId: 'plan_1' })
+    expect(await run({ slug: kit.slug })).toEqual(NOT_ON_SALE)
     expect(createCheckoutSession).not.toHaveBeenCalled()
   })
 
@@ -164,5 +182,82 @@ describe('startDigitalCheckout', () => {
     await expect(run()).rejects.toThrow('CREEM_WEBHOOK_SECRET')
     expect(createCheckoutSession).not.toHaveBeenCalled()
     expect(redirect).not.toHaveBeenCalled()
+  })
+
+  it('keeps a digital buyer on /checkout/success', async () => {
+    withDoc(guide)
+    await run().catch(() => {})
+    const { successUrl, requestId } = createCheckoutSession.mock.calls[0][0]
+    expect(successUrl).toBe(
+      `https://example.com/checkout/success?r=${requestId}`
+    )
+    expect(successUrl).not.toContain('/checkout/onboarding')
+  })
+
+  describe('selling a kit', () => {
+    beforeEach(() => {
+      process.env.ACCESS_LINK_SECRET = 'test-link-secret'
+    })
+
+    const runKit = () => run({ slug: kit.slug })
+
+    it('sends a kit buyer back to the signed onboarding link', async () => {
+      withDoc(kit)
+      await expect(runKit()).rejects.toThrow(
+        'NEXT_REDIRECT:https://creem.io/pay/abc'
+      )
+
+      const args = createCheckoutSession.mock.calls[0][0]
+      const url = new URL(args.successUrl)
+      expect(url.origin + url.pathname).toBe(
+        'https://example.com/checkout/onboarding'
+      )
+      expect(url.searchParams.get('r')).toBe(args.requestId)
+      expect(
+        verifyOnboardingLink(args.requestId, url.searchParams.get('s'))
+      ).toBe(true)
+    })
+
+    it('opens the checkout with the kit product and the same metadata shape', async () => {
+      withDoc(kit)
+      await runKit().catch(() => {})
+      const args = createCheckoutSession.mock.calls[0][0]
+      expect(args.productId).toBe('prod_kit')
+      expect(args.metadata).toEqual({
+        itemType: 'product',
+        itemId: '31',
+        slug: 'warekit-next-netsuite-pro',
+      })
+    })
+
+    it('refuses before calling Creem when the onboarding link cannot be signed', async () => {
+      withDoc(kit)
+      delete process.env.ACCESS_LINK_SECRET
+      await expect(runKit()).rejects.toThrow('ACCESS_LINK_SECRET')
+      expect(createCheckoutSession).not.toHaveBeenCalled()
+      expect(redirect).not.toHaveBeenCalled()
+    })
+
+    it('uses the sandbox product in sandbox and never the live one', async () => {
+      process.env.CREEM_ENV = 'sandbox'
+      withDoc(kit)
+      await runKit().catch(() => {})
+      expect(createCheckoutSession.mock.calls[0][0].productId).toBe(
+        'prod_kit_test'
+      )
+    })
+
+    it('does not sell a kit with only a sandbox id in production', async () => {
+      withDoc({ ...kit, creemProductId: null })
+      expect(await runKit()).toEqual(NOT_ON_SALE)
+      expect(createCheckoutSession).not.toHaveBeenCalled()
+    })
+
+    it('does not sell a kit with only a live id in sandbox', async () => {
+      process.env.CREEM_ENV = 'sandbox'
+      withDoc({ ...kit, creemSandboxProductId: null })
+      expect(await runKit()).toEqual(NOT_ON_SALE)
+      expect(createCheckoutSession).not.toHaveBeenCalled()
+    })
   })
 })

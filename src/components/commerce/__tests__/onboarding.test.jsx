@@ -33,11 +33,11 @@ describe('OnboardingSteps', () => {
     expect(screen.queryByLabelText(/github/i)).toBeNull()
   })
 
-  it('tells a Team buyer how many accounts the licence covers, and where to add them', () => {
+  it('tells a Team buyer how many developers the license covers, and where to add them', () => {
     render(<OnboardingSteps {...base} tier="team" seats={5} delivered />)
     expect(
       screen.getByText(
-        'Your licence covers 5 GitHub accounts — add the rest from the link in your receipt email.'
+        'Your license covers 5 developers — add the rest from the link in your receipt email.'
       )
     ).toBeInTheDocument()
   })
@@ -46,12 +46,93 @@ describe('OnboardingSteps', () => {
     render(
       <OnboardingSteps {...base} tier="team" seats={5} delivered={false} />
     )
-    expect(screen.getByText(/covers 5 GitHub accounts/)).toBeInTheDocument()
+    expect(screen.getByText(/covers 5 developers/)).toBeInTheDocument()
   })
 
   it('says nothing about seats on a single-seat licence', () => {
     render(<OnboardingSteps {...base} seats={1} delivered />)
-    // Not /GitHub accounts/: the Pro upsell below names Team's five.
-    expect(screen.queryByText(/licence covers/i)).toBeNull()
+    // Not /developers/: the Pro upsell below names Team's five.
+    expect(screen.queryByText(/license covers/i)).toBeNull()
+  })
+
+  it('offers the license page after delivery, as the last step', () => {
+    const { container } = render(
+      <OnboardingSteps {...base} delivered licenseUrl="/access/seats/tok" />
+    )
+
+    expect(
+      screen.getByRole('heading', { name: 'Add your key to .env' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('NS_ACCOUNT_ID')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /open your license page/i })
+    ).toHaveAttribute('href', '/access/seats/tok')
+
+    // Last of the steps: after the repository and the setup step.
+    const steps = [...container.querySelectorAll('ol > li h2')].map(
+      (h) => h.textContent
+    )
+    expect(steps.at(-1)).toBe('Add your key to .env')
+    expect(steps.indexOf('Set up your copy')).toBeLessThan(
+      steps.indexOf('Add your key to .env')
+    )
+  })
+
+  it('numbers the license step after the Discord step when there is one', () => {
+    render(
+      <OnboardingSteps
+        {...base}
+        delivered
+        discordUrl="https://discord.gg/x"
+        licenseUrl="/access/seats/tok"
+      />
+    )
+    const step = screen
+      .getByRole('heading', { name: 'Add your key to .env' })
+      .closest('li')
+    expect(step.textContent).toMatch(/^4/)
+  })
+
+  it('does not offer the license page before the repository is delivered', () => {
+    render(
+      <OnboardingSteps
+        {...base}
+        delivered={false}
+        licenseUrl="/access/seats/tok"
+      />
+    )
+    expect(screen.queryByRole('link', { name: /license page/i })).toBeNull()
+  })
+
+  it('leaves the step out when there is no license page to link to', () => {
+    render(<OnboardingSteps {...base} delivered />)
+    expect(screen.queryByText(/add your key to \.env/i)).toBeNull()
+  })
+
+  it('says where the full key is, depending on whether there is a license page', () => {
+    const { rerender } = render(<OnboardingSteps {...base} delivered />)
+    expect(
+      screen.getByText(/full key is in your receipt email/i)
+    ).toBeInTheDocument()
+    rerender(
+      <OnboardingSteps {...base} delivered licenseUrl="/access/seats/tok" />
+    )
+    expect(
+      screen.getByText(/full key is on your license page/i)
+    ).toBeInTheDocument()
+  })
+
+  it('sends a buyer whose purchase is too old for a fresh link to the resend route', () => {
+    render(<OnboardingSteps {...base} delivered licenseExpired />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Add your key to .env' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /email me a new license link/i })
+    ).toHaveAttribute('href', '/access/resend')
+    expect(
+      screen.queryByRole('link', { name: /open your license page/i })
+    ).toBeNull()
   })
 })

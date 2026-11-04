@@ -7,21 +7,116 @@ function getResend(): Resend {
   return resend
 }
 const FROM = process.env.RESEND_FROM || 'Amware <hello@amware.dev>'
-const SITE = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || ''
+/* Read at call time, like the signing secret: a value captured at import is
+   whatever the environment held then. */
+const site = () => process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || ''
+
+/* Resend's SDK does not throw on a refused send. A non-2xx answer (a rate
+ * limit, a bad from address, a quota) resolves as `{ data: null, error }`, so
+ * a bare `await emails.send(...)` reads as success when nothing went out.
+ * Every helper here goes through this, so "a failed send throws" is true and
+ * each caller's own catch decides what a failure means. The error is rethrown
+ * with Resend's name and message, which carry no recipient address. */
+type Message = Parameters<Resend['emails']['send']>[0]
+async function deliver(message: Message): Promise<void> {
+  const { error } = (await getResend().emails.send(message)) ?? {}
+  if (error) {
+    throw new Error(
+      `Resend refused the email${error.name ? ` (${error.name})` : ''}: ${
+        error.message ?? 'no detail'
+      }`
+    )
+  }
+}
 
 export async function sendAccessLinkEmail(args: {
   to: string
   itemName: string
   token: string
 }): Promise<void> {
+  const SITE = site()
   if (!SITE)
     throw new Error('NEXT_PUBLIC_SITE_URL is required to send access links')
   const url = `${SITE}/access/${args.token}`
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to: args.to,
     subject: `Your access to ${args.itemName}`,
     text: `Thanks for your purchase of ${args.itemName}.\n\nAccess it here:\n${url}\n\nThis link is personal to you and expires in 30 days. You can request a fresh link any time at ${SITE}/access/resend.\n\n— Alec`,
+  })
+}
+
+/* A link to the license page, sent on request: from the expired-link door on
+ * that page and from /access/resend. Not a receipt, so it says nothing about
+ * a purchase, only where the license is and how long the link lasts.
+ *
+ * `url` is the whole address, built by the caller from the site URL, so this
+ * sends exactly what it is handed and cannot be steered by anything else.
+ * A failed send throws: each caller reports it in its own words, and the
+ * resend page swallows it to keep its answer the same for every email. */
+export async function sendLicenseLinkEmail(args: {
+  to: string
+  itemName: string
+  url: string
+  /** `upgrade` is a buyer who came from "Already on Pro? Pay only the
+      difference", so the mail says what the link is for. */
+  reason: 'link' | 'upgrade'
+}): Promise<void> {
+  const SITE = site()
+  const lapse = `This link is personal to you and expires in 30 days. If it has lapsed, open it and I will email a new one${
+    SITE ? `, or ask for one at ${SITE}/access/resend` : ''
+  }.`
+  const upgrade = args.reason === 'upgrade'
+  await deliver({
+    from: FROM,
+    to: args.to,
+    subject: upgrade
+      ? `Upgrade your ${args.itemName} license`
+      : `Your ${args.itemName} license page`,
+    text: upgrade
+      ? `Here is your license page for ${args.itemName}. Open it to upgrade.\n\nOn Pro, you pay only the difference for Team, and your code, repo and key stay the same.\n\n${args.url}\n\n${lapse}\n\n— Alec`
+      : `Here is your license page for ${args.itemName}, for your key, your developers and upgrades.\n\n${args.url}\n\n${lapse}\n\n— Alec`,
+  })
+}
+
+/* The one automated notice about accounts: a deploy reported a NetSuite
+ * account the license has no room for. The person deploying may not be the
+ * person who pays, so the owner is told once per account, with a link to the
+ * license page where the options are. Nothing is blocked, and the mail says
+ * so. `url` is the whole address, built by the caller. A failed send throws,
+ * and the caller leaves the account unmarked so the next report tries again. */
+export async function sendOverLimitEmail(args: {
+  to: string
+  accountId: string
+  used: number
+  limit: number
+  url: string
+}): Promise<void> {
+  const SITE = site()
+  const lapse = `This link is personal to you and expires in 30 days. If it has lapsed, open it and I will email a new one${
+    SITE ? `, or ask for one at ${SITE}/access/resend` : ''
+  }.`
+  await deliver({
+    from: FROM,
+    to: args.to,
+    subject: `NetSuite account ${args.accountId} is over your WareKit license limit`,
+    text: `A deploy just reported NetSuite account ${
+      args.accountId
+    } on your WareKit license. The license covers ${args.limit} account${
+      args.limit === 1 ? '' : 's'
+    } and ${args.used} ${
+      args.used === 1 ? 'is' : 'are'
+    } already in use, so this one is over.
+
+Nothing is blocked and nothing has stopped working. Your license page lists the accounts and the options: remove an account that was added by mistake, or upgrade.
+
+${args.url}
+
+${lapse}
+
+You get this notice once for each account.
+
+— Alec`,
   })
 }
 
@@ -55,9 +150,9 @@ export async function sendBoilerplateConfirmationEmail(args: {
   inviteUrl?: string | null
   /** True when GitHub reports the buyer already had access. */
   alreadyHadAccess?: boolean
-  /** Signed seat-management link. Only for licences with more than one seat. */
+  /** Signed link to the license page. Sent to every paid kit buyer. */
   seatsUrl?: string | null
-  /** How many accounts the licence covers, when more than one. */
+  /** Still passed by the Whop webhook; the email no longer reads it. */
   seats?: number
   /** Signed link back to the setup page, for a buyer who closed the tab. */
   onboardingUrl?: string | null
@@ -66,8 +161,11 @@ export async function sendBoilerplateConfirmationEmail(args: {
    * whichever branch applies -- unlike `onboardingUrl`, it asks nothing.
    */
   setupUrl?: string | null
-  /** The full licence key. This email goes only to the buyer's own address. */
+  /** The full license key. This email goes only to the buyer's own address. */
   licenseKey?: string | null
+  /** Path to the Pro product page, passed only by a Lite claim while Pro is
+      on sale. It adds the one line on what Pro adds. */
+  proPath?: string | null
 }): Promise<void> {
   const target = args.githubUsername
     ? `@${args.githubUsername}`
@@ -121,15 +219,16 @@ GitHub sends its own email when the invitation goes out, and it does sometimes l
   }
 
   /* Appended rather than woven into each branch: whether the invitation sent
-     is a different question from how many accounts the licence covers, and
-     the team half of the email should read the same either way. */
-  if (args.seatsUrl && args.seats && args.seats > 1) {
+     is a different question from where the license lives, and this half of
+     the email should read the same either way. Every paid kit gets it, not
+     only a multi-developer one, because a Pro buyer upgrades from here. */
+  if (args.seatsUrl) {
     body += `
 
-Your licence covers ${args.seats} GitHub accounts. Add the rest of your team here, one invitation each:
+Your license page, for your key, your team and upgrades:
 ${args.seatsUrl}
 
-Keep that link — it is how you add someone later, and it does not need an account.`
+Keep that link — it is how you get back to your license, and it does not need an account.`
   }
 
   /* The setup page shows the key masked and says the full one is here; this
@@ -138,7 +237,7 @@ Keep that link — it is how you add someone later, and it does not need an acco
   if (args.licenseKey) {
     body += `
 
-Your licence key:
+Your license key:
 ${args.licenseKey}`
   }
 
@@ -155,7 +254,17 @@ ${args.setupUrl}
 Keep that link — it is how you get back to the page.`
   }
 
-  await getResend().emails.send({
+  /* The Lite claim's one line on Pro, the same words as on the claim page.
+     Left out without a site URL: a relative link in an email goes nowhere, and
+     this is a pointer, not something to fail a send over. */
+  if (args.proPath && site()) {
+    body += `
+
+Want sessions in NetSuite? Pro adds them.
+${site()}${args.proPath}`
+  }
+
+  await deliver({
     from: FROM,
     to: args.to,
     subject: `Your purchase of ${args.itemName}`,
@@ -195,7 +304,7 @@ export async function sendDepositReceivedEmail(args: {
   const booking = args.bookingUrl
     ? `\n\nIf we have not spoken yet, book the intro call here and we will start from there:\n${args.bookingUrl}`
     : ''
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to: args.to,
     subject: `Your ${money(args.amount, args.currency)} deposit for ${
@@ -225,7 +334,7 @@ export async function notifyDepositReceived(args: {
 }): Promise<void> {
   const to = process.env.CONTACT_NOTIFY_TO
   if (!to) return
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to,
     replyTo: args.email,
@@ -253,7 +362,7 @@ export async function notifyManualFulfilment(args: {
 }): Promise<void> {
   const to = process.env.CONTACT_NOTIFY_TO
   if (!to) return
-  await getResend().emails.send({
+  await deliver({
     from: FROM,
     to,
     replyTo: args.email,

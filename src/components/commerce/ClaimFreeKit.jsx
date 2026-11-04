@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react'
 import { claimFreeKit } from '@/lib/commerce/claim'
 import { GithubAccountField } from '@/components/commerce/GithubAccountField'
@@ -54,8 +55,15 @@ export function ClaimFreeKit({ slug, label = 'Get free access' }) {
   }, [claimed, slug])
 
   if (state.ok) {
-    const { itemName, repo, username, inviteUrl, alreadyHadAccess, manual } =
-      state.ok
+    const {
+      itemName,
+      repo,
+      username,
+      inviteUrl,
+      alreadyHadAccess,
+      manual,
+      proPath,
+    } = state.ok
     return (
       <div
         role="status"
@@ -114,6 +122,17 @@ export function ClaimFreeKit({ slug, label = 'Get free access' }) {
           A copy is in your inbox. GitHub sends its own email too, and that one
           does sometimes land in spam.
         </p>
+
+        {/* The only mention of paying anywhere in Lite, and only while Pro can
+            be bought: the server sends no path otherwise. */}
+        {proPath && (
+          <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
+            Want sessions in NetSuite?{' '}
+            <Link href={proPath} className="underline">
+              Pro adds them.
+            </Link>
+          </p>
+        )}
       </div>
     )
   }

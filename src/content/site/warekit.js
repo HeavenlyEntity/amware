@@ -22,7 +22,6 @@ export const EDITIONS = {
         'Local fixtures, no account needed to explore',
         'Deployment tooling for your account',
       ],
-      seatLabel: 'one GitHub account',
       cta: 'Get Lite',
       tone: 'solid',
       rec: true,
@@ -43,7 +42,6 @@ export const EDITIONS = {
         copy: 'Extensions on top of Lite.',
         listLabel: 'Modules',
       },
-      seatLabel: 'one GitHub account',
       cta: 'Buy Pro',
       tone: 'solid',
       rec: false,
@@ -53,25 +51,20 @@ export const EDITIONS = {
       label: 'React / Team',
       full: 'WareKit React NetSuite (Team)',
       head: 'A shared SuiteApp foundation, in development.',
-      copy: 'The planned React Pro edition for five GitHub collaborators, with one shared source foundation.',
+      copy: 'The planned React Pro edition for five developers, with one shared source foundation.',
       listLabel: 'Planned',
       items: [
         'The same planned Pro code',
-        'Five source-code seats',
+        'Five developers',
         'Team onboarding',
       ],
       // TODO(alec): confirm this wording before React Team goes on sale.
       onSale: {
         head: 'A shared SuiteApp foundation.',
-        copy: 'The React Pro edition for five GitHub collaborators, with one shared source foundation.',
+        copy: 'The React Pro edition for five developers, with one shared source foundation.',
         listLabel: 'Included',
-        items: [
-          'The same Pro code',
-          'Five source-code seats',
-          'Team onboarding',
-        ],
+        items: ['The same Pro code', 'Five developers', 'Team onboarding'],
       },
-      seatLabel: 'five GitHub collaborators',
       cta: 'Buy Team',
       tone: 'solid',
       rec: false,
@@ -90,7 +83,6 @@ export const EDITIONS = {
         'Sessions stored in Postgres',
         'Local fixtures before you connect',
       ],
-      seatLabel: 'one GitHub account',
       cta: 'Get Lite',
       tone: 'quiet',
       rec: false,
@@ -107,7 +99,6 @@ export const EDITIONS = {
         'Caching to reduce repeated session reads',
         'No separate Postgres service for sessions',
       ],
-      seatLabel: 'one GitHub collaborator',
       cta: 'Buy Pro',
       tone: 'solid',
       rec: true,
@@ -118,14 +109,13 @@ export const EDITIONS = {
       label: 'Next / Team',
       full: 'WareKit Next NetSuite (Team)',
       head: 'Give five developers one shared foundation.',
-      copy: 'The Next Pro codebase for five GitHub accounts. Add collaborators after purchase as your team needs access.',
+      copy: 'The Next Pro codebase for five developers. Add developers after purchase as your team needs access.',
       listLabel: 'Included',
       items: [
         'Everything in Next Pro',
-        'Five GitHub collaborator seats',
-        'Add collaborators after purchase',
+        'Five developers',
+        'Add developers after purchase',
       ],
-      seatLabel: 'five GitHub collaborators',
       cta: 'Buy Team',
       tone: 'solid',
       rec: false,
@@ -155,6 +145,19 @@ export const NOT_ON_SALE_LEAD =
 export const NOT_ON_SALE_WHY =
   'This edition is not on sale yet. Leave your email and you will hear when it is.'
 
+/* Said once on the compare table and again where money changes hands. */
+export const START_WITH_PRO =
+  'Start with Pro. Move to Team later and pay only the difference.'
+export const NEVER_CHECKS =
+  'Your app never checks a license. Nothing stops working if you go over a limit.'
+export const REFUND_NOTE =
+  "Full refund within 14 days if you haven't accepted the GitHub invite."
+export const UPGRADE_NOTE = 'Already on Pro? Pay only the difference.'
+export const UPGRADE_HREF = '/access/resend?intent=upgrade'
+export const ENTERPRISE_CTA = 'Talk to me about Enterprise'
+export const ENTERPRISE_NOTE =
+  'More than five developers is past Team. Enterprise is quoted per deal, with the limits set to fit you.'
+
 export const FACTS = [
   {
     icon: 'github',
@@ -168,8 +171,8 @@ export const FACTS = [
   },
   {
     icon: 'users',
-    title: 'Seats are developers',
-    copy: 'Team editions license the code for five GitHub collaborators, not NetSuite users.',
+    title: 'Licensed by developer',
+    copy: 'Team editions license the code for five developers, not NetSuite users.',
   },
 ]
 
@@ -250,12 +253,22 @@ export const QUESTIONS = [
     opts: [
       ['one', 'Just one'],
       ['five', 'Up to five'],
+      ['more', 'More than five'],
     ],
   },
 ]
 
-/* A row of `cells: 'price'` or `'status'` is filled from Payload. `rec` is
-   the recommended column. */
+/* A row of `cells: 'price'`, `'status'`, `'developers'` or `'accounts'` is
+   filled from Payload, so no limit is typed twice. `note` sits under the
+   row's label. `rec` is the recommended column. */
+export const ACCOUNTS_NOTE =
+  "Yours or a client's. Sandboxes and Release Preview don't count."
+const ACCOUNTS_ROW = {
+  label: 'NetSuite accounts',
+  cells: 'accounts',
+  note: ACCOUNTS_NOTE,
+}
+
 export const COMPARE = {
   inside: {
     family: 'React editions',
@@ -274,14 +287,8 @@ export const COMPARE = {
           'Served from your account',
         ],
       },
-      {
-        label: 'Code seats',
-        cells: [
-          '1 GitHub account',
-          '1 GitHub account',
-          '5 GitHub collaborators',
-        ],
-      },
+      { label: 'Developers', cells: 'developers' },
+      ACCOUNTS_ROW,
       { label: 'Price', cells: 'price' },
       { label: 'Status', cells: 'status' },
     ],
@@ -311,14 +318,8 @@ export const COMPARE = {
           'Cached to reduce repeats',
         ],
       },
-      {
-        label: 'Code seats',
-        cells: [
-          '1 GitHub account',
-          '1 GitHub collaborator',
-          '5 GitHub collaborators',
-        ],
-      },
+      { label: 'Developers', cells: 'developers' },
+      ACCOUNTS_ROW,
       { label: 'Price', cells: 'price' },
     ],
   },
@@ -359,7 +360,7 @@ export const SETUP_STEPS = [
   {
     icon: 'settings',
     title: 'Configure your account',
-    copy: 'Set up authentication and permissions in the NetSuite account you will deploy to.',
+    copy: 'Set up authentication and permissions in the NetSuite account you will deploy to. With a paid edition, also add your license key to .env as WAREKIT_LICENSE_KEY, beside NS_ACCOUNT_ID.',
   },
   {
     icon: 'shield',

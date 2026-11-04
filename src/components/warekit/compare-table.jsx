@@ -1,10 +1,20 @@
+import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
+
 import { compareTable } from '@/lib/commerce/kitEditions'
 import { Reveal } from './reveal'
 
 const recClass = (i, rec) => (i === rec ? 'pr-col-rec' : undefined)
 
 export function CompareTable({ family, states }) {
-  const { family: heading, head, rec, rows } = compareTable(family, states)
+  const {
+    family: heading,
+    head,
+    rec,
+    rows,
+    notes,
+    enterprise,
+  } = compareTable(family, states)
   return (
     <section aria-labelledby="pr-cmp-title" className="pj-wrap pj-section">
       <Reveal>
@@ -36,7 +46,12 @@ export function CompareTable({ family, states }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.label}>
-                <th scope="row">{row.label}</th>
+                <th scope="row">
+                  {row.label}
+                  {row.note && (
+                    <small className="pr-row-note">{row.note}</small>
+                  )}
+                </th>
                 {row.cells.map(({ value, hi }, i) => (
                   <td key={head[i]} className={recClass(i, rec)} data-hi={hi}>
                     {value}
@@ -46,6 +61,26 @@ export function CompareTable({ family, states }) {
             ))}
           </tbody>
         </table>
+      </Reveal>
+      <Reveal delay={0.15} className="pr-after">
+        {notes.length > 0 && (
+          <ul className="pr-after-notes">
+            {notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        )}
+        {/* No price here, and the quiet action: teal belongs to the buy
+            button, and Enterprise is a conversation. */}
+        <div className="pr-enterprise">
+          <p>{enterprise.lead}</p>{' '}
+          <Link href={enterprise.href} className="pr-cta" data-tone="quiet">
+            {enterprise.cta}
+            <i aria-hidden="true">
+              <ChevronRight width={14} height={14} strokeWidth={2.5} />
+            </i>
+          </Link>
+        </div>
       </Reveal>
     </section>
   )

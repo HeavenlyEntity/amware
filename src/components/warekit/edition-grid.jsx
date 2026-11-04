@@ -9,6 +9,7 @@ import { kitWaitlistSubject } from '@/lib/contact-intents'
 import { editionView } from '@/lib/commerce/kitEditions'
 import { EDITIONS } from '@/content/site/warekit'
 import { COVERS } from './covers'
+import { KitBuyNotes } from './kit-buy-notes'
 
 const chevron = (
   <i aria-hidden="true">
@@ -79,6 +80,7 @@ function EditionCard({ edition, view, index, onNotify }) {
               {chevron}
             </button>
           )}
+          <KitBuyNotes paid={view.paid} tier={view.tier} className="pr-note" />
         </div>
       </div>
     </article>

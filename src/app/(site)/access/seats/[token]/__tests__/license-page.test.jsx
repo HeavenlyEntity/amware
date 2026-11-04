@@ -1,0 +1,775 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+
+/* The page is an async server component: it is called with its params and
+   the element it resolves to is rendered. Only the database is mocked. What
+   is asserted is what a holder of a signed link sees, including the links
+   that lead nowhere, because a buyer must never meet a thrown error. */
+vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
+vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
+
+import { getPayloadClient } from '@/lib/getPayloadClient'
+import { createAccessToken } from '@/lib/commerce/accessToken'
+import LicensePage, { metadata } from '../page'
+
+const KEY = 'WAREKIT-ABCD-EFGH-IJKL-1234'
+
+const teamKit = {
+  id: 7,
+  name: 'WareKit Next NetSuite (Team)',
+  seats: 5,
+  netsuiteAccounts: 3,
+  githubRepo: 'amwaredotdev/warekit-next-netsuite',
+}
+
+/* Pro and Team rows for the upgrade price: $999 less $499. */
+const proKit = {
+  id: 6,
+  name: 'WareKit Next NetSuite (Pro)',
+  tier: 'pro',
+  stack: 'next-netsuite',
+  status: 'published',
+  price: 499,
+  seats: 1,
+  netsuiteAccounts: 1,
+  githubRepo: 'amwaredotdev/warekit-next-netsuite',
+}
+const teamRow = {
+  ...teamKit,
+  tier: 'team',
+  stack: 'next-netsuite',
+  status: 'published',
+  price: 999,
+  creemUpgradeProductId: 'prod_upgrade',
+  creemUpgradeSandboxProductId: 'prod_upgrade_sb',
+}
+
+let db
+
+/* A tiny stand-in for the three reads the page makes. `products` is the whole
+   kit table, answered by the tier a query asks for, for the pages that read a
+   second row to price an upgrade. */
+function mockDb({
+  license,
+  purchase,
+  product = teamKit,
+  products,
+  key = KEY,
+  sales = [],
+} = {}) {
+  db = {
+    findByID: vi.fn(async ({ collection, id }) => {
+      const row = collection === 'licenses' ? license : purchase
+      if (!row || row.id !== id) {
+        throw Object.assign(new Error('Not Found'), { status: 404 })
+      }
+      return row
+    }),
+    find: vi.fn(async ({ collection, where }) =>
+      collection === 'products'
+        ? products
+          ? {
+              docs: products.filter((row) =>
+                where.and.every((clause) => {
+                  const [field, test] = Object.entries(clause)[0]
+                  return row[field] === test.equals
+                })
+              ),
+            }
+          : { docs: product ? [product] : [] }
+        : JSON.stringify(where).includes('grantsTier')
+        ? { docs: sales }
+        : {
+            docs: key
+              ? [{ licenseKey: key, status: 'paid', createdAt: '2026-10-01' }]
+              : [],
+          }
+    ),
+  }
+  getPayloadClient.mockResolvedValue(db)
+}
+
+const license = (over = {}) => ({
+  id: 9,
+  tier: 'team',
+  stack: 'next-netsuite',
+  seatMembers: [{ githubUsername: 'owner' }],
+  accounts: [],
+  ...over,
+})
+
+const token = (claims = {}) =>
+  createAccessToken({
+    purchaseId: 42,
+    itemType: 'product',
+    itemId: 7,
+    ...claims,
+  }).token
+
+const renderPage = async (tok, searchParams) =>
+  render(
+    await LicensePage({
+      params: Promise.resolve({ token: tok }),
+      ...(searchParams ? { searchParams: Promise.resolve(searchParams) } : {}),
+    })
+  )
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  process.env.ACCESS_LINK_SECRET = 'license-page-secret'
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+})
+
+afterEach(() => vi.restoreAllMocks())
+
+describe('License page', () => {
+  it('is titled "Your license" and stays out of search', () => {
+    expect(metadata.title).toBe('Your license')
+    expect(metadata.robots).toEqual({ index: false })
+  })
+
+  it('shows the whole license for a purchase that has one', async () => {
+    mockDb({ license: license(), purchase: { id: 42, license: 9 } })
+    const { container } = await renderPage(token())
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: /Team\)$/ })
+    ).toBeInTheDocument()
+    expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
+    expect(screen.getByText('0 / 3 NetSuite accounts')).toBeInTheDocument()
+    expect(screen.getByText('••••1234')).toBeInTheDocument()
+    // The full key is not in the markup until the buyer reveals it.
+    expect(container.innerHTML).not.toContain(KEY)
+  })
+
+  it('works from a token that names only a license', async () => {
+    mockDb({ license: license(), purchase: null })
+    await renderPage(token({ purchaseId: null, licenseId: 9 }))
+    expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
+  })
+
+  it('reads limits from the license tier, not the token item', async () => {
+    mockDb({
+      license: license({ tier: 'pro' }),
+      purchase: { id: 42, license: 9 },
+      product: { ...teamKit, seats: 1, netsuiteAccounts: 1 },
+    })
+    // The token's itemId can be an older tier's row; the page ignores it.
+    await renderPage(token({ itemId: 3 }))
+    expect(screen.getByText('1 / 1 developers')).toBeInTheDocument()
+    const productQuery = db.find.mock.calls.find(
+      ([q]) => q.collection === 'products'
+    )[0]
+    expect(JSON.stringify(productQuery.where)).toContain('"pro"')
+  })
+
+  it('sends a tampered link to the invalid page', async () => {
+    mockDb({ license: license(), purchase: { id: 42, license: 9 } })
+    await renderPage('not.a.token')
+    expect(
+      screen.getByRole('heading', { name: /invalid or expired/i })
+    ).toBeInTheDocument()
+    expect(getPayloadClient).not.toHaveBeenCalled()
+  })
+
+  it('answers an old token whose purchase has no license with a get-in-touch, not a throw', async () => {
+    mockDb({ license: null, purchase: { id: 42, license: null } })
+    await renderPage(token())
+    expect(
+      screen.getByRole('heading', { name: /could not find this license/i })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /get in touch/i })).toHaveAttribute(
+      'href',
+      '/contact'
+    )
+  })
+
+  it('says the license was refunded', async () => {
+    mockDb({
+      license: license({ tier: null }),
+      purchase: { id: 42, license: 9 },
+      product: null,
+    })
+    await renderPage(token())
+    expect(screen.getByText(/this license was refunded/i)).toBeInTheDocument()
+  })
+
+  it('says a Pro refund was a refund on a license that began as Lite', async () => {
+    mockDb({
+      license: license({ tier: 'lite' }),
+      purchase: { id: 42, license: 9, status: 'refunded' },
+      product: { id: 5, name: 'WareKit Next NetSuite (Lite)', seats: 1 },
+    })
+    await renderPage(token())
+
+    expect(screen.getByText(/this license was refunded/i)).toBeInTheDocument()
+    expect(screen.queryByText(/license key/i)).toBeNull()
+  })
+
+  it('leaves a Lite license alone when its own purchase stands', async () => {
+    mockDb({
+      license: license({ tier: 'lite' }),
+      purchase: { id: 42, license: 9, status: 'paid' },
+      product: { id: 5, name: 'WareKit Next NetSuite (Lite)', seats: 1 },
+    })
+    await renderPage(token())
+
+    expect(screen.queryByText(/was refunded/i)).toBeNull()
+    expect(screen.getByText(/1 \/ 1 developer/)).toBeInTheDocument()
+  })
+
+  it('does not show a made-up limit when the kit row is missing', async () => {
+    mockDb({
+      license: license(),
+      purchase: { id: 42, license: 9 },
+      product: null,
+    })
+    await renderPage(token())
+    expect(screen.queryByText(/developers$/)).toBeNull()
+    expect(
+      screen.getByRole('heading', { name: /could not read this license/i })
+    ).toBeInTheDocument()
+  })
+
+  it('shows a refreshable message when the database fails, and does not throw', async () => {
+    getPayloadClient.mockRejectedValue(new Error('connection refused'))
+    await renderPage(token())
+    expect(
+      screen.getByRole('heading', { name: /could not be loaded/i })
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/connection refused/)).toBeNull()
+  })
+
+  it.each(['purchases', 'licenses'])(
+    'shows the refresh state, not "could not find", when the %s read fails',
+    async (failing) => {
+      mockDb({ license: license(), purchase: { id: 42, license: 9 } })
+      const ok = db.findByID.getMockImplementation()
+      db.findByID.mockImplementation(async (args) => {
+        if (args.collection === failing) {
+          throw Object.assign(new Error('connection terminated'), {
+            status: 500,
+          })
+        }
+        return ok(args)
+      })
+      await renderPage(token())
+      expect(
+        screen.getByRole('heading', { name: /could not be loaded/i })
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/could not find this license/i)).toBeNull()
+    }
+  )
+
+  it('tells a license with no key to get in touch', async () => {
+    mockDb({
+      license: license(),
+      purchase: { id: 42, license: 9 },
+      key: null,
+    })
+    await renderPage(token())
+    expect(screen.getByText(/get in touch for your key/i)).toBeInTheDocument()
+  })
+
+  describe('upgrading', () => {
+    const proPage = (over = {}) =>
+      mockDb({
+        license: license({ tier: 'pro', ...over.license }),
+        purchase: { id: 42, license: 9 },
+        products: over.products ?? [proKit, teamRow],
+      })
+
+    it('offers Team at the difference between the two rows', async () => {
+      proPage()
+      await renderPage(token())
+      expect(
+        screen.getByRole('button', { name: 'Move to Team · $500.00' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Your code, repo and key stay the same. You get 5 developers and 3 NetSuite accounts.'
+        )
+      ).toBeInTheDocument()
+    })
+
+    it('follows a price change in the data', async () => {
+      proPage({ products: [proKit, { ...teamRow, price: 1099.5 }] })
+      await renderPage(token())
+      expect(
+        screen.getByRole('button', { name: 'Move to Team · $600.50' })
+      ).toBeInTheDocument()
+    })
+
+    it("looks the Team row up on the license's own stack", async () => {
+      proPage()
+      await renderPage(token())
+      const teamQuery = db.find.mock.calls
+        .map(([q]) => q)
+        .find(
+          (q) =>
+            q.collection === 'products' &&
+            JSON.stringify(q.where).includes('"team"')
+        )
+      expect(JSON.stringify(teamQuery.where)).toContain('next-netsuite')
+    })
+
+    it.each([
+      ['no Team row', { products: [proKit] }],
+      ['no Team price', { products: [proKit, { ...teamRow, price: null }] }],
+      ['no Pro price', { products: [{ ...proKit, price: null }, teamRow] }],
+      [
+        'a Team row that costs less',
+        { products: [proKit, { ...teamRow, price: 100 }] },
+      ],
+    ])('shows no button and still loads with %s', async (_n, over) => {
+      proPage(over)
+      await renderPage(token())
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      expect(screen.getByText('1 / 1 developers')).toBeInTheDocument()
+    })
+
+    it('shows no button, and still loads, when the Team row cannot be read', async () => {
+      proPage()
+      const ok = db.find.getMockImplementation()
+      db.find.mockImplementation(async (q) => {
+        if (JSON.stringify(q.where ?? {}).includes('"team"')) {
+          throw new Error('connection terminated')
+        }
+        return ok(q)
+      })
+      await renderPage(token())
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      expect(
+        screen.getByRole('heading', { level: 1, name: /Pro\)$/ })
+      ).toBeInTheDocument()
+      expect(console.error).toHaveBeenCalled()
+    })
+
+    it('offers no upgrade to a Team or Lite license', async () => {
+      for (const tier of ['team', 'lite']) {
+        mockDb({
+          license: license({ tier }),
+          purchase: { id: 42, license: 9 },
+          products: [{ ...proKit, tier }, teamRow],
+        })
+        await renderPage(token())
+        expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+        document.body.innerHTML = ''
+      }
+    })
+
+    it('says it is confirming, with no button, on return from Creem', async () => {
+      proPage()
+      await renderPage(token(), { upgraded: 'team' })
+      expect(
+        screen.getByText(
+          "Confirming your upgrade. You don't need to pay again."
+        )
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      expect(screen.getByText('Pro license')).toBeInTheDocument()
+    })
+
+    it('offers a refresh and contact once the page has checked enough', async () => {
+      proPage()
+      await renderPage(token(), { upgraded: 'team', attempt: '6' })
+      expect(
+        screen.getByText(
+          "Confirming your upgrade. You don't need to pay again."
+        )
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      expect(
+        screen.getByRole('link', { name: 'Refresh the page' })
+      ).toBeInTheDocument()
+    })
+
+    it('says "You\'re on Team." once the license is Team', async () => {
+      mockDb({
+        license: license({ tier: 'team' }),
+        purchase: { id: 42, license: 9 },
+        products: [{ ...proKit, tier: 'team' }, teamRow],
+      })
+      await renderPage(token(), { upgraded: 'team' })
+      expect(screen.getByText("You're on Team.")).toBeInTheDocument()
+    })
+
+    describe('the sale reported once an upgrade lands', () => {
+      const landed = (sales, over = {}) =>
+        mockDb({
+          license: license({ tier: 'team' }),
+          purchase: { id: 42, license: 9 },
+          products: [{ ...proKit, tier: 'team' }, teamRow],
+          sales,
+          ...over,
+        })
+      const upgradeRow = {
+        id: 77,
+        creemRequestId: 'req_upgrade',
+        amount: 50000,
+        currency: 'usd',
+      }
+      let track
+
+      beforeEach(() => {
+        track = vi.fn()
+        window.whop = { track }
+      })
+      afterEach(() => {
+        delete window.whop
+      })
+
+      it('reports the upgrade row, with what Creem charged, once', async () => {
+        landed([upgradeRow])
+        await renderPage(token(), { upgraded: 'team' })
+
+        expect(track).toHaveBeenCalledTimes(1)
+        expect(track).toHaveBeenCalledWith(
+          'purchase',
+          expect.objectContaining({
+            value: 500,
+            currency: 'USD',
+            event_id: 'req_upgrade',
+          })
+        )
+      })
+
+      it('finds the row by what it granted, not the row on the link', async () => {
+        landed([upgradeRow])
+        await renderPage(token(), { upgraded: 'team' })
+
+        const query = db.find.mock.calls
+          .map(([arg]) => arg)
+          .find((arg) => JSON.stringify(arg.where).includes('grantsTier'))
+        expect(query.collection).toBe('purchases')
+        expect(query.where.and).toEqual([
+          { license: { equals: 9 } },
+          { status: { equals: 'paid' } },
+          { grantsTier: { equals: 'team' } },
+        ])
+      })
+
+      it('reports nothing before the upgrade lands', async () => {
+        mockDb({
+          license: license({ tier: 'pro' }),
+          purchase: { id: 42, license: 9 },
+          products: [proKit, teamRow],
+          sales: [upgradeRow],
+        })
+        await renderPage(token(), { upgraded: 'team' })
+
+        expect(track).not.toHaveBeenCalled()
+      })
+
+      it('reports nothing on an ordinary visit', async () => {
+        landed([upgradeRow])
+        await renderPage(token())
+
+        expect(track).not.toHaveBeenCalled()
+        expect(
+          db.find.mock.calls.some(([arg]) =>
+            JSON.stringify(arg.where ?? {}).includes('grantsTier')
+          )
+        ).toBe(false)
+      })
+
+      it('reports nothing for a row with no request id or no amount', async () => {
+        landed([{ ...upgradeRow, creemRequestId: undefined }])
+        await renderPage(token(), { upgraded: 'team' })
+        landed([{ ...upgradeRow, amount: 0 }])
+        await renderPage(token(), { upgraded: 'team' })
+
+        expect(track).not.toHaveBeenCalled()
+      })
+
+      it('still confirms the upgrade when the sale cannot be read', async () => {
+        landed([upgradeRow])
+        const ok = db.find.getMockImplementation()
+        db.find.mockImplementation(async (q) => {
+          if (JSON.stringify(q.where ?? {}).includes('grantsTier')) {
+            throw new Error('connection terminated')
+          }
+          return ok(q)
+        })
+        await renderPage(token(), { upgraded: 'team' })
+
+        expect(screen.getByText("You're on Team.")).toBeInTheDocument()
+        expect(track).not.toHaveBeenCalled()
+        expect(console.error).toHaveBeenCalled()
+      })
+    })
+
+    describe('with no upgrade product for this Creem environment', () => {
+      afterEach(() => {
+        delete process.env.CREEM_ENV
+      })
+
+      it('shows no button in production without a live product', async () => {
+        proPage({
+          products: [proKit, { ...teamRow, creemUpgradeProductId: '' }],
+        })
+        await renderPage(token())
+
+        expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+        expect(console.error).toHaveBeenCalledWith(
+          'No upgrade to offer',
+          expect.objectContaining({ hasUpgradeProduct: false })
+        )
+      })
+
+      it('reads the sandbox product in the sandbox', async () => {
+        process.env.CREEM_ENV = 'sandbox'
+        proPage({
+          products: [
+            proKit,
+            { ...teamRow, creemUpgradeSandboxProductId: undefined },
+          ],
+        })
+        await renderPage(token())
+        expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+
+        cleanup()
+        proPage({
+          products: [proKit, { ...teamRow, creemUpgradeProductId: undefined }],
+        })
+        await renderPage(token())
+        expect(
+          screen.getByRole('button', { name: 'Move to Team · $500.00' })
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('treats the URL as wording only', async () => {
+      // upgraded=team does not make a Pro license a Team license, and a
+      // junk attempt or upgraded value is ignored rather than thrown on.
+      proPage()
+      await renderPage(token(), {
+        upgraded: ['gold', 'team'],
+        attempt: ['nope'],
+      })
+      expect(screen.queryByText(/you're on/i)).toBeNull()
+      expect(screen.getByText('1 / 1 developers')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Move to Team · $500.00' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows the upgrade, not a refund, when the page is opened with no query', async () => {
+      proPage()
+      await renderPage(token(), {})
+      expect(
+        screen.getByRole('button', { name: /move to team/i })
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('an Enterprise quote', () => {
+    const quote = { quoteCreemProductId: 'prod_quote' }
+    const enterprise = {
+      seatOverride: 12,
+      accountOverride: 4,
+      ...quote,
+    }
+    const COMPLETE = 'Complete your Enterprise upgrade'
+
+    it('offers the quote to a new Enterprise license, which is not a refund', async () => {
+      mockDb({
+        license: license({ tier: null, seatMembers: [], ...enterprise }),
+        purchase: null,
+        product: null,
+      })
+      await renderPage(token({ purchaseId: null, licenseId: 9 }))
+      expect(screen.getByRole('button', { name: COMPLETE })).toBeInTheDocument()
+      expect(screen.queryByText(/was refunded/i)).toBeNull()
+      expect(
+        screen.getByText(
+          'Your quote covers 12 developers and 4 NetSuite accounts.'
+        )
+      ).toBeInTheDocument()
+    })
+
+    it('offers the quote to a Pro license that holds one, ahead of Team', async () => {
+      mockDb({
+        license: license({ tier: 'pro', ...enterprise }),
+        purchase: { id: 42, license: 9 },
+        products: [proKit, teamRow],
+      })
+      await renderPage(token())
+      expect(screen.getByRole('button', { name: COMPLETE })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /move to team/i })).toBeNull()
+    })
+
+    it('never offers the quote again to a license that has paid for Enterprise', async () => {
+      mockDb({
+        license: license({ tier: 'enterprise', ...enterprise }),
+        purchase: { id: 42, license: 9 },
+        product: null,
+      })
+      await renderPage(token())
+      expect(screen.queryByRole('button', { name: COMPLETE })).toBeNull()
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      expect(screen.getByText('Enterprise license')).toBeInTheDocument()
+      // The license itself is all there: 12 developers, 4 accounts.
+      expect(screen.getByText('1 / 12 developers')).toBeInTheDocument()
+      expect(screen.getByText('0 / 4 NetSuite accounts')).toBeInTheDocument()
+    })
+
+    it('takes a full Team license without a quote to the Enterprise contact form', async () => {
+      mockDb({
+        license: license({
+          tier: 'team',
+          seatMembers: ['a', 'b', 'c', 'd', 'e'].map((githubUsername) => ({
+            githubUsername,
+          })),
+        }),
+        purchase: { id: 42, license: 9 },
+      })
+      await renderPage(token())
+      expect(
+        screen.getByRole('link', { name: 'Talk to me about Enterprise' })
+      ).toHaveAttribute(
+        'href',
+        '/contact/enterprise?kit=next-netsuite&tier=team'
+      )
+    })
+  })
+
+  describe('an expired link', () => {
+    const expiredToken = (claims = {}) => token({ ttlMs: -1, ...claims })
+    const OWNER = 'jane@acme.com'
+    const ownedBy = (email = OWNER, over = {}) =>
+      mockDb({
+        license: license({ ownerEmail: email, ...over }),
+        purchase: { id: 42, license: 9 },
+      })
+
+    it('masks the owner email on the expired page', async () => {
+      ownedBy()
+      const { container } = await renderPage(expiredToken())
+
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'This link has expired' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/Email a new one to j•••@acme\.com/)
+      ).toBeVisible()
+      expect(container.innerHTML).not.toContain(OWNER)
+      expect(container.innerHTML).not.toContain('jane')
+    })
+
+    it('offers one button, and shows nothing of the license', async () => {
+      ownedBy()
+      await renderPage(expiredToken())
+
+      expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
+        'Email me a new link',
+      ])
+      expect(screen.queryByText(/developers$/)).toBeNull()
+      expect(screen.queryByText('••••1234')).toBeNull()
+      expect(screen.queryByText(/pay again/i)).toBeNull()
+    })
+
+    it('posts the expired link to the action, and no address', async () => {
+      ownedBy()
+      const tok = expiredToken()
+      const { container } = await renderPage(tok)
+      const fields = [...container.querySelectorAll('input')].map((i) => [
+        i.name,
+        i.value,
+      ])
+      expect(fields).toEqual([['token', tok]])
+    })
+
+    it('still tells a buyer who came back from checkout that they do not need to pay again', async () => {
+      // A token can run out during checkout.
+      ownedBy(OWNER, { tier: 'pro' })
+      const { container } = await renderPage(expiredToken(), {
+        upgraded: 'team',
+      })
+
+      expect(screen.getByText(/You don't need to pay again/)).toBeVisible()
+      expect(
+        screen.getByRole('button', { name: 'Email me a new link' })
+      ).toBeInTheDocument()
+      // And the new link keeps saying so.
+      expect(container.querySelector('input[name="upgraded"]').value).toBe(
+        'team'
+      )
+    })
+
+    it.each([[undefined], ['gold'], ['']])(
+      'does not say it for upgraded=%j',
+      async (value) => {
+        ownedBy()
+        await renderPage(
+          expiredToken(),
+          value === undefined ? {} : { upgraded: value }
+        )
+        expect(screen.queryByText(/pay again/i)).toBeNull()
+      }
+    )
+
+    it('keeps the door, without the address, when the database cannot be read', async () => {
+      getPayloadClient.mockRejectedValue(new Error('connection refused'))
+      await renderPage(expiredToken())
+      expect(
+        screen.getByRole('heading', { name: 'This link has expired' })
+      ).toBeInTheDocument()
+      expect(screen.getByText(/address on the license/i)).toBeVisible()
+      expect(
+        screen.getByRole('button', { name: 'Email me a new link' })
+      ).toBeInTheDocument()
+    })
+
+    it('keeps the door for a refunded license, which then shows the refund', async () => {
+      ownedBy(OWNER, { tier: null })
+      await renderPage(expiredToken())
+      expect(screen.getByText(/j•••@acme\.com/)).toBeVisible()
+    })
+
+    it('says the link is invalid when it reaches no license', async () => {
+      mockDb({ license: license(), purchase: { id: 42, license: 9 } })
+      await renderPage(expiredToken({ purchaseId: 999 }))
+      expect(
+        screen.getByRole('heading', { name: /invalid or expired/i })
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button')).toBeNull()
+    })
+
+    it('works from an expired link that names only a license', async () => {
+      ownedBy()
+      await renderPage(expiredToken({ purchaseId: null, licenseId: 9 }))
+      expect(screen.getByText(/j•••@acme\.com/)).toBeVisible()
+    })
+
+    it('keeps a tampered link on the invalid page, with no database read', async () => {
+      mockDb({ license: license(), purchase: { id: 42, license: 9 } })
+      const [, sig] = expiredToken().split('.')
+      const forged = Buffer.from(
+        JSON.stringify({
+          purchaseId: 42,
+          itemType: 'product',
+          itemId: 7,
+          jti: 'x',
+          exp: 1,
+        })
+      ).toString('base64url')
+      await renderPage(`${forged}.${sig}`)
+
+      expect(
+        screen.getByRole('heading', { name: /invalid or expired/i })
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button')).toBeNull()
+      expect(getPayloadClient).not.toHaveBeenCalled()
+    })
+
+    it('never opens the license from an expired link', async () => {
+      ownedBy()
+      const { container } = await renderPage(expiredToken())
+      expect(container.innerHTML).not.toContain(KEY)
+      expect(db.find).not.toHaveBeenCalledWith(
+        expect.objectContaining({ collection: 'purchases' })
+      )
+    })
+  })
+})

@@ -21,7 +21,7 @@ const UPGRADE = {
   },
   pro: {
     title: 'Working with a team?',
-    body: 'Team covers five GitHub accounts on the same repository, with the same updates.',
+    body: 'Team covers five developers on the same repository, with the same updates.',
     cta: 'Compare Team',
   },
 }

@@ -64,13 +64,23 @@ export const PurchaseLedger = async () => {
        summed, and there is no aggregate in the Local API. Capped: past a few
        thousand orders this wants a real query, and a wrong number here would
        be worse than no number. */
-    /* Sandbox rows are Whop test-card payments, kept so the flow can be
+    /* Sandbox rows are Whop or Creem test payments, kept so the flow can be
        checked end to end; they are money in no sense. Rows written before
-       the field existed have no value and are real. */
+       the fields existed have no value and are real. */
     const notSandbox = {
-      or: [
-        { whopEnvironment: { not_equals: 'sandbox' } },
-        { whopEnvironment: { exists: false } },
+      and: [
+        {
+          or: [
+            { whopEnvironment: { not_equals: 'sandbox' } },
+            { whopEnvironment: { exists: false } },
+          ],
+        },
+        {
+          or: [
+            { creemEnvironment: { not_equals: 'sandbox' } },
+            { creemEnvironment: { exists: false } },
+          ],
+        },
       ],
     }
     const paid = await payload.find({
@@ -93,7 +103,17 @@ export const PurchaseLedger = async () => {
     )
 
     const [pending, failed, free, freeRecent, paidRecent] = await Promise.all([
-      count({ fulfillmentStatus: { equals: 'pending_invite' } }),
+      /* Owed an invitation means an account to send it to. A kit row sits at
+         'pending_invite' from the moment it is paid until its buyer names
+         one, and nobody is owed anything in that time; a failed invitation
+         keeps the account, so it is the row that counts. */
+      count({
+        and: [
+          { fulfillmentStatus: { equals: 'pending_invite' } },
+          { githubUsername: { exists: true } },
+          { githubUsername: { not_equals: '' } },
+        ],
+      }),
       count({ fulfillmentStatus: { equals: 'failed' } }),
       count({ amount: { equals: 0 } }),
       count({

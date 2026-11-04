@@ -12,7 +12,10 @@ vi.mock('resend', () => ({
 }))
 
 import {
+  sendAccessLinkEmail,
   sendBoilerplateConfirmationEmail,
+  sendLicenseLinkEmail,
+  sendOverLimitEmail,
   notifyManualFulfilment,
 } from '../fulfillment'
 
@@ -56,6 +59,55 @@ describe('manual fulfilment alert', () => {
   it('is silent when no owner address is configured', async () => {
     await notifyManualFulfilment(sale)
     expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe('boilerplate confirmation email, the route to Pro', () => {
+  const claim = {
+    to: 'buyer@example.com',
+    itemName: 'WareKit Next NetSuite (Lite)',
+    githubUsername: 'octocat',
+    repo: 'amwaredotdev/warekit-next-netsuite-lite',
+    inviteUrl: 'https://github.com/o/r/invitations',
+  }
+
+  it('adds the same line as the claim page, with a link to Pro', async () => {
+    await sendBoilerplateConfirmationEmail({
+      ...claim,
+      proPath: '/products/warekit-next-netsuite-pro',
+    })
+    const text = body()
+    expect(text).toContain('Want sessions in NetSuite? Pro adds them.')
+    expect(text).toContain(
+      'https://example.com/products/warekit-next-netsuite-pro'
+    )
+    expect(text.match(/Pro adds them/g)).toHaveLength(1)
+  })
+
+  it('adds it to the manual branch too, since the claim result does', async () => {
+    await sendBoilerplateConfirmationEmail({
+      ...claim,
+      inviteUrl: null,
+      proPath: '/products/warekit-next-netsuite-pro',
+    })
+    expect(body()).toContain('Pro adds them.')
+  })
+
+  it('says nothing about Pro without a path, which is how every paid kit email stays as it was', async () => {
+    await sendBoilerplateConfirmationEmail(claim)
+    expect(body()).not.toMatch(/pro adds|sessions in netsuite/i)
+    await sendBoilerplateConfirmationEmail({ ...claim, proPath: null })
+    expect(body()).not.toMatch(/pro adds|sessions in netsuite/i)
+  })
+
+  it('leaves the line out rather than send a link that goes nowhere', async () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL
+    await sendBoilerplateConfirmationEmail({
+      ...claim,
+      proPath: '/products/warekit-next-netsuite-pro',
+    })
+    expect(body()).not.toMatch(/pro adds/i)
+    expect(body()).not.toContain('/products/')
   })
 })
 
@@ -183,7 +235,7 @@ describe('boilerplate confirmation email', () => {
 
 /* The onboarding page tells the buyer the full key and the way back are in
    this email. These make that true. */
-describe('the setup link and the licence key', () => {
+describe('the setup link and the license key', () => {
   const SETUP = 'https://www.amware.dev/checkout/onboarding?payment_id=pay_1'
   const KEY = 'WHOPKEY-4F2A-99C1-WXYZ'
 
@@ -213,7 +265,7 @@ describe('the setup link and the licence key', () => {
     })
   }
 
-  it('gives the full licence key, since it goes to the buyer’s own address', async () => {
+  it('gives the full license key, since it goes to the buyer’s own address', async () => {
     await sendBoilerplateConfirmationEmail({
       to: 'buyer@example.com',
       itemName: 'WareKit Next NetSuite (Pro)',
@@ -233,7 +285,227 @@ describe('the setup link and the licence key', () => {
       inviteUrl: 'https://github.com/o/r/invitations',
     })
     const text = body()
-    expect(text).not.toMatch(/licence key/i)
+    expect(text).not.toMatch(/license key/i)
     expect(text).not.toMatch(/setup page/i)
+  })
+})
+
+describe('the license page link', () => {
+  const LINK = 'https://example.com/access/seats/tok'
+
+  it('goes to a single-developer buyer too', async () => {
+    await sendBoilerplateConfirmationEmail({
+      to: 'buyer@example.com',
+      itemName: 'WareKit Next NetSuite (Pro)',
+      githubUsername: 'octocat',
+      inviteUrl: 'https://github.com/o/r/invitations',
+      seats: 1,
+      seatsUrl: LINK,
+    })
+    const text = body()
+    expect(text).toContain(
+      'Your license page, for your key, your team and upgrades:'
+    )
+    expect(text.split('\n')).toContain(LINK)
+    expect(text).not.toMatch(/licence/i)
+  })
+
+  it('goes out with no seat count at all', async () => {
+    await sendBoilerplateConfirmationEmail({
+      to: 'buyer@example.com',
+      itemName: 'WareKit Next NetSuite (Team)',
+      githubUsername: 'octocat',
+      seatsUrl: LINK,
+    })
+    expect(body().split('\n')).toContain(LINK)
+  })
+
+  it('is left out when there is no link to give', async () => {
+    await sendBoilerplateConfirmationEmail({
+      to: 'buyer@example.com',
+      itemName: 'WareKit',
+      githubUsername: 'octocat',
+      seats: 5,
+    })
+    expect(body()).not.toMatch(/license page/i)
+  })
+})
+
+describe('license link email', () => {
+  const url = 'https://example.com/access/seats/signed-token'
+
+  it('sends the link to the address it is given, and nowhere else', async () => {
+    await sendLicenseLinkEmail({
+      to: 'owner@acme.com',
+      itemName: 'WareKit Next NetSuite (Pro)',
+      url,
+      reason: 'link',
+    })
+    expect(send).toHaveBeenCalledTimes(1)
+    const mail = send.mock.calls[0][0]
+    expect(mail.to).toBe('owner@acme.com')
+    expect(mail.subject).toContain('WareKit Next NetSuite (Pro)')
+    expect(mail.text).toContain(url)
+    expect(mail.text).toMatch(/30 days/)
+  })
+
+  it('talks about upgrading when the reason is upgrade', async () => {
+    await sendLicenseLinkEmail({
+      to: 'owner@acme.com',
+      itemName: 'WareKit',
+      url,
+      reason: 'upgrade',
+    })
+    const mail = send.mock.calls[0][0]
+    expect(mail.subject).toMatch(/upgrade/i)
+    expect(mail.text).toMatch(/upgrade/i)
+    expect(mail.text).toMatch(/pay only the difference/i)
+    expect(mail.text).toContain(url)
+  })
+
+  it('does not talk about upgrading for a plain link', async () => {
+    await sendLicenseLinkEmail({
+      to: 'owner@acme.com',
+      itemName: 'WareKit',
+      url,
+      reason: 'link',
+    })
+    const mail = send.mock.calls[0][0]
+    expect(mail.subject).not.toMatch(/upgrade/i)
+    expect(mail.text).not.toMatch(/pay only the difference/i)
+  })
+
+  it('says license, never licence', async () => {
+    for (const reason of ['link', 'upgrade']) {
+      await sendLicenseLinkEmail({
+        to: 'owner@acme.com',
+        itemName: 'WareKit',
+        url,
+        reason,
+      })
+      const mail = send.mock.calls.at(-1)[0]
+      expect(`${mail.subject} ${mail.text}`).not.toMatch(/licence/i)
+    }
+  })
+
+  it('lets a send failure through, for the caller to report', async () => {
+    send.mockRejectedValueOnce(new Error('resend is down'))
+    await expect(
+      sendLicenseLinkEmail({
+        to: 'owner@acme.com',
+        itemName: 'WareKit',
+        url,
+        reason: 'link',
+      })
+    ).rejects.toThrow('resend is down')
+  })
+})
+
+/* Resend's SDK does not throw on a refused send: a rate limit or a bad from
+   address resolves as `{ data: null, error }`. Each helper must turn that
+   into a throw, or a caller reports a mail that never left as sent. */
+describe('a send Resend refuses', () => {
+  const refused = {
+    data: null,
+    error: {
+      name: 'rate_limit_exceeded',
+      message: 'Too many requests',
+      statusCode: 429,
+    },
+  }
+  const url = 'https://example.com/access/seats/signed-token'
+
+  const calls = {
+    sendLicenseLinkEmail: () =>
+      sendLicenseLinkEmail({
+        to: 'owner@acme.com',
+        itemName: 'WareKit',
+        url,
+        reason: 'link',
+      }),
+    sendAccessLinkEmail: () =>
+      sendAccessLinkEmail({
+        to: 'buyer@example.com',
+        itemName: 'A guide',
+        token: 'tok',
+      }),
+    sendBoilerplateConfirmationEmail: () =>
+      sendBoilerplateConfirmationEmail({
+        to: 'buyer@example.com',
+        itemName: 'SaaS Kit',
+        githubUsername: 'octocat',
+      }),
+    notifyManualFulfilment: () => {
+      process.env.CONTACT_NOTIFY_TO = 'owner@example.com'
+      return notifyManualFulfilment({
+        email: 'buyer@example.com',
+        itemName: 'A guide',
+        amount: 1200,
+        currency: 'usd',
+        paymentId: 'pay_1',
+      })
+    },
+  }
+
+  afterEach(() => {
+    delete process.env.CONTACT_NOTIFY_TO
+  })
+
+  it.each(Object.keys(calls))(
+    '%s throws when Resend answers with an error',
+    async (name) => {
+      send.mockResolvedValueOnce(refused)
+      await expect(calls[name]()).rejects.toThrow(/rate_limit_exceeded/)
+    }
+  )
+
+  it.each(Object.keys(calls))(
+    '%s resolves when Resend accepts the email',
+    async (name) => {
+      send.mockResolvedValueOnce({ data: { id: 'em_1' }, error: null })
+      await expect(calls[name]()).resolves.toBeUndefined()
+    }
+  )
+
+  it('does not put the recipient in the error it throws', async () => {
+    send.mockResolvedValueOnce(refused)
+    const err = await calls.sendLicenseLinkEmail().catch((e) => e)
+    expect(err.message).not.toContain('owner@acme.com')
+  })
+})
+
+describe('over-limit email', () => {
+  const args = {
+    to: 'owner@example.com',
+    accountId: '7654321',
+    used: 1,
+    limit: 1,
+    url: 'https://example.com/access/seats/tok',
+  }
+
+  it('tells the owner which account, the count, and where to go', async () => {
+    await sendOverLimitEmail(args)
+
+    expect(send).toHaveBeenCalledTimes(1)
+    const mail = send.mock.calls[0][0]
+    expect(mail.to).toBe('owner@example.com')
+    expect(mail.subject).toContain('7654321')
+    expect(body()).toContain('covers 1 account and 1 is already in use')
+    expect(body()).toContain('https://example.com/access/seats/tok')
+    expect(body()).toContain('Nothing is blocked')
+    expect(body()).not.toMatch(/licence/i)
+  })
+
+  it('uses plurals for more than one account', async () => {
+    await sendOverLimitEmail({ ...args, used: 3, limit: 3 })
+    expect(body()).toContain('covers 3 accounts and 3 are already in use')
+  })
+
+  it('throws when Resend refuses, so the caller does not mark it sent', async () => {
+    send.mockResolvedValueOnce({
+      data: null,
+      error: { name: 'rate_limit_exceeded', message: 'Slow down' },
+    })
+    await expect(sendOverLimitEmail(args)).rejects.toThrow(/refused/)
   })
 })

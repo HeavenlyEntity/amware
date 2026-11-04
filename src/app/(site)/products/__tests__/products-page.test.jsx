@@ -43,7 +43,7 @@ describe('/products', () => {
           price: 499,
           seats: 1,
           status: 'published',
-          whopPlanId: 'plan_secret',
+          creemProductId: 'prod_secret',
           githubRepo: 'org/private',
           description: 'draft words',
         },
@@ -52,7 +52,7 @@ describe('/products', () => {
     const passed = await states()
     expect(passed['next-pro'].state).toBe('ready')
     expect(JSON.stringify(passed)).not.toMatch(
-      /plan_secret|private|draft words/
+      /prod_secret|private|draft words/
     )
   })
 

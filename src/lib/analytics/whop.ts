@@ -1,11 +1,15 @@
 /*
  * Conversion events for the Whop Pixel.
  *
- * The snippet in the site layout installs `window.whop` before any page
- * script runs, and its `track` queues until s.js arrives -- so a call from a
- * component is never too early. Whop itself sends with `keepalive`, which is
- * what makes "fire, then redirect to Creem" safe: the request outlives the
- * page.
+ * `WhopPixel`, in the site layout's <head>, installs `window.whop` before any
+ * component in the page runs an effect, and its `track` queues until s.js
+ * arrives -- so a call from a component is never too early. Whop itself sends
+ * with `keepalive`, which is what makes "fire, then redirect to Creem" safe:
+ * the request outlives the page.
+ *
+ * There is no pixel on a bearer link (see privatePaths.js), and every call
+ * there is a silent no-op, including one made with a pixel still in memory
+ * from an earlier page: an event carries the address it was fired from.
  *
  * Every event name lives here, once. Whop groups by the name string, so a
  * typo in one call site would report as a separate, empty funnel step and
@@ -18,6 +22,8 @@
  * a Whop checkout is ever added, do not fire `purchase` for it. Whop records
  * its own sales and rejects the duplicate.
  */
+
+import { isBearerPath, isSignedOnboarding } from './privatePaths'
 
 export const WHOP_EVENT = {
   /** A page view. The head snippet fires the first; route changes fire the rest. */
@@ -61,6 +67,10 @@ type WhopGlobal = { track: (...args: unknown[]) => void }
 
 function pixel(): WhopGlobal | null {
   if (typeof window === 'undefined') return null
+  const { pathname, search } = window.location ?? {}
+  if (isBearerPath(pathname) || isSignedOnboarding(pathname, search)) {
+    return null
+  }
   const w = (window as unknown as { whop?: WhopGlobal }).whop
   return w && typeof w.track === 'function' ? w : null
 }

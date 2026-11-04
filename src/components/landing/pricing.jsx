@@ -373,7 +373,7 @@ export function Pricing({ kits = [], services = [] }) {
                 </Link>
                 <p className="max-w-md text-center text-sm text-zinc-600 dark:text-zinc-400">
                   One payment, private repository access by invitation, lifetime
-                  updates. A Team licence covers five collaborators.
+                  updates. A Team license covers five developers.
                 </p>
               </motion.div>
             </motion.div>

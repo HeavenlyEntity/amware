@@ -2,10 +2,14 @@ import {
   COMPARE,
   EDITION_LEADS,
   EDITIONS,
+  ENTERPRISE_CTA,
+  ENTERPRISE_NOTE,
+  NEVER_CHECKS,
   NOT_ON_SALE_LEAD,
   NOT_ON_SALE_WHY,
   SETUP_INTROS,
   SETUP_STEPS,
+  START_WITH_PRO,
 } from '../../content/site/warekit'
 import { checkoutRoute } from './checkoutRoute'
 
@@ -24,6 +28,8 @@ import { checkoutRoute } from './checkoutRoute'
  */
 const STACKS = { 'react-netsuite': 'react', 'next-netsuite': 'next' }
 const TIER_SEATS = { lite: 1, pro: 1, team: 5 }
+/* Lite does not track NetSuite accounts, so it has no number to show. */
+const TIER_ACCOUNTS = { lite: null, pro: 1, team: 3 }
 
 const STATUS_LABELS = {
   free: 'Free to claim',
@@ -32,6 +38,11 @@ const STATUS_LABELS = {
 }
 
 const stateOf = (states, id) => states?.[id]?.state ?? 'planned'
+const tierOf = (id) => id.slice(id.indexOf('-') + 1)
+const whole = (value) => (Number.isInteger(value) && value >= 1 ? value : null)
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+export const developersLabel = (n) => plural(n, 'developer')
+export const accountsLabel = (n) => plural(n, 'NetSuite account')
 const money = (price) =>
   typeof price === 'number' ? `$${price.toFixed(2)}` : ''
 const productHref = (states, id) => `/products/${states[id].slug}`
@@ -44,6 +55,7 @@ function plannedEditions() {
         state: 'planned',
         price: null,
         seats,
+        netsuiteAccounts: TIER_ACCOUNTS[tier],
         slug: `warekit-${stack}-${tier}`,
       }
     }
@@ -51,10 +63,20 @@ function plannedEditions() {
   return editions
 }
 
+/* What a license for this row allows, as plain counts. A missing value is 1,
+   the same rule the license page applies. Lite never has accounts. */
+export function kitLimits(row, seats = 1) {
+  return {
+    seats: whole(row.seats) ?? seats,
+    netsuiteAccounts:
+      row.tier === 'lite' ? null : whole(row.netsuiteAccounts) ?? 1,
+  }
+}
+
 function saleState(row) {
   if (row.status !== 'published') return 'planned'
   if (row.type === 'boilerplate' && row.price === 0) return 'free'
-  return checkoutRoute(row) === 'whop' ? 'ready' : 'planned'
+  return checkoutRoute(row) === 'creem' ? 'ready' : 'planned'
 }
 
 export function editionStates(rows) {
@@ -66,7 +88,7 @@ export function editionStates(rows) {
     editions[id] = {
       state,
       price: row.price ?? null,
-      seats: row.seats ?? editions[id].seats,
+      ...kitLimits(row, editions[id].seats),
       slug: row.slug,
     }
   }
@@ -90,12 +112,30 @@ export function setupCopy({ free, paid }) {
   return { kicker, steps: [{ ...firstStep, copy: first }, ...rest] }
 }
 
+const DEFAULTS = plannedEditions()
+const limitsOf = (states, id) => ({
+  seats: whole(states?.[id]?.seats) ?? DEFAULTS[id].seats,
+  netsuiteAccounts:
+    tierOf(id) === 'lite'
+      ? null
+      : whole(states?.[id]?.netsuiteAccounts) ?? DEFAULTS[id].netsuiteAccounts,
+})
+
+/* "5 developers · 3 NetSuite accounts". Lite leaves the accounts out. */
+function limitsLine(id, states) {
+  const { seats, netsuiteAccounts } = limitsOf(states, id)
+  return [
+    developersLabel(seats),
+    ...(netsuiteAccounts === null ? [] : [accountsLabel(netsuiteAccounts)]),
+  ].join(' · ')
+}
+
 export function editionView(edition, states) {
   const state = stateOf(states, edition.id)
   const planned = state === 'planned'
-  const seats = edition.seatLabel
   const liteOpen = stateOf(states, 'react-lite') !== 'planned'
   const words = planned ? edition : { ...edition, ...edition.onSale }
+  const limits = limitsLine(edition.id, states)
   return {
     state,
     badge: STATUS_LABELS[state],
@@ -111,10 +151,9 @@ export function editionView(edition, states) {
       ready: money(states?.[edition.id]?.price),
       planned: 'Planned',
     }[state],
-    priceSub:
-      state === 'ready'
-        ? `One-time · ${seats}`
-        : seats[0].toUpperCase() + seats.slice(1),
+    priceSub: state === 'ready' ? `One-time · ${limits}` : limits,
+    tier: tierOf(edition.id),
+    paid: state === 'ready',
     cta: planned ? 'Get notified' : edition.cta,
     tone: planned ? 'quiet' : edition.tone,
     rec: edition.rec && !planned,
@@ -134,11 +173,52 @@ export function editionLead(family, states) {
 }
 
 function liveCell(kind, id, states) {
+  if (kind === 'developers') return String(limitsOf(states, id).seats)
+  if (kind === 'accounts') {
+    return String(limitsOf(states, id).netsuiteAccounts ?? 'Not tracked')
+  }
   const state = stateOf(states, id)
   if (kind === 'status') return STATUS_LABELS[state]
   if (state === 'free') return 'Free'
   if (state === 'planned') return 'Planned'
   return `${money(states[id].price)} one-time`
+}
+
+const FAMILY_STACK = { inside: 'react-netsuite', connected: 'next-netsuite' }
+const WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven']
+const word = (n) => WORDS[n] || String(n)
+
+/* The Contact form reads a kit and a tier as short ids, and fills the subject
+   only when it knows both. */
+export function enterpriseHref(stack, tier) {
+  const query = new URLSearchParams()
+  if (stack) query.set('kit', stack)
+  if (stack && tier) query.set('tier', tier)
+  const text = query.toString()
+  return text ? `/contact/enterprise?${text}` : '/contact/enterprise'
+}
+
+/* The lines under the table. The two about buying only hold while there is
+   something to buy: moving up to Team needs Pro and Team both on sale. The
+   Enterprise line is a conversation, so it stands either way. It is about
+   the kit being viewed and goes past Team's limits, so its tier is Team. */
+function tableNotes(family, ids, states) {
+  const on = ids.map((id) => stateOf(states, id) === 'ready')
+  const team = ids.find((id) => tierOf(id) === 'team')
+  const { seats, netsuiteAccounts } = limitsOf(states, team)
+  return {
+    notes: [
+      ...(on[1] && on[2] ? [START_WITH_PRO] : []),
+      ...(on[1] || on[2] ? [NEVER_CHECKS] : []),
+    ],
+    enterprise: {
+      lead: `More than ${word(seats)} developers or ${word(
+        netsuiteAccounts
+      )} accounts?`,
+      cta: ENTERPRISE_CTA,
+      href: enterpriseHref(FAMILY_STACK[family], 'team'),
+    },
+  }
 }
 
 export function compareTable(family, states) {
@@ -147,14 +227,16 @@ export function compareTable(family, states) {
   const shownRec = stateOf(states, ids[rec]) === 'planned' ? null : rec
   return {
     ...table,
+    ...tableNotes(family, ids, states),
     rec: shownRec,
-    rows: rows.map(({ label, cells }) => {
+    rows: rows.map(({ label, cells, note }) => {
       const values =
         typeof cells === 'string'
           ? ids.map((id) => liveCell(cells, id, states))
           : cells
       return {
         label,
+        note,
         cells: values.map((value, i) => ({
           value,
           hi: i === shownRec && values[0] !== value,
@@ -195,7 +277,7 @@ function insideWhy(seats, states) {
       ? ['React Lite is the available foundation inside NetSuite.']
       : []),
     ...(stateOf(states, 'react-team') === 'planned'
-      ? ['The five-seat React Team edition is still planned.']
+      ? ['The five-developer React Team edition is still planned.']
       : []),
   ]
 }
@@ -222,7 +304,7 @@ function connectedRec(answers, states) {
     ? picked(
         'Next / Team',
         [
-          'The Pro codebase with sessions in NetSuite, licensed for up to five GitHub collaborators.',
+          'The Pro codebase with sessions in NetSuite, licensed for up to five developers.',
         ],
         'next-team',
         'Buy Team',
@@ -231,12 +313,26 @@ function connectedRec(answers, states) {
     : picked(
         'Next / Pro',
         [
-          'Sessions live in NetSuite with caching to reduce repeated reads. One collaborator is all you need.',
+          'Sessions live in NetSuite with caching to reduce repeated reads. One developer is all you need.',
         ],
         'next-pro',
         'Buy Pro',
         states
       )
+}
+
+/* Past five developers is past Team, so the quiz ends at a conversation. */
+function enterpriseRec(where) {
+  return {
+    kicker: 'Recommended',
+    name: 'Enterprise',
+    why: ENTERPRISE_NOTE,
+    cta: ENTERPRISE_CTA,
+    action: {
+      type: 'link',
+      href: enterpriseHref(FAMILY_STACK[where], 'team'),
+    },
+  }
 }
 
 /* The board's "Help me choose" logic. */
@@ -250,6 +346,7 @@ export function recommendEdition(answers, states) {
       action: { type: 'link', href: '/services' },
     }
   }
+  if (answers.seats === 'more') return enterpriseRec(answers.where)
   if (answers.where === 'inside') {
     return picked(
       'React / Lite',

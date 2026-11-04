@@ -1,12 +1,12 @@
 'use client'
 
 import { useActionState } from 'react'
-import { startDigitalCheckout } from '@/lib/commerce/digitalCheckout'
+import { startCreemCheckout } from '@/lib/commerce/creemCheckout'
 import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
 
-/* Digital product checkout, on Creem's hosted page. Kits use BuyButton and
- * Whop; this is the other half of the split, and the product page chooses
- * between them with checkoutRoute.
+/* Checkout for kits and digital products, on Creem's hosted page. BuyButton
+ * and Whop keep the products that still sell there, and the product page
+ * chooses between them with checkoutRoute.
  *
  * The action redirects the whole tab to Creem on success, so this component
  * only ever sees the failure state. begin_checkout fires on submit, with the
@@ -14,7 +14,7 @@ import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
  * outlives the redirect.
  */
 
-export function DigitalBuyButton({
+export function CreemBuyButton({
   slug,
   name,
   price,
@@ -22,7 +22,7 @@ export function DigitalBuyButton({
   children = 'Buy now',
 }) {
   // Defined here, not imported: a 'use server' module cannot export a value.
-  const [state, formAction, isPending] = useActionState(startDigitalCheckout, {
+  const [state, formAction, isPending] = useActionState(startCreemCheckout, {
     error: null,
   })
 

@@ -20,7 +20,7 @@ const kit = (over = {}) => ({
   price: 499,
   seats: 1,
   type: 'boilerplate',
-  whopPlanId: 'plan_x',
+  creemProductId: 'prod_x',
   ...over,
 })
 
@@ -44,25 +44,25 @@ describe('priceLabel', () => {
 
 describe('seatLine', () => {
   it('matches MakerKit’s framing for a single seat', () => {
-    expect(seatLine(kit({ seats: 1 }))).toBe('Access for 1 user (only you)')
+    expect(seatLine(kit({ seats: 1 }))).toBe('1 developer')
   })
 
-  it('counts collaborators above one', () => {
-    expect(seatLine(kit({ seats: 5 }))).toBe('Up to 5 collaborators')
+  it('counts developers above one', () => {
+    expect(seatLine(kit({ seats: 5 }))).toBe('5 developers')
   })
 
   /* The page must never promise more seats than the seat page enforces, and
      the seat rules treat a missing limit as one. These two have to agree. */
   it('treats a missing seat count as one, never as unlimited', () => {
-    expect(seatLine(kit({ seats: null }))).toMatch(/1 user/)
-    expect(seatLine(kit({ seats: 0 }))).toMatch(/1 user/)
-    expect(seatLine(kit({ seats: undefined }))).toMatch(/1 user/)
+    expect(seatLine(kit({ seats: null }))).toBe('1 developer')
+    expect(seatLine(kit({ seats: 0 }))).toBe('1 developer')
+    expect(seatLine(kit({ seats: undefined }))).toBe('1 developer')
   })
 })
 
 describe('cta', () => {
-  it('offers a free kit without needing a Whop plan', () => {
-    expect(cta(kit({ price: 0, whopPlanId: null }))).toEqual({
+  it('offers a free kit without needing a Creem product', () => {
+    expect(cta(kit({ price: 0, creemProductId: null }))).toEqual({
       label: 'Get it free',
       live: true,
       soon: false,
@@ -73,14 +73,14 @@ describe('cta', () => {
     /* It still belongs on the table -- hiding it makes the stack look
        half-finished -- but the checkout could not complete and there is no
        repository to invite anyone to, so it must never say Buy. */
-    expect(cta(kit({ whopPlanId: null }))).toEqual({
+    expect(cta(kit({ creemProductId: null }))).toEqual({
       label: 'In development',
       live: false,
       soon: true,
     })
   })
 
-  it('offers a paid kit that has a Whop plan', () => {
+  it('offers a paid kit that has a Creem product', () => {
     expect(cta(kit())).toEqual({
       label: 'Buy this kit',
       live: true,
@@ -88,20 +88,23 @@ describe('cta', () => {
     })
   })
 
-  it('does not treat a Creem id as a way to buy a kit', () => {
-    expect(cta(kit({ whopPlanId: null, creemProductId: 'prod_x' })).live).toBe(
+  it('does not treat a Whop plan as a way to buy a kit', () => {
+    expect(cta(kit({ creemProductId: null, whopPlanId: 'plan_x' })).live).toBe(
       false
     )
   })
 
-  it('reads the sandbox plan only when the environment asks for it', () => {
-    const sandboxOnly = kit({ whopPlanId: null, whopSandboxPlanId: 'plan_sbx' })
+  it('does not offer a kit with only a sandbox product in production', () => {
+    const sandboxOnly = kit({
+      creemProductId: null,
+      creemSandboxProductId: 'prod_test',
+    })
     expect(cta(sandboxOnly).live).toBe(false)
   })
 
   it('never marks a free kit as coming soon, plan or not', () => {
     // Free needs nothing to charge against; it is claimable today.
-    expect(cta(kit({ price: 0, whopPlanId: null })).soon).toBe(false)
+    expect(cta(kit({ price: 0, creemProductId: null })).soon).toBe(false)
   })
 })
 

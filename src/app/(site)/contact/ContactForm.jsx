@@ -131,12 +131,27 @@ const TOPICS = {
     ].join('\n'),
     ack: 'Prefilled from your read. Your answers stay in this browser. Edit anything before you send.',
   },
+  /* A license holder who has outgrown Team. The page behind it passes the
+     subject with their kit and tier in it, so this is only the fallback for
+     a link that arrives without them. */
+  enterprise: {
+    eyebrow: 'ENTERPRISE',
+    title: 'Talk about Enterprise',
+    lead: 'Tell me what you need beyond Team’s developers and NetSuite accounts. Your kit and tier are already in the subject.',
+    subject: 'WareKit Enterprise',
+    message: undefined,
+    ack: null,
+  },
 }
 
-export default function ContactForm({ topic = 'default' }) {
+/* `initialSubject` is for a page that knows more than its topic does, such as
+   the Enterprise page naming a kit and a tier. It is only where the field
+   starts: the visitor can still edit it. The topic list stays fixed, so a
+   URL cannot invent a heading. */
+export default function ContactForm({ topic = 'default', initialSubject }) {
   const copy = TOPICS[topic] ?? TOPICS.default
   const router = useRouter()
-  const [subject, setSubject] = useState(copy.subject ?? '')
+  const [subject, setSubject] = useState(initialSubject ?? copy.subject ?? '')
   const [message, setMessage] = useState(copy.message ?? '')
 
   /* The calculator's CTA stashes a filled brief for this device only;

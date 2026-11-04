@@ -8,6 +8,9 @@ import { NextStep } from '@/components/commerce/NextStep'
  * a purely presentational component needs no client-side interactivity to
  * show either one, so this stays a server-renderable component.
  *
+ * A Creem buyer gives their account on the page itself, before this renders
+ * (see OnboardingGithubForm); by the time these steps show, it is on file.
+ *
  * "Not yet" means the webhook recorded the sale but the repository
  * invitation has not gone out (or GitHub could not be reached). It is never
  * a place to collect anything: the account on file is shown, not edited, and
@@ -35,6 +38,24 @@ function Step({ n, title, done, children }) {
   )
 }
 
+/**
+ * Typed through JSDoc because this is a .jsx file used from a .tsx page:
+ * without it TypeScript takes every destructured prop as required.
+ *
+ * @param {{
+ *   itemName: string,
+ *   repo: string | null,
+ *   maskedLicenseKey: string | null,
+ *   githubUsername: string | null,
+ *   discordUrl: string | null,
+ *   cliCommand: string | null,
+ *   tier: string,
+ *   delivered: boolean,
+ *   seats?: number,
+ *   licenseUrl?: string | null,
+ *   licenseExpired?: boolean,
+ * }} props
+ */
 export function OnboardingSteps({
   itemName,
   repo,
@@ -45,6 +66,8 @@ export function OnboardingSteps({
   tier,
   delivered,
   seats = 1,
+  licenseUrl,
+  licenseExpired,
 }) {
   return (
     <>
@@ -95,8 +118,9 @@ export function OnboardingSteps({
               {maskedLicenseKey && (
                 <>
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                    Your licence key, masked for this page. The full key is in
-                    your receipt email.
+                    {licenseUrl || licenseExpired
+                      ? 'Your license key, masked for this page. The full key is on your license page.'
+                      : 'Your license key, masked for this page. The full key is in your receipt email.'}
                   </p>
                   <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] mt-3 block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
                     {maskedLicenseKey}
@@ -116,6 +140,28 @@ export function OnboardingSteps({
                 )}
               </div>
             </Step>
+
+            {/* The last thing between a buyer and a working kit. Rendered only
+                when there is a license page to send them to, or, once the purchase is too
+                old for a fresh link, the route that emails one. */}
+            {(licenseUrl || licenseExpired) && (
+              <Step n={discordUrl ? '4' : '3'} title="Add your key to .env">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Your license page has the full key. Copy{' '}
+                  <code className="amw-mono">WAREKIT_LICENSE_KEY=…</code> into
+                  your <code className="amw-mono">.env</code>, beside{' '}
+                  <code className="amw-mono">NS_ACCOUNT_ID</code>.
+                </p>
+                <a
+                  href={licenseUrl || '/access/resend'}
+                  className="border-[var(--amw-line)] hover:border-[var(--amw-accent)] hover:text-[var(--amw-accent)] mt-4 inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-zinc-700 transition-colors dark:text-zinc-300"
+                >
+                  {licenseUrl
+                    ? 'Open your license page'
+                    : 'Email me a new license link'}
+                </a>
+              </Step>
+            )}
           </>
         ) : (
           <Step n="1" title="Repository access" done={false}>
@@ -136,7 +182,7 @@ export function OnboardingSteps({
           this line the page never mentions them at all. */}
       {seats > 1 && (
         <p className="mt-10 text-sm text-zinc-600 dark:text-zinc-400">
-          {`Your licence covers ${seats} GitHub accounts — add the rest from the link in your receipt email.`}
+          {`Your license covers ${seats} developers — add the rest from the link in your receipt email.`}
         </p>
       )}
 

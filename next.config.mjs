@@ -39,6 +39,20 @@ const nextConfig = {
       },
     ],
   },
+  async headers() {
+    /* A bearer link's address must not reach the next page. By default a
+       browser gives a same-origin page the full URL, so /contact would hold
+       the token in document.referrer, where its pixel and Analytics read it.
+
+       strict-origin, not no-referrer: no-referrer sends a form POST with
+       `Origin: null`, and Next aborts a server action that arrives that way,
+       as a form submitted before hydration does. */
+    const referrerPolicy = [{ key: 'Referrer-Policy', value: 'strict-origin' }]
+    return [
+      { source: '/access/:path*', headers: referrerPolicy },
+      { source: '/checkout/onboarding', headers: referrerPolicy },
+    ]
+  },
   async rewrites() {
     return {
       beforeFiles: [

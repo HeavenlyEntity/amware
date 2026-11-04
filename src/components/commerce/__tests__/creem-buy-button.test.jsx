@@ -4,8 +4,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 /* Same reason as claim-free-kit.test.jsx: the action is stubbed so the
    component's states can be driven without Creem or the CMS. */
 const action = vi.fn()
-vi.mock('@/lib/commerce/digitalCheckout', () => ({
-  startDigitalCheckout: (...args) => action(...args),
+vi.mock('@/lib/commerce/creemCheckout', () => ({
+  startCreemCheckout: (...args) => action(...args),
 }))
 
 vi.mock('@/lib/analytics/whop', () => ({
@@ -14,19 +14,19 @@ vi.mock('@/lib/analytics/whop', () => ({
 }))
 
 import { whopTrack } from '@/lib/analytics/whop'
-import { DigitalBuyButton } from '../DigitalBuyButton'
+import { CreemBuyButton } from '../CreemBuyButton'
 
 beforeEach(() => {
   vi.clearAllMocks()
   action.mockResolvedValue({ error: null })
 })
 
-describe('DigitalBuyButton', () => {
+describe('CreemBuyButton', () => {
   it('renders its label and posts the slug', () => {
     const { container } = render(
-      <DigitalBuyButton slug="guide" name="Guide" price={12}>
+      <CreemBuyButton slug="guide" name="Guide" price={12}>
         Buy the guide
-      </DigitalBuyButton>
+      </CreemBuyButton>
     )
     expect(
       screen.getByRole('button', { name: 'Buy the guide' })
@@ -36,9 +36,9 @@ describe('DigitalBuyButton', () => {
 
   it('reports begin_checkout on submit with the same fields BuyButton sends', () => {
     render(
-      <DigitalBuyButton slug="guide" name="Guide" price={12}>
+      <CreemBuyButton slug="guide" name="Guide" price={12}>
         Buy now
-      </DigitalBuyButton>
+      </CreemBuyButton>
     )
     fireEvent.submit(
       screen.getByRole('button', { name: 'Buy now' }).closest('form')
@@ -53,14 +53,14 @@ describe('DigitalBuyButton', () => {
   })
 
   it('omits value when the price is unknown', () => {
-    render(<DigitalBuyButton slug="guide" name="Guide" />)
+    render(<CreemBuyButton slug="guide" name="Guide" />)
     fireEvent.submit(screen.getByRole('button').closest('form'))
     expect(whopTrack.mock.calls[0][1].value).toBeUndefined()
   })
 
   it("shows the action's error inline", async () => {
     action.mockResolvedValue({ error: { message: 'Not on sale yet.' } })
-    render(<DigitalBuyButton slug="guide" name="Guide" price={12} />)
+    render(<CreemBuyButton slug="guide" name="Guide" price={12} />)
     fireEvent.submit(screen.getByRole('button').closest('form'))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Not on sale yet.'
