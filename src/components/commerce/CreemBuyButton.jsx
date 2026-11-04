@@ -17,8 +17,9 @@ import { ChevronCta } from '@/components/site/ChevronCta'
  * The knob says where it is: a spinner while the action runs, and a check
  * once the browser has actually started leaving for Creem. That moment has
  * no callback, so it is read off `beforeunload`, listened for only while the
- * action is pending. A page restored from the back-forward cache is not
- * leaving any more, so `pageshow` takes the check back.
+ * action is pending. A page restored from the back-forward cache comes back
+ * with the action pending forever, so `pageshow` reloads it into a button
+ * that works.
  */
 
 export function CreemBuyButton({
@@ -38,7 +39,7 @@ export function CreemBuyButton({
     if (!isPending) return undefined
     const onLeave = () => setLeaving(true)
     const onShow = (event) => {
-      if (event.persisted) setLeaving(false)
+      if (event.persisted) window.location.reload()
     }
     window.addEventListener('beforeunload', onLeave)
     window.addEventListener('pageshow', onShow)
@@ -80,6 +81,14 @@ export function CreemBuyButton({
           ? 'Opening checkout…'
           : children}
       </ChevronCta>
+      {/* The label changes on a disabled button, which is not announced. */}
+      <span className="sr-only" role="status">
+        {redirecting
+          ? 'Taking you to Creem'
+          : isPending
+          ? 'Opening checkout'
+          : ''}
+      </span>
     </form>
   )
 }

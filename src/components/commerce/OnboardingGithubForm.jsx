@@ -61,15 +61,21 @@ function DoneRing() {
       </svg>
       {!reduced &&
         SPARKS.map((a) => (
-          <motion.span
+          /* The angle sits on a still wrapper, so each spark travels out
+             along its own spoke rather than every one straight up. */
+          <span
             key={a}
-            data-spark=""
-            className="bg-zinc-950 absolute left-1/2 top-1/2 -ml-[3px] -mt-[3px] h-1.5 w-1.5 rounded-full"
-            style={{ rotate: a }}
-            initial={{ opacity: 1, y: 0, scale: 1 }}
-            animate={{ opacity: 0, y: -60, scale: 0.4 }}
-            transition={{ delay: 0.55, duration: 0.7, ease: EASE }}
-          />
+            className="absolute left-1/2 top-1/2 -ml-[3px] -mt-[3px] h-1.5 w-1.5"
+            style={{ transform: `rotate(${a}deg)` }}
+          >
+            <motion.span
+              data-spark=""
+              className="bg-zinc-950 block h-1.5 w-1.5 rounded-full"
+              initial={{ opacity: 1, y: 0, scale: 1 }}
+              animate={{ opacity: 0, y: -60, scale: 0.4 }}
+              transition={{ delay: 0.55, duration: 0.7, ease: EASE }}
+            />
+          </span>
         ))}
     </div>
   )
@@ -77,6 +83,12 @@ function DoneRing() {
 
 function Success({ ok }) {
   const reduced = useReducedMotion()
+  /* The form that had focus is gone, so focus moves to what replaced it
+     rather than dropping to the page. */
+  const panelRef = useRef(null)
+  useEffect(() => {
+    panelRef.current?.focus({ preventScroll: true })
+  }, [])
   const { repo, username, inviteUrl, alreadyHadAccess, manual, licenseUrl } = ok
   const enter = reduced
     ? { initial: false }
@@ -89,9 +101,11 @@ function Success({ ok }) {
   return (
     <div className="mt-9">
       <motion.div
+        ref={panelRef}
+        tabIndex={-1}
         role="status"
         {...enter}
-        className="bg-[var(--amw-accent)] text-zinc-950 flex flex-col items-start rounded-3xl px-6 pb-7 pt-9 sm:px-7"
+        className="bg-[var(--amw-accent)] text-zinc-950 flex flex-col items-start rounded-3xl px-6 pb-7 pt-9 outline-none sm:px-7"
       >
         <DoneRing />
         <h2 className="text-zinc-950 mt-5 text-2xl font-bold leading-tight tracking-[-0.025em] sm:text-[1.75rem]">

@@ -50,7 +50,8 @@ function DoneCircle({ animate }) {
   const reduced = useReducedMotion()
   return (
     <motion.span
-      initial={animate && !reduced ? { opacity: 0, scale: 0.55 } : false}
+      /* Gated on `animate` only: the hook reads true while hydrating. */
+      initial={animate ? { opacity: 0, scale: 0.55 } : false}
       animate={{ opacity: 1, scale: [null, 1.12, 1] }}
       transition={{ duration: reduced ? 0 : 0.45, ease: EASE }}
       className={`${CIRCLE} bg-[var(--amw-accent)] text-zinc-950`}
@@ -65,6 +66,7 @@ function Bar({ full }) {
   return (
     <li
       aria-hidden="true"
+      role="presentation"
       className="min-w-4 bg-[var(--amw-line)] mx-2.5 mt-[15px] h-0.5 flex-1 self-start overflow-hidden rounded-sm sm:mx-3.5 sm:mt-0 sm:self-center"
     >
       <motion.span

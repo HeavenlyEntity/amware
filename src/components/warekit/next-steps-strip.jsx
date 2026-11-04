@@ -56,10 +56,9 @@ export function NextStepsStrip({ story, repo }) {
   const next = story?.next
   if (!next) return null
 
-  const fullName = repo || story.repo?.name || ''
-  const [owner, name] = fullName.includes('/')
-    ? fullName.split('/')
-    : ['amwaredotdev', fullName]
+  // Only a full owner/name: never guess an owner for a bare name.
+  const fullName = repo?.includes('/') ? repo : story.repo?.name || ''
+  const [owner, name] = fullName.split('/')
   let n = 0
 
   return (

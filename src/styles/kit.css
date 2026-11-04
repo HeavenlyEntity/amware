@@ -419,6 +419,10 @@
   border-color: #dc2626;
   box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
 }
+:where(.dark) .amw .amw-kit-input[aria-invalid='true']:focus {
+  border-color: #f87171;
+  box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.16);
+}
 
 /* The custom checkbox. A real input, drawn over: its check is an SVG that
    strokes itself in when the box is checked. */
@@ -497,7 +501,8 @@
     opacity: 0;
   }
   .amw-kit-lift:hover,
-  .amw-kit-tech:hover {
+  .amw-kit-tech:hover,
+  .amw-kit-spec:hover .amw-kit-ic {
     transform: none;
   }
   .amw-kit-panel,
@@ -537,8 +542,21 @@
 [data-reduced-motion='true'] .amw-kit-packet {
   opacity: 0;
 }
-[data-reduced-motion='true'] :is(.amw-kit-lift, .amw-kit-tech):hover {
+[data-reduced-motion='true'] :is(.amw-kit-lift, .amw-kit-tech):hover,
+[data-reduced-motion='true'] .amw-kit-spec:hover .amw-kit-ic {
   transform: none;
+}
+[data-reduced-motion='true']
+  :is(
+    .amw-kit-panel,
+    .amw-kit-card,
+    .amw-kit-tech,
+    .amw-kit-spec .amw-kit-ic,
+    .amw-kit-row .amw-kit-row-note,
+    .amw-kit-tick path,
+    .amw-kit-checkbox
+  ) {
+  transition: none;
 }
 
 /* ---- the chevron button (home hero's "Browse Boilerplates") -------------- */

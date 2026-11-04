@@ -17,6 +17,11 @@ export const KIT_EASE = [0.2, 0.7, 0.2, 1]
  * A section that rises 16px into place the first time it is scrolled to.
  * `i` staggers siblings 70ms apart. Under reduced motion it is simply there.
  *
+ * `initial` is never switched on the reduced-motion hook: that reads true on
+ * the server and while hydrating, and motion reads `initial` once, so gating
+ * on it would mean no entrance on any hard load. Reduced motion is the
+ * zero-length transition instead.
+ *
  * @param {{ i?: number, as?: 'div' | 'section' | 'li', className?: string,
  *   children?: import('react').ReactNode, [key: string]: unknown }} props
  */
@@ -25,7 +30,7 @@ export function Rise({ i = 0, as = 'section', className, children, ...rest }) {
   const Tag = motion[as]
   return (
     <Tag
-      initial={reduced ? false : { opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.15 }}
       transition={

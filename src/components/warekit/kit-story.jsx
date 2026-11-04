@@ -58,7 +58,10 @@ function Flow({ n, flow }) {
         {flow.nodes.map((node, i) => {
           const Icon = NODE_ICONS[node.icon] ?? IconServer
           return (
-            <li key={node.name} className="contents">
+            <li
+              key={node.name}
+              className="flex min-w-0 flex-col sm:flex-1 sm:flex-row sm:items-center"
+            >
               {i > 0 && (
                 <span aria-hidden="true" className="amw-kit-wire">
                   <span

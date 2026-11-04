@@ -34,8 +34,11 @@ export function KitBuyNotes({ paid, tier, className, withIcons = false }) {
           <span>{REFUND_NOTE}</span>
         </li>
         {tier === 'team' && (
-          <li className="flex items-start gap-2.5">
-            <IconArrowUp {...ICON} className={`${ICON.className} mt-3.5`} />
+          <li className="flex items-center gap-2.5">
+            <IconArrowUp
+              {...ICON}
+              className="text-[var(--amw-accent-ink)] shrink-0"
+            />
             <Link href={UPGRADE_HREF} className={LINK}>
               {UPGRADE_NOTE}
             </Link>
