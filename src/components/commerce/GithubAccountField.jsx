@@ -2,6 +2,20 @@
 
 import Image from 'next/image'
 import { useEffect, useId, useRef, useState } from 'react'
+import { motion, useAnimate } from 'motion/react'
+import {
+  IconArrowUpRight,
+  IconBrandGithub,
+  IconCircleCheck,
+  IconCircleX,
+  IconLoader2,
+} from '@tabler/icons-react'
+import { useReducedMotion } from '@/components/AccessibilityProvider'
+import {
+  KIT_INPUT,
+  KIT_INPUT_BAD,
+  KIT_INPUT_OK,
+} from '@/components/site/kit-input'
 import {
   checkGithubUsername,
   usernameMessage,
@@ -25,6 +39,8 @@ import {
    same way because nothing here can be trusted. */
 
 const DEBOUNCE_MS = 450
+
+const EASE = [0.2, 0.7, 0.2, 1]
 
 /* `initialValue` pre-fills a name already known, such as the account a buyer
    claimed Lite with. It is only a starting value: the account is looked up and
@@ -125,47 +141,99 @@ export function GithubAccountField({
     onGateChange?.(blocked)
   }, [blocked, onGateChange])
 
+  /* A short shake when the field turns wrong, once per time it does. The
+     input itself is never remounted, so focus and the caret stay put. */
+  const invalid = Boolean(shownError) || status === 'missing'
+  const reduced = useReducedMotion()
+  const [shakeScope, animate] = useAnimate()
+  useEffect(() => {
+    if (!invalid || reduced || !shakeScope.current) return
+    animate(
+      shakeScope.current,
+      { x: [0, -4, 4, -4, 4, 0] },
+      { duration: 0.36, ease: 'easeInOut' }
+    )
+  }, [invalid, reduced, animate, shakeScope])
+
   return (
     <div className="mb-4">
       <label
         htmlFor={fieldId}
-        className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+        className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
       >
         GitHub username (for repo access)
       </label>
 
-      <input
-        ref={ref}
-        id={fieldId}
-        type="text"
-        name="githubUsername"
-        required
-        autoComplete="off"
-        autoCapitalize="none"
-        spellCheck={false}
-        maxLength={GITHUB_USERNAME_MAX}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="your-github-username"
-        aria-invalid={shownError || status === 'missing' ? 'true' : undefined}
-        aria-describedby={shownError || status === 'missing' ? errorId : hintId}
-        className={`w-full rounded-md border bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:outline-hidden focus:ring-4 dark:bg-zinc-700/[0.15] dark:text-zinc-200 ${
-          shownError || status === 'missing'
-            ? 'border-red-600 focus:border-red-600 focus:ring-red-600/10 dark:border-red-500'
-            : 'border-zinc-900/10 focus:border-teal-500 focus:ring-teal-500/10 dark:border-zinc-700'
-        }`}
-      />
+      <div ref={shakeScope} className="relative">
+        <IconBrandGithub
+          size={18}
+          stroke={1.5}
+          aria-hidden="true"
+          className="text-[var(--amw-mut)] pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+        />
+        <input
+          ref={ref}
+          id={fieldId}
+          type="text"
+          name="githubUsername"
+          required
+          autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          maxLength={GITHUB_USERNAME_MAX}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="your-github-username"
+          aria-invalid={invalid ? 'true' : undefined}
+          aria-describedby={invalid ? errorId : hintId}
+          className={`${KIT_INPUT} pl-[42px] pr-11 ${
+            invalid
+              ? KIT_INPUT_BAD
+              : status === 'found'
+              ? 'border-[color-mix(in_srgb,var(--amw-accent)_55%,transparent)]'
+              : KIT_INPUT_OK
+          }`}
+        />
+        {/* Decorative: every one of these states is also said in words. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute right-3.5 top-1/2 inline-flex -translate-y-1/2"
+        >
+          {status === 'checking' ? (
+            <IconLoader2
+              size={18}
+              stroke={2}
+              className="amw-kit-spin text-[var(--amw-mut)]"
+            />
+          ) : invalid ? (
+            <IconCircleX
+              size={18}
+              stroke={2}
+              className="amw-kit-pop text-red-600 dark:text-red-400"
+            />
+          ) : status === 'found' ? (
+            <IconCircleCheck
+              size={18}
+              stroke={2}
+              className="amw-kit-pop text-[var(--amw-accent-ink)]"
+            />
+          ) : null}
+        </span>
+      </div>
 
-      <p id={hintId} className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+      <p
+        id={hintId}
+        className="text-[var(--amw-mut)] mt-2 text-[13px] leading-normal"
+      >
         Letters, numbers and single hyphens. This is where the repository
         invitation is sent.
       </p>
 
-      {(shownError || status === 'missing') && (
+      {invalid && (
         <p
           id={errorId}
           role="alert"
-          className="mt-2 text-sm text-red-700 dark:text-red-400"
+          className="mt-2 text-[13px] leading-normal text-red-700 dark:text-red-400"
         >
           {shownError ||
             `GitHub has no account called “${value.trim()}”. Check the spelling.`}
@@ -176,39 +244,52 @@ export function GithubAccountField({
           and a live interruption on every keystroke would be hostile. */}
       <div aria-live="polite">
         {status === 'checking' && (
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="amw-mono text-[var(--amw-mut)] mt-2 text-xs">
+            <span className="text-[var(--amw-accent-ink)]" aria-hidden="true">
+              ${' '}
+            </span>
             Checking GitHub…
           </p>
         )}
 
         {status === 'unknown' && (
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-[var(--amw-mut)] mt-2 text-[13px] leading-normal">
             Could not reach GitHub to confirm this account. You can still
             continue. The username is checked again at checkout.
           </p>
         )}
 
         {status === 'found' && profile && (
-          <div className="mt-3 rounded-md border border-zinc-900/10 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/40">
+          <motion.div
+            key={profile.login}
+            initial={reduced ? false : { opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={
+              reduced ? { duration: 0 } : { duration: 0.38, ease: EASE }
+            }
+            className="amw-kit-inset mt-4 p-3.5"
+          >
             <div className="flex items-center gap-3">
               <Image
                 src={profile.avatar}
                 alt=""
-                width={40}
-                height={40}
-                className="h-10 w-10 shrink-0 rounded-full"
+                width={44}
+                height={44}
+                className="h-11 w-11 shrink-0 rounded-full"
               />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-semibold text-zinc-900 dark:text-zinc-50">
                   {profile.name || profile.login}
                 </p>
                 <a
                   href={profile.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-sm text-zinc-600 underline dark:text-zinc-400"
+                  className="hover:text-[var(--amw-accent-ink)] text-[var(--amw-mut)] inline-flex items-center gap-1 text-sm no-underline transition-colors"
                 >
                   @{profile.login}
+                  <IconArrowUpRight size={14} stroke={1.5} aria-hidden="true" />
+                  <span className="sr-only"> (opens in a new tab)</span>
                 </a>
               </div>
             </div>
@@ -222,20 +303,36 @@ export function GithubAccountField({
 
             <label
               htmlFor={confirmId}
-              className="mt-3 flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300"
+              className="border-[var(--amw-line)] min-h-11 text-[var(--amw-ink)] mt-3.5 flex cursor-pointer items-center gap-2.5 border-t border-dashed pt-3.5 text-sm"
             >
-              <input
-                id={confirmId}
-                type="checkbox"
-                checked={confirmed}
-                onChange={(e) =>
-                  setConfirmedFor(e.target.checked ? profile.login : null)
-                }
-                className="mt-0.5 h-4 w-4 shrink-0"
-              />
+              <span className="relative inline-flex h-5 w-5 shrink-0">
+                <input
+                  id={confirmId}
+                  type="checkbox"
+                  checked={confirmed}
+                  onChange={(e) =>
+                    setConfirmedFor(e.target.checked ? profile.login : null)
+                  }
+                  className="amw-kit-checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#09090b"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="amw-kit-tick pointer-events-none absolute inset-0"
+                >
+                  <path d="M6 12.5l4 4l8 -9" />
+                </svg>
+              </span>
               <span>This is my GitHub account.</span>
             </label>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

@@ -1,0 +1,681 @@
+/* =========================================================================
+   AMWARE // kit pages: the product page and the setup page after payment
+   (docs: Claude Design canvas "WareKit checkout and product redesign").
+
+   The card grammar that replaces the datasheet on these two pages:
+   borderless panels on --amw-muted, a faint teal rim and glow on hover or
+   focus-within, no corner ticks and no blueprint grid. Everything here is
+   scoped under .amw, so the tokens it reads are the storefront's own and
+   flip with the theme.
+
+   Motion lives here only where it is ambient or on page load: the blinking
+   cursor's cousins, packets on a wire, the session layers taking turns, the
+   typed commands. State changes (a card sliding in, the success panel) are
+   `motion` in the client components. Every rule below has a still version,
+   under both the system preference and the site's own pause toggle, which
+   sets [data-reduced-motion] on the provider's wrapper.
+   ========================================================================= */
+
+.amw {
+  --amw-kit-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --amw-kit-rim: 0 0 0 1px
+      color-mix(in srgb, var(--amw-accent) 32%, transparent),
+    0 28px 60px -34px color-mix(in srgb, var(--amw-accent) 75%, transparent);
+  --amw-kit-rim-strong: 0 0 0 1px
+      color-mix(in srgb, var(--amw-accent) 45%, transparent),
+    0 22px 44px -28px color-mix(in srgb, var(--amw-accent) 80%, transparent);
+}
+
+/* ---- entrance: a 16px rise, 70ms apart ---------------------------------- */
+@keyframes amw-kit-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes amw-kit-blur {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+.amw-kit-rise {
+  animation: amw-kit-rise 0.6s var(--amw-kit-ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.amw-kit-blur {
+  animation: amw-kit-blur 0.7s ease-out both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+/* ---- surfaces ------------------------------------------------------------ */
+.amw-kit-panel,
+.amw-kit-card {
+  background: var(--amw-muted);
+  transition: box-shadow 0.28s ease, transform 0.28s var(--amw-kit-ease);
+}
+.amw-kit-panel {
+  border-radius: 1.5rem;
+}
+.amw-kit-card {
+  border-radius: 1rem;
+}
+/* Light mode puts the muted panel on a white page, where #f4f4f5 alone is a
+   faint smudge. A hairline gives it an edge without bringing back a border. */
+:where(html:not(.dark)) .amw .amw-kit-panel,
+:where(html:not(.dark)) .amw .amw-kit-card {
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+/* The inset: a card that sits on a muted panel. */
+.amw-kit-inset {
+  background: var(--amw-card);
+  border-radius: 0.75rem;
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+
+/* The rim. A card holding a form keeps it on focus-within and never moves:
+   the field must not shift out from under the pointer on its way in. */
+.amw-kit-rim:hover,
+.amw-kit-rim:focus-within {
+  box-shadow: var(--amw-kit-rim);
+}
+.amw-kit-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--amw-kit-rim-strong);
+}
+
+/* ---- chips --------------------------------------------------------------- */
+.amw-kit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.4rem;
+  color: var(--amw-ink);
+  background: var(--amw-card-2);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+  white-space: nowrap;
+}
+.amw-kit-chip--accent {
+  color: var(--amw-accent-ink);
+  background: var(--amw-accent-soft);
+  box-shadow: none;
+}
+.amw-kit-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
+}
+
+/* The highlighted phrase of the home hero. */
+.amw-kit-hl {
+  display: inline-block;
+  padding: 1px 0.5rem;
+  border-radius: 0.375rem;
+  line-height: 1.5;
+  background: var(--amw-accent-soft);
+  color: var(--amw-ink);
+}
+.amw-kit-hl--pill {
+  padding: 1px 0.875rem;
+  border-radius: 9999px;
+}
+
+/* The tech pills of the "Built on" row. */
+.amw-kit-tech {
+  transition: transform 0.28s var(--amw-kit-ease), box-shadow 0.28s ease;
+}
+.amw-kit-tech:hover {
+  transform: translateY(-3px);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--amw-accent) 45%, transparent);
+}
+/* Brand colours mixed toward ink, as .amw-logo does, so a dark brand mark
+   never sinks into a dark panel. */
+.amw-kit-mark {
+  color: color-mix(in srgb, var(--logo, var(--amw-ink)) 78%, var(--amw-ink));
+}
+
+/* ---- spec rows ----------------------------------------------------------- */
+.amw-kit-spec {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px dashed var(--amw-line);
+  font-size: 0.875rem;
+}
+.amw-kit-spec dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--amw-mut);
+}
+.amw-kit-spec dd {
+  color: var(--amw-ink);
+  font-weight: 500;
+  text-align: right;
+}
+.amw-kit-spec .amw-kit-ic {
+  color: var(--amw-mut);
+  transition: color 0.28s ease, transform 0.28s var(--amw-kit-ease);
+}
+.amw-kit-spec:hover .amw-kit-ic {
+  color: var(--amw-accent-ink);
+  transform: scale(1.1);
+}
+
+/* ---- sec.01: packets on a wire ------------------------------------------- */
+/* Vertical between stacked nodes on a phone, horizontal from 640px. */
+.amw-kit-wire {
+  position: relative;
+  align-self: center;
+  width: 2px;
+  height: 2.25rem;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--amw-line-strong) 0 6px,
+    transparent 6px 12px
+  );
+}
+.amw-kit-packet {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--amw-accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--amw-accent) 90%, transparent);
+  opacity: 0;
+  animation: amw-kit-flow-y 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation-delay: var(--d, 0s);
+}
+@keyframes amw-kit-flow-y {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    top: calc(100% - 8px);
+    opacity: 0;
+  }
+}
+@keyframes amw-kit-flow-x {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: calc(100% - 8px);
+    opacity: 0;
+  }
+}
+@media (min-width: 640px) {
+  .amw-kit-wire {
+    width: auto;
+    height: 2px;
+    flex: 0 1 4rem;
+    min-width: 2.5rem;
+    margin: 0 0.5rem;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--amw-line-strong) 0 6px,
+      transparent 6px 12px
+    );
+  }
+  .amw-kit-packet {
+    top: -3px;
+    left: 0;
+    animation-name: amw-kit-flow-x;
+  }
+}
+
+/* ---- sec.02: the layers take turns --------------------------------------- */
+@keyframes amw-kit-layer {
+  0%,
+  22% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--amw-accent) 50%, transparent),
+      0 18px 40px -26px color-mix(in srgb, var(--amw-accent) 90%, transparent);
+    background: color-mix(in srgb, var(--amw-accent) 7%, var(--amw-muted));
+  }
+  26%,
+  100% {
+    box-shadow: 0 0 0 1px transparent;
+    background: var(--amw-muted);
+  }
+}
+@keyframes amw-kit-layer-num {
+  0%,
+  22% {
+    background: var(--amw-accent);
+    color: #09090b;
+  }
+  26%,
+  100% {
+    background: var(--amw-accent-soft);
+    color: var(--amw-accent-ink);
+  }
+}
+.amw-kit-layer {
+  animation: amw-kit-layer 8s linear infinite;
+  animation-delay: var(--d, 0s);
+}
+.amw-kit-layer-num {
+  background: var(--amw-accent-soft);
+  color: var(--amw-accent-ink);
+  animation: amw-kit-layer-num 8s linear infinite;
+  animation-delay: var(--d, 0s);
+}
+
+/* ---- sec.03: the file tree ----------------------------------------------- */
+.amw-kit-row {
+  transition: background 0.2s ease;
+}
+.amw-kit-row:hover {
+  background: color-mix(in srgb, var(--amw-accent) 6%, transparent);
+}
+.amw-kit-row .amw-kit-row-note {
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.2s ease, transform 0.28s var(--amw-kit-ease);
+}
+.amw-kit-row:hover .amw-kit-row-note {
+  opacity: 1;
+  transform: none;
+}
+/* No hover on a touchscreen, so the notes are simply there. */
+@media (hover: none) {
+  .amw-kit-row .amw-kit-row-note {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Commands that type themselves out once their panel is in view. Before the
+   panel is seen they are clipped; [data-in] is set by a client component, and
+   the reduced-motion rules below show them whole whatever it says. */
+@keyframes amw-kit-type {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+[data-in='false'] .amw-kit-type {
+  clip-path: inset(0 100% 0 0);
+}
+[data-in='true'] .amw-kit-type {
+  animation: amw-kit-type 0.9s steps(26, end) both;
+  animation-delay: var(--d, 0s);
+}
+
+/* ---- sec.04: checks that draw in ----------------------------------------- */
+@keyframes amw-kit-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes amw-kit-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.amw-kit-box {
+  background: var(--amw-accent-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--amw-accent) 45%, transparent);
+  color: var(--amw-accent-ink);
+}
+.amw-kit-box path {
+  stroke-dasharray: 14;
+}
+[data-in='false'] .amw-kit-box {
+  opacity: 0;
+}
+[data-in='false'] .amw-kit-box path {
+  stroke-dashoffset: 14;
+}
+[data-in='true'] .amw-kit-box {
+  animation: amw-kit-pop 0.4s var(--amw-kit-ease) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+[data-in='true'] .amw-kit-box path {
+  stroke-dashoffset: 14;
+  animation: amw-kit-draw 0.45s var(--amw-kit-ease) forwards;
+  animation-delay: calc(150ms + var(--i, 0) * 90ms);
+}
+
+/* ---- the setup page ------------------------------------------------------ */
+@keyframes amw-kit-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--amw-accent) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+.amw-kit-pulse {
+  animation: amw-kit-pulse 1.6s var(--amw-kit-ease) infinite;
+}
+@keyframes amw-kit-keyline {
+  0%,
+  100% {
+    background: color-mix(in srgb, var(--amw-accent) 8%, transparent);
+  }
+  50% {
+    background: color-mix(in srgb, var(--amw-accent) 20%, transparent);
+  }
+}
+.amw-kit-keyline {
+  animation: amw-kit-keyline 2.4s ease-in-out infinite;
+}
+
+/* The GitHub field: icon inside, teal focus ring, status icon on the right. */
+.amw-kit-input {
+  transition: box-shadow 0.28s ease, border-color 0.28s ease;
+}
+.amw .amw-kit-input:focus,
+.amw .amw-kit-input:focus-visible {
+  outline: none;
+  border-color: var(--amw-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--amw-accent) 18%, transparent);
+}
+.amw .amw-kit-input[aria-invalid='true']:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
+}
+
+/* The custom checkbox. A real input, drawn over: its check is an SVG that
+   strokes itself in when the box is checked. */
+.amw-kit-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid var(--amw-line-strong);
+  background: var(--amw-card);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease,
+    transform 0.2s var(--amw-kit-ease);
+}
+.amw-kit-checkbox:checked {
+  background: var(--amw-accent);
+  border-color: var(--amw-accent);
+}
+.amw-kit-checkbox:active {
+  transform: scale(0.9);
+}
+.amw .amw-kit-checkbox:focus-visible {
+  outline: 2px solid var(--amw-accent-ink);
+  outline-offset: 2px;
+}
+.amw-kit-tick path {
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  transition: stroke-dashoffset 0.3s var(--amw-kit-ease) 0.05s;
+}
+.amw-kit-checkbox:checked + .amw-kit-tick path {
+  stroke-dashoffset: 0;
+}
+
+/* The "next" link card under the success panel, and the strip's cards. */
+.amw-kit-next .amw-kit-chev,
+.amw-kit-ring .amw-kit-chev {
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.amw-kit-next:hover .amw-kit-chev,
+.amw-kit-next:focus-visible .amw-kit-chev,
+.amw-kit-ring:hover .amw-kit-chev,
+.amw-kit-ring:focus-visible .amw-kit-chev {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- still versions ------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .amw-kit-rise,
+  .amw-kit-blur,
+  .amw-kit-packet,
+  .amw-kit-layer,
+  .amw-kit-layer-num,
+  .amw-kit-pulse,
+  .amw-kit-keyline,
+  [data-in] .amw-kit-type,
+  [data-in] .amw-kit-box,
+  [data-in] .amw-kit-box path {
+    animation: none !important;
+  }
+  [data-in] .amw-kit-type {
+    clip-path: none;
+  }
+  [data-in] .amw-kit-box {
+    opacity: 1;
+  }
+  [data-in] .amw-kit-box path {
+    stroke-dashoffset: 0;
+  }
+  .amw-kit-packet {
+    opacity: 0;
+  }
+  .amw-kit-lift:hover,
+  .amw-kit-tech:hover {
+    transform: none;
+  }
+  .amw-kit-panel,
+  .amw-kit-card,
+  .amw-kit-tech,
+  .amw-kit-spec .amw-kit-ic,
+  .amw-kit-row .amw-kit-row-note,
+  .amw-kit-tick path,
+  .amw-kit-checkbox {
+    transition: none;
+  }
+}
+[data-reduced-motion='true']
+  :is(
+    .amw-kit-rise,
+    .amw-kit-blur,
+    .amw-kit-packet,
+    .amw-kit-layer,
+    .amw-kit-layer-num,
+    .amw-kit-pulse,
+    .amw-kit-keyline,
+    [data-in] .amw-kit-type,
+    [data-in] .amw-kit-box,
+    [data-in] .amw-kit-box path
+  ) {
+  animation: none !important;
+}
+[data-reduced-motion='true'] [data-in] .amw-kit-type {
+  clip-path: none;
+}
+[data-reduced-motion='true'] [data-in] .amw-kit-box {
+  opacity: 1;
+}
+[data-reduced-motion='true'] [data-in] .amw-kit-box path {
+  stroke-dashoffset: 0;
+}
+[data-reduced-motion='true'] .amw-kit-packet {
+  opacity: 0;
+}
+[data-reduced-motion='true'] :is(.amw-kit-lift, .amw-kit-tech):hover {
+  transform: none;
+}
+
+/* ---- the chevron button (home hero's "Browse Boilerplates") -------------- */
+/* Accent fill, Inter medium label, a 40px knob holding a chevron. On hover
+   it rounds into a pill and the knob grows. `--white` is the final CTA's
+   white-on-accent variant, for the success panel. Rules rather than a
+   utility string so the disabled and reduced-motion versions are one place. */
+.amw-kit-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.75rem 0.75rem 0.75rem 1.25rem;
+  border: 0;
+  border-radius: 0.375rem;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  background: var(--amw-accent);
+  color: #09090b;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  transition: border-radius 0.5s ease-out, box-shadow 0.5s ease-out,
+    background-color 0.28s ease, color 0.28s ease, filter 0.28s ease;
+}
+.amw .amw-kit-cta:hover {
+  color: #09090b;
+}
+.amw-kit-cta:not(:disabled):hover {
+  border-radius: 50px;
+  box-shadow: 0 18px 36px -16px color-mix(in srgb, var(--amw-accent) 75%, transparent);
+}
+.amw-kit-cta:not(:disabled):active {
+  filter: brightness(0.92);
+}
+.amw .amw-kit-cta:focus-visible {
+  outline: 2px solid var(--amw-accent-ink);
+  outline-offset: 3px;
+}
+.amw-kit-knob {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #09090b;
+  transition: transform 0.3s ease, background-color 0.28s ease, color 0.28s ease;
+}
+:where(.dark) .amw .amw-kit-cta--accent .amw-kit-knob {
+  background: #18181b;
+  color: #fafafa;
+}
+.amw-kit-cta:not(:disabled):hover .amw-kit-knob {
+  transform: scale(1.1);
+}
+.amw-kit-cta--white {
+  background: #ffffff;
+  box-shadow: none;
+}
+.amw-kit-cta--white:not(:disabled):hover {
+  box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.45);
+}
+.amw-kit-cta--white .amw-kit-knob {
+  background: var(--amw-accent);
+  color: #09090b;
+}
+.amw .amw-kit-cta--white:focus-visible {
+  outline-color: #09090b;
+}
+/* Grey until it can be used. A real colour, not opacity, so the label still
+   reads. */
+.amw-kit-cta:disabled {
+  cursor: not-allowed;
+  background: color-mix(in srgb, var(--amw-ink) 8%, transparent);
+  color: var(--amw-mut);
+  box-shadow: none;
+}
+.amw-kit-cta:disabled .amw-kit-knob {
+  background: color-mix(in srgb, var(--amw-ink) 8%, transparent);
+  color: var(--amw-mut);
+}
+/* A pending button is disabled too, but it is busy, not unavailable: it keeps
+   its colour while the knob spins. */
+.amw-kit-cta[aria-busy='true']:disabled {
+  cursor: progress;
+  background: var(--amw-accent);
+  color: #09090b;
+}
+.amw-kit-cta[aria-busy='true']:disabled .amw-kit-knob {
+  background: #ffffff;
+  color: #09090b;
+}
+:where(.dark) .amw .amw-kit-cta[aria-busy='true']:disabled .amw-kit-knob {
+  background: #18181b;
+  color: #fafafa;
+}
+
+@keyframes amw-kit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.amw-kit-spin {
+  animation: amw-kit-spin 0.8s linear infinite;
+}
+.amw-kit-pop {
+  animation: amw-kit-pop 0.4s var(--amw-kit-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amw-kit-cta,
+  .amw-kit-knob {
+    transition: background-color 0.28s ease, color 0.28s ease;
+  }
+  .amw-kit-cta:not(:disabled):hover {
+    border-radius: 0.375rem;
+  }
+  .amw-kit-cta:not(:disabled):hover .amw-kit-knob {
+    transform: none;
+  }
+  .amw-kit-spin,
+  .amw-kit-pop {
+    animation: none;
+  }
+}
+[data-reduced-motion='true'] .amw-kit-cta:not(:disabled):hover {
+  border-radius: 0.375rem;
+}
+[data-reduced-motion='true'] .amw-kit-cta:not(:disabled):hover .amw-kit-knob {
+  transform: none;
+}
+[data-reduced-motion='true'] :is(.amw-kit-spin, .amw-kit-pop) {
+  animation: none;
+}

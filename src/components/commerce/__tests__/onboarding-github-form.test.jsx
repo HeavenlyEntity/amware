@@ -3,8 +3,19 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('@/lib/commerce/onboarding', () => ({ completeOnboarding: vi.fn() }))
 
+/* Reduced motion is a switch here, so the still versions can be asserted. */
+const motionPref = vi.hoisted(() => ({ reduced: false }))
+vi.mock('@/components/AccessibilityProvider', () => ({
+  useReducedMotion: () => motionPref.reduced,
+}))
+
 import { completeOnboarding } from '@/lib/commerce/onboarding'
 import { OnboardingGithubForm } from '@/components/commerce/OnboardingGithubForm'
+import {
+  SetupProgress,
+  SetupStepper,
+  SetupEyebrow,
+} from '@/components/commerce/SetupProgress'
 
 const github = (login) => ({
   status: 200,
@@ -22,8 +33,33 @@ const props = { requestId: 'req-1', signature: 'sig-1' }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  motionPref.reduced = false
   global.fetch = vi.fn().mockResolvedValue({ status: 200, ok: false })
 })
+
+const answered = (ok) => ({
+  error: null,
+  ok: {
+    username: 'octocat',
+    repo: 'amwaredotdev/warekit-next-netsuite',
+    inviteUrl: null,
+    alreadyHadAccess: false,
+    manual: false,
+    licenseUrl: null,
+    ...ok,
+  },
+})
+
+async function submitWith(result, ui = <OnboardingGithubForm {...props} />) {
+  completeOnboarding.mockResolvedValue(result)
+  const view = render(ui)
+  fireEvent.change(screen.getByLabelText(/github username/i), {
+    target: { value: 'octocat' },
+  })
+  fireEvent.submit(view.container.querySelector('form'))
+  const status = await screen.findByRole('status')
+  return { ...view, status }
+}
 
 describe('OnboardingGithubForm', () => {
   it('carries the signed link back with the answer', async () => {
@@ -97,7 +133,7 @@ describe('OnboardingGithubForm', () => {
     const status = await screen.findByRole('status')
     expect(status).toHaveTextContent(/amwaredotdev\/warekit-next-netsuite/)
     expect(
-      screen.getByRole('link', { name: /accept invitation/i })
+      screen.getByRole('link', { name: /accept the invitation/i })
     ).toHaveAttribute('href', 'https://github.com/invite/1')
     expect(
       screen.getByRole('link', { name: /open your license page/i })
@@ -125,7 +161,7 @@ describe('OnboardingGithubForm', () => {
     expect(status).toHaveTextContent(/by hand/i)
     expect(status).toHaveTextContent('@octocat')
     expect(
-      screen.queryByRole('link', { name: /accept invitation/i })
+      screen.queryByRole('link', { name: /accept the invitation/i })
     ).toBeNull()
   })
 
@@ -248,5 +284,115 @@ describe('OnboardingGithubForm', () => {
       fireEvent.submit(container.querySelector('form'))
       expect(await screen.findByRole('alert')).toHaveTextContent(/covers 1/)
     })
+  })
+})
+
+/* Each `state.ok` variant on the accent panel: its own heading, its own
+   action, and the license page as its own card beneath. */
+describe('OnboardingGithubForm success panel', () => {
+  it('invited: heads it on its way and links Accept the invitation', async () => {
+    const { status } = await submitWith(
+      answered({ inviteUrl: 'https://github.com/invite/1' })
+    )
+    expect(
+      screen.getByRole('heading', { name: 'The repository is on its way.' })
+    ).toBeInTheDocument()
+    expect(status).toHaveTextContent(/invitation for amwaredotdev/i)
+    const accept = screen.getByRole('link', { name: /accept the invitation/i })
+    expect(accept).toHaveAttribute('href', 'https://github.com/invite/1')
+    expect(accept).toHaveAttribute('target', '_blank')
+  })
+
+  it('invited without a link: says so, and offers no button', async () => {
+    await submitWith(answered())
+    expect(
+      screen.getByRole('heading', { name: 'The repository is on its way.' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('already has access: links the repository itself', async () => {
+    await submitWith(answered({ alreadyHadAccess: true }))
+    expect(
+      screen.getByRole('heading', { name: '@octocat already has access.' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /amwaredotdev\/warekit-next-netsuite/ })
+    ).toHaveAttribute(
+      'href',
+      'https://github.com/amwaredotdev/warekit-next-netsuite'
+    )
+    expect(
+      screen.queryByRole('link', { name: /accept the invitation/i })
+    ).toBeNull()
+  })
+
+  it('manual: the by-hand copy, with no button at all', async () => {
+    const { status } = await submitWith(answered({ manual: true }))
+    expect(
+      screen.getByRole('heading', { name: 'You are on the list, @octocat.' })
+    ).toBeInTheDocument()
+    expect(status).toHaveTextContent(/by hand within one business day/i)
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('ends on the license page card when there is one', async () => {
+    await submitWith(answered({ licenseUrl: '/access/seats/tok' }))
+    expect(
+      screen.getByRole('link', { name: /last step: open your license page/i })
+    ).toHaveAttribute('href', '/access/seats/tok')
+  })
+
+  it('bursts on success, and holds still under reduced motion', async () => {
+    const first = await submitWith(answered())
+    expect(first.container.querySelectorAll('[data-spark]')).toHaveLength(8)
+    first.unmount()
+
+    motionPref.reduced = true
+    const still = await submitWith(answered())
+    expect(still.container.querySelectorAll('[data-spark]')).toHaveLength(0)
+  })
+})
+
+describe('Setup stepper', () => {
+  const page = (accountDone) => (
+    <SetupProgress accountDone={accountDone} asking={!accountDone}>
+      <SetupStepper />
+      <SetupEyebrow />
+      <OnboardingGithubForm {...props} />
+    </SetupProgress>
+  )
+
+  it('starts on the GitHub step, pulsing, and advances when the form succeeds', async () => {
+    completeOnboarding.mockResolvedValue(answered())
+    const { container } = render(page(false))
+
+    const current = () => container.querySelector('[aria-current="step"]')
+    expect(current()).toHaveTextContent('GitHub account')
+    expect(current().querySelector('.amw-kit-pulse')).not.toBeNull()
+    expect(screen.getByText(/step 2 of 3/i)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/github username/i), {
+      target: { value: 'octocat' },
+    })
+    fireEvent.submit(container.querySelector('form'))
+    await screen.findByRole('status')
+
+    await waitFor(() => expect(current()).toHaveTextContent('License key'))
+    expect(screen.getByText(/step 3 of 3/i)).toBeInTheDocument()
+    expect(container.querySelector('.amw-kit-pulse')).toBeNull()
+  })
+
+  it('starts on the license step when the account is already on file', () => {
+    const { container } = render(
+      <SetupProgress accountDone>
+        <SetupStepper />
+        <SetupEyebrow />
+      </SetupProgress>
+    )
+    expect(container.querySelector('[aria-current="step"]')).toHaveTextContent(
+      'License key'
+    )
+    expect(screen.getByText(/step 3 of 3/i)).toBeInTheDocument()
   })
 })

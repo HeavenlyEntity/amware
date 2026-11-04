@@ -4,6 +4,12 @@ import Link from 'next/link'
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react'
 import { claimFreeKit } from '@/lib/commerce/claim'
 import { GithubAccountField } from '@/components/commerce/GithubAccountField'
+import {
+  KIT_INPUT,
+  KIT_INPUT_BAD,
+  KIT_INPUT_OK,
+} from '@/components/site/kit-input'
+import { ChevronCta } from '@/components/site/ChevronCta'
 import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
 
 /* The free Lite path. Same delivery as a paid kit -- a repository invitation
@@ -138,13 +144,13 @@ export function ClaimFreeKit({ slug, label = 'Get free access' }) {
   }
 
   return (
-    <form action={formAction} className="mt-8">
+    <form action={formAction} className="mt-6">
       <input type="hidden" name="slug" value={slug} />
 
       <div className="mb-4">
         <label
           htmlFor="claim-email"
-          className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+          className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
         >
           Email
         </label>
@@ -158,10 +164,8 @@ export function ClaimFreeKit({ slug, label = 'Get free access' }) {
           placeholder="you@example.com"
           aria-invalid={emailError ? 'true' : undefined}
           aria-describedby={emailError ? 'claim-email-error' : undefined}
-          className={`w-full rounded-md border bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:outline-hidden focus:ring-4 dark:bg-zinc-700/[0.15] dark:text-zinc-200 ${
-            emailError
-              ? 'border-red-600 focus:border-red-600 focus:ring-red-600/10 dark:border-red-500'
-              : 'border-zinc-900/10 focus:border-teal-500 focus:ring-teal-500/10 dark:border-zinc-700'
+          className={`${KIT_INPUT} ${
+            emailError ? KIT_INPUT_BAD : KIT_INPUT_OK
           }`}
         />
         {emailError && (
@@ -187,13 +191,19 @@ export function ClaimFreeKit({ slug, label = 'Get free access' }) {
         </p>
       )}
 
-      <button type="submit" className="amw-cta" disabled={isPending || gated}>
+      <ChevronCta
+        type="submit"
+        full
+        disabled={isPending || gated}
+        aria-busy={isPending || undefined}
+        state={isPending ? 'pending' : 'idle'}
+      >
         {isPending
           ? 'Sending invitation…'
           : gated
           ? 'Confirm your account'
           : label}
-      </button>
+      </ChevronCta>
 
       <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
         Free. No card, no account. The kit arrives as a GitHub invitation.
