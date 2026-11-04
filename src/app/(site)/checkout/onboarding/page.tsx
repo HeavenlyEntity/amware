@@ -25,6 +25,7 @@ import {
   SetupEyebrow,
   SetupProgress,
   SetupStepper,
+  UntilSent,
 } from '@/components/commerce/SetupProgress'
 import { ChevronCta, RingLink } from '@/components/site/ChevronCta'
 import { HighlightedText } from '@/components/warekit/kit-story'
@@ -159,7 +160,7 @@ const BODY = 'mt-6 text-base leading-relaxed text-[var(--amw-mut)]'
 const SMALL = 'mt-4 text-sm leading-relaxed text-[var(--amw-mut)]'
 
 function KitLead({ delivered }: { delivered: boolean }) {
-  return (
+  const lead = (
     <p className={LEAD}>
       {delivered ? (
         <HighlightedText
@@ -175,6 +176,9 @@ function KitLead({ delivered }: { delivered: boolean }) {
       )}
     </p>
   )
+  /* Once the form on the page succeeds, "one more step" is no longer true;
+     the success panel says what is. */
+  return delivered ? lead : <UntilSent>{lead}</UntilSent>
 }
 
 /* A muted panel for a state that is only words: the pending, manual and
@@ -564,29 +568,19 @@ export default async function OnboardingPage({
           } and all of them are in use, so I have not sent a repository invitation. Open the license link in your receipt email to see the options.`}
         </p>
       ) : needsAnswer ? (
-        /* --static's rule: a panel holding a form glows on focus-within and
-           never moves. */
-        <div className="amw-kit-panel amw-kit-rim mt-9 px-6 pb-6 pt-7">
-          <h2 className="text-xl font-semibold leading-snug tracking-[-0.015em] text-zinc-900 dark:text-zinc-50">
-            Which GitHub account should get the repository?
-          </h2>
-          <OnboardingGithubForm
-            requestId={link.r}
-            signature={link.s}
-            initialUsername={setup.liteUsername}
-          />
-        </div>
+        <OnboardingGithubForm
+          requestId={link.r}
+          signature={link.s}
+          initialUsername={setup.liteUsername}
+          title="Which GitHub account should get the repository?"
+        />
       ) : canRetry ? (
-        <div className="amw-kit-panel amw-kit-rim mt-9 px-6 pb-6 pt-7">
-          <h2 className="text-xl font-semibold leading-snug tracking-[-0.015em] text-zinc-900 dark:text-zinc-50">
-            The invitation did not go through
-          </h2>
-          <OnboardingGithubForm
-            requestId={link.r}
-            signature={link.s}
-            retryUsername={stored}
-          />
-        </div>
+        <OnboardingGithubForm
+          requestId={link.r}
+          signature={link.s}
+          retryUsername={stored}
+          title="The invitation did not go through"
+        />
       ) : (
         <OnboardingSteps
           itemName={itemName}

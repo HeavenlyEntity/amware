@@ -37,6 +37,13 @@ export function SetupProgress({ accountDone, asking = false, children }) {
   return <Progress.Provider value={value}>{children}</Progress.Provider>
 }
 
+/** Its children until the form on the page succeeds, then nothing: the
+    "one more step" line stops being true at that moment. */
+export function UntilSent({ children }) {
+  const progress = useContext(Progress)
+  return progress?.sent ? null : children
+}
+
 /** The progress, or null outside a SetupProgress. */
 export function useSetupProgress() {
   return useContext(Progress)

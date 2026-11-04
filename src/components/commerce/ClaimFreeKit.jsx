@@ -4,11 +4,7 @@ import Link from 'next/link'
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react'
 import { claimFreeKit } from '@/lib/commerce/claim'
 import { GithubAccountField } from '@/components/commerce/GithubAccountField'
-import {
-  KIT_INPUT,
-  KIT_INPUT_BAD,
-  KIT_INPUT_OK,
-} from '@/components/site/kit-input'
+import { KIT_INPUT } from '@/components/site/kit-input'
 import { ChevronCta } from '@/components/site/ChevronCta'
 import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
 
@@ -164,9 +160,7 @@ export function ClaimFreeKit({ slug, label = 'Get free access' }) {
           placeholder="you@example.com"
           aria-invalid={emailError ? 'true' : undefined}
           aria-describedby={emailError ? 'claim-email-error' : undefined}
-          className={`${KIT_INPUT} ${
-            emailError ? KIT_INPUT_BAD : KIT_INPUT_OK
-          }`}
+          className={KIT_INPUT}
         />
         {emailError && (
           <p

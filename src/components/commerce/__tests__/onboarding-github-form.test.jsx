@@ -15,6 +15,7 @@ import {
   SetupProgress,
   SetupStepper,
   SetupEyebrow,
+  UntilSent,
 } from '@/components/commerce/SetupProgress'
 
 const github = (login) => ({
@@ -381,6 +382,33 @@ describe('Setup stepper', () => {
     await waitFor(() => expect(current()).toHaveTextContent('License key'))
     expect(screen.getByText(/step 3 of 3/i)).toBeInTheDocument()
     expect(container.querySelector('.amw-kit-pulse')).toBeNull()
+  })
+
+  it('replaces the whole question panel, and the one-more-step line, on success', async () => {
+    completeOnboarding.mockResolvedValue(answered())
+    const { container } = render(
+      <SetupProgress accountDone={false} asking>
+        <UntilSent>
+          <p>One more step and the repository is in your hands.</p>
+        </UntilSent>
+        <OnboardingGithubForm {...props} title="Which GitHub account?" />
+      </SetupProgress>
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Which GitHub account?' })
+    ).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/github username/i), {
+      target: { value: 'octocat' },
+    })
+    fireEvent.submit(container.querySelector('form'))
+    const status = await screen.findByRole('status')
+
+    expect(
+      screen.queryByRole('heading', { name: 'Which GitHub account?' })
+    ).toBeNull()
+    expect(screen.queryByText(/one more step/i)).toBeNull()
+    expect(document.activeElement).toBe(status)
   })
 
   it('starts on the license step when the account is already on file', () => {

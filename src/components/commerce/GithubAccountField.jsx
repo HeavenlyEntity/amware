@@ -11,11 +11,7 @@ import {
   IconLoader2,
 } from '@tabler/icons-react'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
-import {
-  KIT_INPUT,
-  KIT_INPUT_BAD,
-  KIT_INPUT_OK,
-} from '@/components/site/kit-input'
+import { KIT_INPUT } from '@/components/site/kit-input'
 import {
   checkGithubUsername,
   usernameMessage,
@@ -186,13 +182,8 @@ export function GithubAccountField({
           placeholder="your-github-username"
           aria-invalid={invalid ? 'true' : undefined}
           aria-describedby={invalid ? errorId : hintId}
-          className={`${KIT_INPUT} pl-[42px] pr-11 ${
-            invalid
-              ? KIT_INPUT_BAD
-              : status === 'found'
-              ? 'border-[color-mix(in_srgb,var(--amw-accent)_55%,transparent)]'
-              : KIT_INPUT_OK
-          }`}
+          data-found={status === 'found' && !invalid ? '' : undefined}
+          className={`${KIT_INPUT} pl-[42px] pr-11`}
         />
         {/* Decorative: every one of these states is also said in words. */}
         <span

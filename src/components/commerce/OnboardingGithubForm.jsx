@@ -105,7 +105,7 @@ function Success({ ok }) {
         tabIndex={-1}
         role="status"
         {...enter}
-        className="bg-[var(--amw-accent)] text-zinc-950 flex flex-col items-start rounded-3xl px-6 pb-7 pt-9 outline-none sm:px-7"
+        className="bg-[var(--amw-accent)] text-zinc-950 amw-kit-success flex flex-col items-start rounded-3xl px-6 pb-7 pt-9 sm:px-7"
       >
         <DoneRing />
         <h2 className="text-zinc-950 mt-5 text-2xl font-bold leading-tight tracking-[-0.025em] sm:text-[1.75rem]">
@@ -201,6 +201,7 @@ export function OnboardingGithubForm({
   signature,
   initialUsername = '',
   retryUsername = '',
+  title,
 }) {
   const [state, formAction, isPending] = useActionState(completeOnboarding, {
     error: null,
@@ -227,11 +228,25 @@ export function OnboardingGithubForm({
 
   if (state.ok) return <Success ok={state.ok} />
 
+  /* The question sits in a panel that holds the form: it glows on
+     focus-within and never moves. The success panel replaces the whole of
+     it, heading included, as the artboard draws it. */
+  const panel = (form) => (
+    <div className="amw-kit-panel amw-kit-rim mt-9 px-6 pb-6 pt-7">
+      {title && (
+        <h2 className="text-xl font-semibold leading-snug tracking-[-0.015em] text-zinc-900 dark:text-zinc-50">
+          {title}
+        </h2>
+      )}
+      {form}
+    </div>
+  )
+
   /* The invitation to an account already on file did not send. The account is
      fixed -- the action refuses any other -- so there is nothing to type, only
      the same call to repeat. The by-hand promise stays as the fallback. */
   if (retryUsername) {
-    return (
+    return panel(
       <form action={formAction} className="mt-6">
         <input type="hidden" name="r" value={requestId} />
         <input type="hidden" name="s" value={signature} />
@@ -267,7 +282,7 @@ export function OnboardingGithubForm({
     )
   }
 
-  return (
+  return panel(
     <form action={formAction} className="mt-5">
       <input type="hidden" name="r" value={requestId} />
       <input type="hidden" name="s" value={signature} />

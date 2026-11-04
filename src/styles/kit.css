@@ -405,23 +405,48 @@
   animation: amw-kit-keyline 2.4s ease-in-out infinite;
 }
 
-/* The GitHub field: icon inside, teal focus ring, status icon on the right. */
+/* The GitHub field: icon inside, teal focus ring, status icon on the right.
+   accessibility.css holds input borders at #71717a with !important (3:1
+   against both themes), so that stays the resting border and these states
+   override it the same way. The focus ring replaces the global outline with
+   one of the same weight in the accent ink, which clears 3:1 in both. */
 .amw-kit-input {
   transition: box-shadow 0.28s ease, border-color 0.28s ease;
 }
+.amw .amw-kit-input[data-found] {
+  border-color: var(--amw-accent-ink) !important;
+}
+.amw .amw-kit-input[aria-invalid='true'] {
+  border-color: #dc2626 !important;
+}
+:where(.dark) .amw .amw-kit-input[aria-invalid='true'] {
+  border-color: #f87171 !important;
+}
 .amw .amw-kit-input:focus,
 .amw .amw-kit-input:focus-visible {
-  outline: none;
-  border-color: var(--amw-accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--amw-accent) 18%, transparent);
+  outline: 2px solid var(--amw-accent-ink) !important;
+  outline-offset: 0 !important;
+  border-color: var(--amw-accent-ink) !important;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--amw-accent) 18%, transparent) !important;
 }
 .amw .amw-kit-input[aria-invalid='true']:focus {
-  border-color: #dc2626;
-  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
+  outline-color: #dc2626 !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.14) !important;
 }
 :where(.dark) .amw .amw-kit-input[aria-invalid='true']:focus {
-  border-color: #f87171;
-  box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.16);
+  outline-color: #f87171 !important;
+  border-color: #f87171 !important;
+  box-shadow: 0 0 0 6px rgba(248, 113, 113, 0.16) !important;
+}
+
+/* The success panel takes focus when the form it replaced goes, so a
+   keyboard user is not dropped on the page. It is not a control, so it
+   draws no focus ring (the global one is !important). */
+.amw .amw-kit-success:focus,
+.amw .amw-kit-success:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* The custom checkbox. A real input, drawn over: its check is an SVG that
@@ -441,7 +466,9 @@
 }
 .amw-kit-checkbox:checked {
   background: var(--amw-accent);
-  border-color: var(--amw-accent);
+}
+.amw .amw-kit-checkbox:checked {
+  border-color: var(--amw-accent) !important;
 }
 .amw-kit-checkbox:active {
   transform: scale(0.9);
