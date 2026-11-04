@@ -18,9 +18,10 @@
  *    key from the other environment or another kit, a refunded license. The
  *    route cannot be used to tell them apart.
  *  - No answer ever carries the key, the owner's address or a Creem id.
- *  - `lastSeenAt` is a rough signal, moved at most once an hour. The accounts
- *    array is read, changed and written back, so two reports in the same few
- *    milliseconds can lose one row's update; the spec accepts that.
+ *  - `lastSeenAt` is a rough signal, moved at most once an hour.
+ *  - The accounts array is read, changed and written back under the
+ *    license's row lock (licenseLock.js), so two reports at once are decided
+ *    one after the other and neither loses the other's row.
  *
  * Rate limiting is a Vercel Firewall rule, not code here.
  */
@@ -36,6 +37,7 @@ import {
   tierRank,
 } from './license'
 import { currentKey, licenseFromClaims, relationId } from './licenseRecord'
+import { withLicenseLock } from './licenseLock'
 
 /** The largest request body read, in bytes. */
 export const MAX_BODY_BYTES = 2048
@@ -232,32 +234,41 @@ const seenRecently = (row, now) => {
   return elapsed >= 0 && elapsed < LAST_SEEN_INTERVAL_MS
 }
 
-const saveAccounts = (payload, license, accounts) =>
+const saveAccounts = (payload, license, accounts, tx = {}) =>
   payload.update({
     collection: 'licenses',
     id: license.id,
     overrideAccess: true,
     data: { accounts },
+    ...tx,
   })
 
-/* Change one row against a fresh read, for the writes that follow a slow
-   call (Creem, the mail), so what happened in the meantime is not lost. */
-async function patchRow(payload, licenseId, accountId, patch) {
-  const fresh = await payload.findByID({
+const readFresh = (payload, licenseId, tx) =>
+  payload.findByID({
     collection: 'licenses',
     id: licenseId,
     depth: 0,
     overrideAccess: true,
+    ...tx,
   })
-  const rows = rowsOf(fresh)
-  if (!rows.some((row) => row.accountId === accountId)) return
-  await saveAccounts(
-    payload,
-    fresh,
-    rows.map((row) =>
-      row.accountId === accountId ? { ...row, ...patch } : row
+
+/* Change one row against a fresh read under the license's lock, for the
+   writes that follow a slow call (Creem, the mail), so what happened in the
+   meantime is not lost. */
+async function patchRow(payload, licenseId, accountId, patch) {
+  await withLicenseLock(payload, licenseId, async (tx) => {
+    const fresh = await readFresh(payload, licenseId, tx)
+    const rows = rowsOf(fresh)
+    if (!rows.some((row) => row.accountId === accountId)) return
+    await saveAccounts(
+      payload,
+      fresh,
+      rows.map((row) =>
+        row.accountId === accountId ? { ...row, ...patch } : row
+      ),
+      tx
     )
-  )
+  })
 }
 
 /*
@@ -356,77 +367,98 @@ export async function reportAccount(payload, { key, accountId, kit }) {
 
   const { license, purchase, product } = found
   const tier = license.tier
-  const limit = licenseLimits(license, product).accounts
   // Every tier `findLicense` lets through tracks accounts, so this only stops
   // a limit it could not read from being written against.
-  if (limit == null) return { status: 'ok', tier }
+  if (licenseLimits(license, product).accounts == null) {
+    return { status: 'ok', tier }
+  }
 
-  const rows = rowsOf(license)
+  /* Decided and written under the license's lock, from the accounts as they
+     are at that moment. Two deploys reporting at once used to both see room
+     for one more and both be let in, and the second write dropped the first
+     one's row. Now the second waits, sees the first, and is answered from
+     what is really there. Creem and the owner's mail come after the lock is
+     let go, so neither holds it. */
   const now = new Date().toISOString()
-  const used = activeAccounts(rows)
-  const listed = rows.find((row) => row.accountId === id)
-  const answer = (status, count) => ({ status, tier, used: count, limit })
-  const recent = listed != null && seenRecently(listed, Date.parse(now))
-  const touch = () =>
-    saveAccounts(
-      payload,
-      license,
-      rows.map((row) => (row === listed ? { ...row, lastSeenAt: now } : row))
-    )
+  const step = await withLicenseLock(payload, license.id, async (tx) => {
+    const fresh = await readFresh(payload, license.id, tx)
+    const limit = licenseLimits(fresh, product).accounts
+    if (limit == null) return { status: 'ok', bare: true }
 
-  if (listed?.status === 'active') {
-    if (!recent || !listed.creemInstanceId) await touch()
-    if (!listed.creemInstanceId) await activateRow(payload, license, id)
-    return answer('ok', used)
-  }
-
-  if (listed) {
-    // Over limit when last seen. Room now (an upgrade, a removed account)
-    // promotes it; otherwise it stays marked and is mailed if the last
-    // mail never went out.
-    if (used < limit) {
-      await saveAccounts(
-        payload,
-        license,
-        rows.map((row) =>
-          row === listed ? { ...row, status: 'active', lastSeenAt: now } : row
-        )
+    const rows = rowsOf(fresh)
+    const used = activeAccounts(rows)
+    const listed = rows.find((row) => row.accountId === id)
+    const recent = listed != null && seenRecently(listed, Date.parse(now))
+    const save = (accounts) => saveAccounts(payload, fresh, accounts, tx)
+    const touch = () =>
+      save(
+        rows.map((row) => (row === listed ? { ...row, lastSeenAt: now } : row))
       )
-      if (!listed.creemInstanceId) await activateRow(payload, license, id)
-      return answer('ok', used + 1)
-    }
-    if (!recent) await touch()
-    if (!listed.notifiedAt) {
-      await notifyOwner(payload, {
-        license,
-        purchase,
-        accountId: id,
-        used,
-        limit,
-      })
-    }
-    return answer('over_limit', used)
-  }
 
-  if (used < limit) {
-    await saveAccounts(payload, license, [
+    if (listed?.status === 'active') {
+      if (!recent || !listed.creemInstanceId) await touch()
+      return { status: 'ok', used, limit, activate: !listed.creemInstanceId }
+    }
+
+    if (listed) {
+      // Over limit when last seen. Room now (an upgrade, a removed account)
+      // promotes it; otherwise it stays marked and is mailed if the last
+      // mail never went out.
+      if (used < limit) {
+        await save(
+          rows.map((row) =>
+            row === listed ? { ...row, status: 'active', lastSeenAt: now } : row
+          )
+        )
+        return {
+          status: 'ok',
+          used: used + 1,
+          limit,
+          activate: !listed.creemInstanceId,
+        }
+      }
+      if (!recent) await touch()
+      return { status: 'over_limit', used, limit, notify: !listed.notifiedAt }
+    }
+
+    if (used < limit) {
+      await save([
+        ...rows,
+        { accountId: id, status: 'active', firstSeenAt: now, lastSeenAt: now },
+      ])
+      return { status: 'ok', used: used + 1, limit, activate: true }
+    }
+
+    // No room. Past the cap the answer is the same but nothing is stored or
+    // mailed, so a leaked key cannot grow the row or the owner's inbox.
+    if (rows.length >= limit + OVER_LIMIT_ROWS) {
+      return { status: 'over_limit', used, limit }
+    }
+
+    await save([
       ...rows,
-      { accountId: id, status: 'active', firstSeenAt: now, lastSeenAt: now },
+      {
+        accountId: id,
+        status: 'over_limit',
+        firstSeenAt: now,
+        lastSeenAt: now,
+      },
     ])
-    await activateRow(payload, license, id)
-    return answer('ok', used + 1)
+    return { status: 'over_limit', used, limit, notify: true }
+  })
+
+  if (step.bare) return { status: 'ok', tier }
+  if (step.activate) await activateRow(payload, license, id)
+  if (step.notify) {
+    await notifyOwner(payload, {
+      license,
+      purchase,
+      accountId: id,
+      used: step.used,
+      limit: step.limit,
+    })
   }
-
-  // No room. Past the cap the answer is the same but nothing is stored or
-  // mailed, so a leaked key cannot grow the row or the owner's inbox.
-  if (rows.length >= limit + OVER_LIMIT_ROWS) return answer('over_limit', used)
-
-  await saveAccounts(payload, license, [
-    ...rows,
-    { accountId: id, status: 'over_limit', firstSeenAt: now, lastSeenAt: now },
-  ])
-  await notifyOwner(payload, { license, purchase, accountId: id, used, limit })
-  return answer('over_limit', used)
+  return { status: step.status, tier, used: step.used, limit: step.limit }
 }
 
 /**

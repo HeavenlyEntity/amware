@@ -5,6 +5,7 @@ import {
   licenseUsageFor,
   overrideError,
 } from '@/lib/commerce/licenseRecord'
+import { lockLicenseBeforeUpdate } from '@/lib/commerce/licenseLock'
 
 /* For a field no one writes and only an admin reads. The hooks behind these
    fields check the user themselves, as this is skipped by a Local API call
@@ -69,6 +70,13 @@ export const Licenses: CollectionConfig = {
     read: ({ req: { user } }) => Boolean(user),
     update: ({ req: { user } }) => Boolean(user),
     delete: ({ req: { user } }) => Boolean(user),
+  },
+  hooks: {
+    /* Payload writes a license whole, from a read taken at the start of the
+       save. Locking the row first means that read waits for any other save
+       on the same license, so no save writes back seats or accounts that
+       another has since changed. See licenseLock.js. */
+    beforeOperation: [lockLicenseBeforeUpdate],
   },
   fields: [
     {

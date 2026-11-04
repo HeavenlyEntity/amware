@@ -13,6 +13,7 @@ import {
   relationId,
 } from '@/lib/commerce/licenseRecord'
 import { revokeLicenseAccess } from '@/lib/commerce/licenseRevoke'
+import { reserveSeat } from '@/lib/commerce/licenseSeats'
 import { listSeats } from '@/lib/commerce/seats'
 import { onboardingPath } from '@/lib/commerce/onboardingLink'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
@@ -827,39 +828,17 @@ async function handleCheckout(event) {
        people and get six. Only orders from before the username moved reach
        this; a new order records its seat during onboarding. */
     if (attached && githubUsername) {
-      await payload
-        .findByID({
-          collection: 'licenses',
-          id: attached.id,
-          depth: 0,
-          overrideAccess: true,
-        })
-        .then((current) => {
-          const members = current?.seatMembers ?? []
-          const taken = members.some(
-            (m) =>
-              m.githubUsername?.toLowerCase() === githubUsername.toLowerCase()
-          )
-          if (taken) return null
-          return payload.update({
-            collection: 'licenses',
-            id: attached.id,
-            overrideAccess: true,
-            data: {
-              seatMembers: [
-                ...members,
-                {
-                  githubUsername,
-                  inviteUrl: (invite?.ok && invite.url) || undefined,
-                  addedAt: new Date().toISOString(),
-                },
-              ],
-            },
-          })
-        })
-        .catch(() =>
-          console.error('License seat update failed for order', orderId)
-        )
+      /* Under the license's lock, as every seat write is. The buyer's seat
+         was paid for with this order, so no limit stands in its way. */
+      await reserveSeat(payload, {
+        licenseId: attached.id,
+        username: githubUsername,
+        product: null,
+        enforceLimit: false,
+        inviteUrl: (invite?.ok && invite.url) || null,
+      }).catch(() =>
+        console.error('License seat update failed for order', orderId)
+      )
     }
 
     const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')

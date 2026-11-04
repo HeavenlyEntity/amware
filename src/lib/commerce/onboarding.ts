@@ -6,6 +6,7 @@ import { attachPurchase, licenseFromClaims } from '@/lib/commerce/licenseRecord'
 import { licenseLimits } from '@/lib/commerce/license'
 import { licenseLinkFor } from '@/lib/commerce/licenseLink'
 import { hasSeat, listSeats } from '@/lib/commerce/seats'
+import { reserveSeat, setSeatInvite } from '@/lib/commerce/licenseSeats'
 import { claimGithubUsername } from '@/lib/commerce/purchaseClaim'
 import { sendBoilerplateConfirmationEmail } from '@/lib/commerce/fulfillment'
 import { verifyOnboardingLink } from '@/lib/commerce/onboardingLink'
@@ -102,49 +103,12 @@ const TRY_AGAIN =
 const relationId = (value: unknown) =>
   value && typeof value === 'object' ? (value as { id?: unknown }).id : value
 
-/* Record the buyer as seat one on the license. Never throws: the invitation
-   has already been sent, and a failed write here must not turn that into an
-   error the buyer sees.
-
-   The buyer's account is also on the purchase (the claim wrote it), so the
-   record survives even when this write does not. */
-async function recordSeat(
-  payload: Awaited<ReturnType<typeof getPayloadClient>>,
-  licenseId: string | number,
-  username: string,
-  inviteUrl: string | null
-) {
-  try {
-    const license = await payload.findByID({
-      collection: 'licenses',
-      id: licenseId,
-      depth: 0,
-      overrideAccess: true,
-    })
-    const members = license?.seatMembers ?? []
-    const taken = members.some(
-      (m) => m.githubUsername?.toLowerCase() === username.toLowerCase()
-    )
-    if (taken) return
-    await payload.update({
-      collection: 'licenses',
-      id: licenseId,
-      overrideAccess: true,
-      data: {
-        seatMembers: [
-          ...members,
-          {
-            githubUsername: username,
-            inviteUrl: inviteUrl || undefined,
-            addedAt: new Date().toISOString(),
-          },
-        ],
-      },
-    })
-  } catch (err) {
-    console.error('Onboarding seat record failed', licenseId, err)
-  }
-}
+const seatsFull = (used: number, limit: number) =>
+  `This license covers ${limit} ${
+    limit === 1 ? 'developer' : 'developers'
+  } and all ${used} ${
+    used === 1 ? 'is' : 'are'
+  } in use, so I have not sent an invitation. Your license page has the options: open the license link in your receipt email.`
 
 export async function completeOnboarding(
   _prevState: OnboardingState,
@@ -247,8 +211,14 @@ export async function completeOnboarding(
   /* The license's seat limit, before anything is claimed or sent. The emailed
      link outlives the moment of purchase, and a seat may have been filled from
      the license page since. An account that already holds a seat is accepted
-     and not added twice. A purchase with no license has no limit to read. */
+     and not added twice. A purchase with no license has no limit to read.
+   *
+     This check spares the buyer a used-up claim on a license that is plainly
+     full. It is not the one that holds: the seat is taken under the
+     license's lock after the claim, and that is what a seat filled from the
+     license page in the meantime meets. */
   const licenseId = relationId(purchase.license) as string | number | null
+  let seatProduct: unknown = productDoc
   if (licenseId) {
     /* A lookup that fails says nothing about whether the license is full, so
        it refuses and sends nothing, exactly like the lookups above. Fail-open
@@ -261,21 +231,12 @@ export async function completeOnboarding(
       return fail(null, TRY_AGAIN)
     }
     if (found?.license) {
+      seatProduct = found.product ?? productDoc
       const members = found.license.seatMembers ?? []
-      const limit = licenseLimits(
-        found.license,
-        found.product ?? productDoc
-      ).seats
+      const limit = licenseLimits(found.license, seatProduct).seats
       const used = listSeats(members).length
       if (!hasSeat(members, account) && used >= limit) {
-        return fail(
-          null,
-          `This license covers ${limit} ${
-            limit === 1 ? 'developer' : 'developers'
-          } and all ${used} ${
-            used === 1 ? 'is' : 'are'
-          } in use, so I have not sent an invitation. Your license page has the options: open the license link in your receipt email.`
-        )
+        return fail(null, seatsFull(used, limit))
       }
     }
   }
@@ -304,6 +265,29 @@ export async function completeOnboarding(
     if (!claimed) return fail(null, ALREADY_SET_UP)
   }
 
+  /* The buyer's seat, taken before the invitation goes and under the
+     license's lock, so a developer added from the license page at the same
+     moment cannot take the last seat as well. If the license filled up after
+     the check above, nothing is sent. The account stays on the purchase,
+     which leaves it at the retry state: the same account can be sent again
+     once a seat is free. */
+  let reserved: Awaited<ReturnType<typeof reserveSeat>> | null = null
+  if (licenseId) {
+    try {
+      reserved = await reserveSeat(payload, {
+        licenseId,
+        username: account,
+        product: seatProduct,
+      })
+    } catch (err) {
+      console.error('Onboarding seat record failed', purchase.id, err)
+      return fail(null, TRY_AGAIN)
+    }
+    if (reserved.status === 'full') {
+      return fail(null, seatsFull(reserved.used.length, reserved.limit))
+    }
+  }
+
   const invite = await inviteToRepo({ repo, username: account })
   if (!invite.ok) {
     console.error('Onboarding invite failed', {
@@ -317,13 +301,25 @@ export async function completeOnboarding(
     invite.ok && invite.state === 'already-a-collaborator'
   const inviteUrl = (invite.ok && invite.url) || null
 
-  /* The buyer is seat one, on the license. A purchase whose first attach
-     failed has none: try to attach it now, which is what the webhook would
-     have done. If that fails too the seat is not recorded -- the account is
+  /* The buyer is seat one, on the license, and the invitation's link goes on
+     that seat. A purchase whose first attach failed has no license yet: try
+     to attach it now, which is what the webhook would have done, and give
+     the buyer their seat there with no limit to meet, as the webhook would
+     have. If any of this fails the seat is not recorded -- the account is
      still on the purchase, and nothing here may fail the buyer -- and the
      license page is where it gets repaired. */
   let seatLicenseId = licenseId
-  if (!seatLicenseId) {
+  if (seatLicenseId) {
+    if (reserved?.status === 'added' && inviteUrl) {
+      await setSeatInvite(payload, {
+        licenseId: seatLicenseId,
+        username: account,
+        inviteUrl,
+      }).catch((err) =>
+        console.error('Onboarding seat record failed', purchase.id, err)
+      )
+    }
+  } else {
     const tier = purchase.grantsTier || productDoc?.tier || null
     try {
       if (!tier || !productDoc?.stack)
@@ -340,9 +336,17 @@ export async function completeOnboarding(
     } catch (err) {
       console.error('Onboarding license attach failed', purchase.id, err)
     }
-  }
-  if (seatLicenseId) {
-    await recordSeat(payload, seatLicenseId, account, inviteUrl)
+    if (seatLicenseId) {
+      await reserveSeat(payload, {
+        licenseId: seatLicenseId,
+        username: account,
+        product: null,
+        enforceLimit: false,
+        inviteUrl,
+      }).catch((err) =>
+        console.error('Onboarding seat record failed', purchase.id, err)
+      )
+    }
   }
 
   /* Recorded whether or not the invitation sent. The username is already

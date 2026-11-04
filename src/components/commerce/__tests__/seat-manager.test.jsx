@@ -69,7 +69,12 @@ const world = ({
       ...purchase,
     },
   }
-  update.mockResolvedValue({})
+  /* The license keeps what is written to it, so a write that reads the
+     license again sees the one before it. */
+  update.mockImplementation(async ({ collection, data }) => {
+    if (collection === 'licenses') Object.assign(rows.licenses, data)
+    return {}
+  })
   getPayloadClient.mockResolvedValue({
     findByID: vi.fn(async ({ collection, id }) => {
       const row = rows[collection]
@@ -204,7 +209,8 @@ describe('addSeat: the license limit', () => {
       repo: REPO,
       username: 'octocat',
     })
-    expect(update).toHaveBeenCalledTimes(1)
+    // The seat, then its invitation link.
+    expect(update).toHaveBeenCalledTimes(2)
     expect(update.mock.calls[0][0]).toMatchObject({
       collection: 'licenses',
       id: 9,
@@ -340,12 +346,36 @@ describe('addSeat: the license limit', () => {
 })
 
 describe('addSeat: delivery', () => {
-  it('records the seat with its invite link', async () => {
+  it('takes the seat before it invites, then records the invite link on it', async () => {
     world()
+    const order = []
+    update.mockImplementation(async ({ data }) => {
+      order.push(data.seatMembers?.[1]?.inviteUrl ? 'link' : 'seat')
+      return {}
+    })
+    inviteToRepo.mockImplementation(async () => {
+      order.push('invite')
+      return {
+        ok: true,
+        state: 'invited',
+        url: `https://github.com/${REPO}/invitations`,
+      }
+    })
     await add('octocat')
-    const written = update.mock.calls[0][0].data.seatMembers
-    expect(written).toHaveLength(2)
-    expect(written[1]).toMatchObject({
+
+    expect(order[0]).toBe('seat')
+    expect(order[1]).toBe('invite')
+    const reserved = update.mock.calls[0][0].data.seatMembers
+    expect(reserved).toHaveLength(2)
+    expect(reserved[1]).toMatchObject({ githubUsername: 'octocat' })
+    expect(reserved[1].inviteUrl).toBeUndefined()
+  })
+
+  it('records the seat with its invite link', async () => {
+    const rows = world()
+    await add('octocat')
+    expect(rows.licenses.seatMembers).toHaveLength(2)
+    expect(rows.licenses.seatMembers[1]).toMatchObject({
       githubUsername: 'octocat',
       inviteUrl: `https://github.com/${REPO}/invitations`,
     })
@@ -360,13 +390,14 @@ describe('addSeat: delivery', () => {
     expect(update).toHaveBeenCalled()
   })
 
-  it('queues a failed invitation for a person in the seat write', async () => {
-    world()
+  it('queues a failed invitation for a person, keeping the seat it took', async () => {
+    const rows = world()
     inviteToRepo.mockResolvedValue({ ok: false, reason: 'not-configured' })
     await add('octocat')
 
-    expect(update).toHaveBeenCalledTimes(1)
-    expect(update.mock.calls[0][0].data).toMatchObject({
+    expect(update).toHaveBeenCalledTimes(2)
+    expect(update.mock.calls[1][0].data).toEqual({ needsReview: true })
+    expect(rows.licenses).toMatchObject({
       needsReview: true,
       seatMembers: [
         expect.anything(),
@@ -378,7 +409,9 @@ describe('addSeat: delivery', () => {
   it('does not queue an invitation that went out', async () => {
     world()
     await add('octocat')
-    expect(update.mock.calls[0][0].data).not.toHaveProperty('needsReview')
+    for (const [arg] of update.mock.calls) {
+      expect(arg.data).not.toHaveProperty('needsReview')
+    }
   })
 
   it('queues a failed re-invitation, which stores no seat', async () => {
@@ -403,19 +436,36 @@ describe('addSeat: delivery', () => {
     expect(state.ok).toMatchObject({ manual: true, unsaved: false })
   })
 
-  it('does not show a seat as added when it could not be stored', async () => {
+  it('sends nothing when the seat could not be stored', async () => {
     world()
     update.mockRejectedValue(new Error('write failed'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const state = await add('octocat')
     error.mockRestore()
 
-    // The invitation cannot be taken back, so it did go out.
-    expect(inviteToRepo).toHaveBeenCalled()
-    expect(state.error).toBeNull()
-    expect(state.ok).toMatchObject({ username: 'octocat', unsaved: true })
-    // But the count does not include an account that was never stored.
+    // The seat comes first, so no invitation goes out without one.
+    expect(inviteToRepo).not.toHaveBeenCalled()
+    expect(state.ok).toBeNull()
+    expect(state.error?.message).toMatch(/nothing was sent/i)
     expect(state.seats).toEqual({ used: ['owner'], limit: 5 })
+  })
+
+  it('still counts the seat when only its invite link could not be stored', async () => {
+    const rows = world()
+    let writes = 0
+    update.mockImplementation(async ({ data }) => {
+      writes += 1
+      if (writes > 1) throw new Error('write failed')
+      Object.assign(rows.licenses, data)
+      return {}
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await add('octocat')
+    error.mockRestore()
+
+    expect(inviteToRepo).toHaveBeenCalled()
+    expect(state.ok).toMatchObject({ username: 'octocat', unsaved: false })
+    expect(state.seats.used).toEqual(['owner', 'octocat'])
   })
 
   it('does not call a stored seat unsaved', async () => {

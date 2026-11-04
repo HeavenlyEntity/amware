@@ -98,3 +98,14 @@ describe('Licenses seatMembers', () => {
     expect(description).toMatch(/license page/i)
   })
 })
+
+describe('Licenses saves', () => {
+  /* Payload writes a license whole from a read taken at the start of the
+     save, so every save, the admin's included, must lock the row first. */
+  it('locks the row before every update reads the stored license', async () => {
+    const { lockLicenseBeforeUpdate } = await import(
+      '@/lib/commerce/licenseLock'
+    )
+    expect(Licenses.hooks.beforeOperation).toContain(lockLicenseBeforeUpdate)
+  })
+})

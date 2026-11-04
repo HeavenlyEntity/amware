@@ -28,9 +28,13 @@ import {
   PAID_TIERS,
   repoOf,
 } from '@/lib/commerce/repoAccess'
+import type { License } from '@/payload-types'
+import { reserveSeat, setSeatInvite } from '@/lib/commerce/licenseSeats'
+import { withLicenseLock } from '@/lib/commerce/licenseLock'
 import {
   canAddSeat,
   listSeats,
+  seatLimit,
   seatsFullMessage,
   type SeatMember,
 } from './seats'
@@ -60,8 +64,9 @@ export type AddSeatState = {
     username: string
     inviteUrl: string | null
     manual: boolean
-    /** True when the invitation went out but the seat could not be stored.
-        `seats` then does not include the account. */
+    /** Always false from `addSeat` now: the seat is stored before the
+        invitation goes, and a seat that cannot be stored sends nothing. Kept
+        so the form's state keeps one shape with `removed.unsaved`. */
     unsaved: boolean
   } | null
   seats: { used: string[]; limit: number } | null
@@ -194,6 +199,41 @@ export async function addSeat(
     )
   }
 
+  /* The seat is taken before the invitation goes, under the license's lock,
+     against the seats as they are now rather than as they were read above.
+     The check above only spares a full license a GitHub lookup; this is the
+     one that holds when two adds race for the last seat, because only one of
+     them can win it, and only the winner is invited. Someone already on the
+     license takes no new seat: re-inviting is how an invitation nobody
+     accepted gets a second chance, and it must not cost a full team a seat.
+     When the seat cannot be stored, nothing has been sent. */
+  let reserved: Awaited<ReturnType<typeof reserveSeat>>
+  try {
+    reserved = await reserveSeat(payload, {
+      licenseId: license.id,
+      username,
+      product,
+    })
+  } catch (err) {
+    console.error('Seat record failed', license.id, err)
+    return fail(
+      null,
+      'I could not save that seat just now, and nothing was sent. Please try again in a moment.',
+      snapshot
+    )
+  }
+  const seats = { used: reserved.used, limit: reserved.limit }
+  if (reserved.status === 'full') {
+    return fail(
+      'githubUsername',
+      seatsFullMessage(
+        reserved.used.length,
+        seatLimit({ seats: reserved.limit })
+      ),
+      seats
+    )
+  }
+
   const invite = await inviteToRepo({ repo, username })
   if (!invite.ok) {
     console.error('Seat invite failed', {
@@ -203,47 +243,22 @@ export async function addSeat(
     })
   }
 
-  /* Appended only when the account is genuinely new to the license. Writing a
-     row for someone already on it would spend a seat on a re-invitation,
-     which is how a full team locks itself out by retrying.
-   *
-     A failed invitation tells the buyer it will be sent by hand, so the same
-     write puts the license in the review queue, where that gets done. A
-     failed re-invitation stores no seat and still makes that write. */
-  const isNew = verdict.reason === 'new'
-  let saved = true
-  if (isNew || !invite.ok) {
-    try {
-      await payload.update({
-        collection: 'licenses',
-        id: license.id,
-        overrideAccess: true,
-        data: {
-          ...(isNew
-            ? {
-                seatMembers: [
-                  ...members,
-                  {
-                    githubUsername: username,
-                    inviteUrl: (invite.ok && invite.url) || undefined,
-                    addedAt: new Date().toISOString(),
-                  },
-                ],
-              }
-            : {}),
-          ...(invite.ok ? {} : { needsReview: true }),
-        },
-      })
-    } catch (err) {
-      /* The invitation cannot be taken back, so say what is true: it went
-         out, and the seat was not stored. Showing the account as added would
-         be a seat that vanishes on the next load. */
-      saved = !isNew
-      console.error('Seat record failed', license.id, err)
-    }
+  /* The link goes onto the seat just taken: it is what proves this license
+     created the access. A failed invitation tells the buyer it will be sent
+     by hand, so it puts the license in the review queue, where that gets
+     done, whether or not the seat is new. Neither write can un-send the
+     invitation, so a failure here is logged and the seat still counts. */
+  try {
+    await setSeatInvite(payload, {
+      licenseId: license.id,
+      username,
+      inviteUrl:
+        reserved.status === 'added' && invite.ok ? invite.url ?? null : null,
+      needsReview: !invite.ok,
+    })
+  } catch (err) {
+    console.error('Seat invite record failed', license.id, err)
   }
-
-  const used = isNew && saved ? [...snapshot.used, username] : snapshot.used
 
   return {
     error: null,
@@ -251,9 +266,9 @@ export async function addSeat(
       username,
       inviteUrl: invite.ok ? invite.url : null,
       manual: !invite.ok,
-      unsaved: !saved,
+      unsaved: false,
     },
-    seats: { used, limit },
+    seats,
   }
 }
 
@@ -407,31 +422,36 @@ export async function removeSeat(
     }
   }
 
-  /* Written from a fresh read, not the one at the top: the GitHub call took
-     time, and someone else on the same license may have added a developer in
-     it. Payload cannot remove one array row atomically, so this narrows the
-     window instead. */
+  /* Written from a fresh read under the license's lock, not the read at the
+     top: the GitHub call took time, and someone may have added a developer
+     in it. The lock holds from that read to the write, so nobody's seat is
+     dropped by this one. */
   let saved = true
   let used = snapshot.used.filter((name) => !sameName(name, username))
   try {
-    const fresh = await payload.findByID({
-      collection: 'licenses',
-      id: license.id,
-      depth: 0,
-      overrideAccess: true,
-    })
-    const kept = (fresh.seatMembers || []).filter(
-      (m: SeatMember) => !sameName(m.githubUsername, username)
-    )
-    await payload.update({
-      collection: 'licenses',
-      id: license.id,
-      overrideAccess: true,
-      data: {
-        seatMembers: kept,
-        ...(unverifiedAccess ? { needsReview: true } : {}),
-      },
-    })
+    const kept = (await withLicenseLock(payload, license.id, async (tx) => {
+      const fresh: License = await payload.findByID({
+        collection: 'licenses',
+        id: license.id,
+        depth: 0,
+        overrideAccess: true,
+        ...tx,
+      })
+      const rest = (fresh.seatMembers || []).filter(
+        (m: SeatMember) => !sameName(m.githubUsername, username)
+      )
+      await payload.update({
+        collection: 'licenses',
+        id: license.id,
+        overrideAccess: true,
+        data: {
+          seatMembers: rest,
+          ...(unverifiedAccess ? { needsReview: true } : {}),
+        },
+        ...tx,
+      })
+      return rest
+    })) as SeatMember[]
     used = listSeats(kept)
   } catch (err) {
     saved = false
@@ -524,21 +544,27 @@ export async function removeAccount(
   }
 
   try {
-    const fresh = await payload.findByID({
-      collection: 'licenses',
-      id: license.id,
-      depth: 0,
-      overrideAccess: true,
-    })
-    const kept = (fresh.accounts || []).filter(
-      (r: AccountRow) => !sameName(r.accountId, requested)
-    )
-    await payload.update({
-      collection: 'licenses',
-      id: license.id,
-      overrideAccess: true,
-      data: { accounts: kept },
-    })
+    // A fresh read under the lock, so a report landing meanwhile is kept.
+    const kept = (await withLicenseLock(payload, license.id, async (tx) => {
+      const fresh: License = await payload.findByID({
+        collection: 'licenses',
+        id: license.id,
+        depth: 0,
+        overrideAccess: true,
+        ...tx,
+      })
+      const rest = (fresh.accounts || []).filter(
+        (r: AccountRow) => !sameName(r.accountId, requested)
+      )
+      await payload.update({
+        collection: 'licenses',
+        id: license.id,
+        overrideAccess: true,
+        data: { accounts: rest },
+        ...tx,
+      })
+      return rest
+    })) as AccountRow[]
     return {
       error: null,
       ok: { accountId: String(row.accountId), creemFailed },

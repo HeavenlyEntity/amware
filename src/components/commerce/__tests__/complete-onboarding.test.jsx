@@ -101,6 +101,7 @@ beforeEach(() => {
      state the first one left. */
   update = vi.fn().mockImplementation(async ({ collection, data }) => {
     if (collection === 'purchases') Object.assign(row, data)
+    if (collection === 'licenses') Object.assign(licenseDoc, data)
     return {}
   })
   getPayloadClient.mockResolvedValue({ find, findByID, update })
@@ -152,9 +153,16 @@ describe('completeOnboarding', () => {
     )
     expect(inviteToRepo).toHaveBeenCalledTimes(1)
 
-    const [licenseWrite] = updatesTo('licenses')
-    expect(licenseWrite.id).toBe(5)
-    expect(licenseWrite.data.seatMembers).toEqual([
+    /* The seat is taken first, with no link yet, and the invitation's link
+       goes onto it once GitHub has answered. */
+    const [reserve, link] = updatesTo('licenses')
+    expect(reserve.id).toBe(5)
+    expect(reserve.data.seatMembers).toEqual([
+      expect.objectContaining({ githubUsername: 'octocat' }),
+    ])
+    expect(reserve.data.seatMembers[0].inviteUrl).toBeUndefined()
+    expect(link.id).toBe(5)
+    expect(link.data.seatMembers).toEqual([
       expect.objectContaining({
         githubUsername: 'octocat',
         inviteUrl: 'https://github.com/invite/1',
@@ -192,6 +200,7 @@ describe('completeOnboarding', () => {
   it('refuses a replay with a different username and sends no second invite', async () => {
     const first = await submit({ githubUsername: 'octocat' })
     expect(first.ok).not.toBeNull()
+    const licenseWrites = updatesTo('licenses').length
 
     const second = await submit({ githubUsername: 'someone-else' })
 
@@ -203,7 +212,8 @@ describe('completeOnboarding', () => {
       username: 'octocat',
     })
     expect(row.githubUsername).toBe('octocat')
-    expect(updatesTo('licenses')).toHaveLength(1)
+    // The replay writes nothing to the license.
+    expect(updatesTo('licenses')).toHaveLength(licenseWrites)
   })
 
   it('refuses a replay of the same username without inviting again', async () => {
@@ -397,7 +407,7 @@ describe('completeOnboarding', () => {
     })
   })
 
-  it('does not throw when recording the seat fails', async () => {
+  it('sends nothing, and asks for a retry, when the seat cannot be taken', async () => {
     update.mockImplementation(({ collection }) =>
       collection === 'licenses'
         ? Promise.reject(new Error('db'))
@@ -407,7 +417,66 @@ describe('completeOnboarding', () => {
     const state = await submit()
     error.mockRestore()
 
+    expect(state.ok).toBeNull()
+    expect(state.error?.message).toMatch(/nothing was sent/i)
+    expect(inviteToRepo).not.toHaveBeenCalled()
+  })
+
+  it('does not throw when only the invitation link cannot be stored', async () => {
+    let licenseWrites = 0
+    update.mockImplementation(async ({ collection, data }) => {
+      if (collection === 'licenses') {
+        licenseWrites += 1
+        if (licenseWrites > 1) throw new Error('db')
+        Object.assign(licenseDoc, data)
+      }
+      return {}
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const state = await submit()
+    error.mockRestore()
+
     expect(state.ok).not.toBeNull()
+    expect(inviteToRepo).toHaveBeenCalledTimes(1)
+  })
+
+  it('takes the seat before it invites', async () => {
+    const order = []
+    update.mockImplementation(async ({ collection, data }) => {
+      if (collection === 'licenses') {
+        if (data.seatMembers) order.push('seat')
+        Object.assign(licenseDoc, data)
+      }
+      if (collection === 'purchases') Object.assign(row, data)
+      return {}
+    })
+    inviteToRepo.mockImplementation(async () => {
+      order.push('invite')
+      return { ok: true, url: 'https://github.com/invite/1', state: 'invited' }
+    })
+    await submit()
+    expect(order.slice(0, 2)).toEqual(['seat', 'invite'])
+  })
+
+  it('invites nobody when the last seat went between the check and the claim', async () => {
+    /* The first read finds room. By the time the seat is taken, a developer
+       added from the license page has filled the license. */
+    licenseDoc.seatMembers = ['a', 'b', 'c', 'd'].map((githubUsername) => ({
+      githubUsername,
+    }))
+    licenseFromClaims.mockImplementation(async () => {
+      const seen = { ...licenseDoc, seatMembers: [...licenseDoc.seatMembers] }
+      licenseDoc.seatMembers.push({ githubUsername: 'e' })
+      return { license: seen, product: { seats: 5 } }
+    })
+    const state = await submit()
+
+    expect(state.ok).toBeNull()
+    expect(state.error?.message).toMatch(
+      /covers 5 developers and all 5 are in use/
+    )
+    expect(inviteToRepo).not.toHaveBeenCalled()
+    expect(licenseDoc.seatMembers).toHaveLength(5)
   })
 
   describe('the license seat limit', () => {
