@@ -407,8 +407,9 @@ describe('Setup stepper', () => {
     expect(
       screen.queryByRole('heading', { name: 'Which GitHub account?' })
     ).toBeNull()
-    expect(screen.queryByText(/one more step/i)).toBeNull()
-    expect(document.activeElement).toBe(status)
+    // Both follow the success by an effect, a render later.
+    await waitFor(() => expect(screen.queryByText(/one more step/i)).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(status))
   })
 
   it('starts on the license step when the account is already on file', () => {
