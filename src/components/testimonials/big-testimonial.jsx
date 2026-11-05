@@ -16,7 +16,10 @@ import { Avatar } from './avatar'
    the text colour and turns near-white in dark mode. The glow is the
    brand accent. It renders what it is handed
    (lib/testimonials/services-testimonials.js): placeholders in dev and on
-   previews, the real clients in production. */
+   previews, the real clients in production.
+
+   Spaced to the services board's rhythm: 16px between every card, and no
+   top padding of its own, since the page sets the 128px gap above it. */
 
 function RevealWord({ word, index, total, scrollYProgress }) {
   const t = Math.max(total, 1)
@@ -123,10 +126,10 @@ export function BigTestimonial({ featured, supporting }) {
   return (
     <section
       aria-label="Testimonials"
-      className="relative mx-auto max-w-[calc(72rem-6px)] px-1 pt-4 md:pt-10"
+      className="relative mx-auto max-w-[calc(72rem-10px)]"
     >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:items-stretch md:gap-1">
-        <div className="order-2 flex flex-col gap-4 md:order-1 md:gap-1">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:items-stretch">
+        <div className="order-2 flex flex-col gap-4 md:order-1">
           {topLeft && <SupportingCard testimonial={topLeft} />}
           {bottomLeft && <SupportingCard testimonial={bottomLeft} />}
         </div>
@@ -197,7 +200,7 @@ export function BigTestimonial({ featured, supporting }) {
           </div>
         </figure>
 
-        <div className="order-3 flex flex-col gap-4 md:gap-1">
+        <div className="order-3 flex flex-col gap-4">
           {topRight && <SupportingCard testimonial={topRight} />}
           {bottomRight && <SupportingCard testimonial={bottomRight} />}
         </div>

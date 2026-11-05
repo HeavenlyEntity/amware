@@ -154,6 +154,8 @@ function KeyDiagram({ step }) {
         <span>
           Step <b>{step + 1}</b> of 3 · {SC[step].title}
         </span>
+        {/* TODO(alec): "Users notice: nothing" is the board's claim about the
+            method. Confirm it holds for every provider runbook. */}
         <span>
           Users notice: <b>nothing</b>
         </span>

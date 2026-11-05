@@ -57,6 +57,9 @@ export function ProjectsHero({ total, stats, years, onOpen }) {
               >
                 Shipped, not staged.
               </h1>
+              {/* TODO(alec): "Every one of them met real users" doesn't hold
+                  for pre-launch builds (Gearz) or Exhibit House, whose status
+                  is itself a TODO. Soften it or count only shipped builds. */}
               <p className="pj-intro pj-rise" style={{ '--d': '.2s' }}>
                 {total} builds across products, platforms, open source and
                 internal tools. Every one of them met real users.

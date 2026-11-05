@@ -19,7 +19,7 @@ import { useMediaQuery, useMounted } from '@/hooks/use-client-value'
 const RICH = '(min-width: 900px) and (pointer: fine)'
 
 let webgl2 = null
-function hasWebGL2() {
+export function hasWebGL2() {
   if (webgl2 !== null) return webgl2
   try {
     const canvas = document.createElement('canvas')

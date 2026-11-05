@@ -14,7 +14,10 @@ class ServerMessage extends Error {}
    contact-submissions with the subject that routes its mail (see
    src/lib/contact-intents.js). The address stands in for the name, which the
    collection requires. The success state only shows after the request
-   succeeds. `successMessage` is a string or a function of the address. */
+   succeeds. `successMessage` is a string or a function of the address.
+   `tone` picks the button: 'teal' (the default) is the guides' pill with a
+   bare chevron; 'pill' is the storefront's `.pr-cta` (styles/products.css),
+   white with a dark knob, as on the Standard board. */
 export function EmailCapture({
   subject,
   message,
@@ -23,6 +26,7 @@ export function EmailCapture({
   successMessage,
   idPrefix,
   onSuccess,
+  tone = 'teal',
 }) {
   const [email, setEmail] = useState('')
   const [invalid, setInvalid] = useState(false)
@@ -124,19 +128,33 @@ export function EmailCapture({
           aria-describedby={invalid ? errId : undefined}
           className="aria-[invalid=true]:shadow-[inset_0_0_0_1px_#f87171] h-11 min-w-0 flex-1 rounded-[10px] border-0 bg-[#0b0b0f] px-3.5 text-[15px] text-zinc-50 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] outline-none transition-shadow placeholder:text-zinc-500 focus:shadow-[inset_0_0_0_1px_#3ce8ce,0_0_0_4px_rgba(60,232,206,0.14)]"
         />
-        <button
-          type="submit"
-          disabled={sending}
-          aria-busy={sending}
-          className="min-h-11 text-zinc-950 group inline-flex items-center gap-2 whitespace-nowrap rounded-full border-0 bg-[#3ce8ce] px-4 text-sm font-semibold transition-transform duration-300 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#3ce8ce] disabled:opacity-70 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-        >
-          {sending ? 'Sending…' : cta}
-          <ChevronRight
-            className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-[3px] motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
-            strokeWidth={2.5}
-            aria-hidden="true"
-          />
-        </button>
+        {tone === 'pill' ? (
+          <button
+            type="submit"
+            disabled={sending}
+            aria-busy={sending}
+            className="pr-cta shrink-0 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#3ce8ce] disabled:opacity-70"
+          >
+            {sending ? 'Sending…' : cta}
+            <i aria-hidden="true">
+              <ChevronRight width={14} height={14} strokeWidth={2.5} />
+            </i>
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={sending}
+            aria-busy={sending}
+            className="min-h-11 text-zinc-950 group inline-flex items-center gap-2 whitespace-nowrap rounded-full border-0 bg-[#3ce8ce] px-4 text-sm font-semibold transition-transform duration-300 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#3ce8ce] disabled:opacity-70 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+          >
+            {sending ? 'Sending…' : cta}
+            <ChevronRight
+              className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-[3px] motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+              strokeWidth={2.5}
+              aria-hidden="true"
+            />
+          </button>
+        )}
       </div>
       {invalid && (
         <p id={errId} className="mt-2 text-[13px] text-red-300">

@@ -16,6 +16,8 @@ export const MODULES = [
       'Threat modeling a full-stack app',
       'Building your vulnerability testing lab',
     ],
+    /* TODO(alec): "12 planted findings" rests on COURSE-OUTLINE.md, which
+       isn't in this repo. Confirm the count. */
     project:
       'OrbitDesk, a vulnerable Next.js app with 12 planted findings. Recon it, threat-model it and rate what you find.',
     built: true,
@@ -134,7 +136,9 @@ export const MODULES = [
   },
 ]
 
-/* Same nine modules at every pace. */
+/* Same nine modules at every pace.
+   TODO(alec): the totals follow from nine modules at each per-module pace,
+   but the paces themselves come from the outside outline. Confirm them. */
 export const PACES = {
   intensive: {
     label: 'Intensive',
@@ -153,7 +157,9 @@ export const PACES = {
   },
 }
 
-/* Both prices are labelled as planned or pilot; keep those labels. */
+/* Both prices are labelled as planned or pilot; keep those labels.
+   TODO(alec): confirm the $5,000 planned and $3,000 pilot prices, and that
+   "Coaching with Alec" (and "through your first role") is offered. */
 export const TRACKS = {
   dev: {
     kicker: 'For working developers',
@@ -346,7 +352,10 @@ export const COURSE = {
   stack: ['Supabase', 'Next.js', 'Drizzle', 'Prisma', 'Postgres'],
   stats: [
     { v: '9', l: 'modules, from foundations to a client-ready audit' },
+    /* TODO(alec): "~34" lessons, but MODULES lists 9 × 4 = 36 weeks.
+       Confirm 34 or 36. */
     { v: '~34', l: 'weekly lessons, each ending in a quiz' },
+    /* TODO(alec): "9 staged vulnerable apps" rests on the outside outline. */
     { v: '9', l: 'staged vulnerable apps to work through' },
   ],
 }
@@ -409,5 +418,8 @@ export const ASSESSMENT = [
   },
 ]
 
+/* TODO(alec): Module 2 names CVE-2025-29927, but Module 7 (Secrets, Config &
+   Infrastructure) doesn't; Module 8's project re-uses earlier apps. Confirm
+   the module number. */
 export const CALLBACK_NOTE =
   'Later modules re-exploit earlier bugs on purpose. CVE-2025-29927 shows up in Module 2 and again in Module 7.'

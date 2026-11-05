@@ -56,7 +56,7 @@ function Card({ card, guide, dim }) {
         {id === 'play' ? (
           <PlaybookCover pages={guide.pages} />
         ) : (
-          <ChecklistCover />
+          <ChecklistCover rows={6} />
         )}
       </div>
       <div className="gd-card-body">

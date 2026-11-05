@@ -56,14 +56,16 @@ export function PlaybookCover({ pages, className = '' }) {
   )
 }
 
-export function ChecklistCover({ className = '', style }) {
+/* The hero's cover draws seven rows; the library card's smaller art draws
+   six, as on the board. */
+export function ChecklistCover({ className = '', style, rows = 7 }) {
   return (
     <div className={`gd-doc gd-cv-check gd-ticks ${className}`} style={style}>
       <Brand />
       <p className="gd-cv-kick">Free founder resource</p>
       <p className="gd-cv-title">Dev Shop Contract Red Flags</p>
       <ul className="gd-cv-rows">
-        {ROW_WIDTHS.map((width, n) => (
+        {ROW_WIDTHS.slice(0, rows).map((width, n) => (
           <li key={n} style={{ '--n': n }}>
             <i>
               <Check width={8} height={8} strokeWidth={4} aria-hidden="true" />

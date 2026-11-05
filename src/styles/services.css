@@ -1,0 +1,818 @@
+/* =========================================================================
+   /services: the services board (Main.dc.html, HeroMobile.dc.html).
+
+   Built on the `.amw` tokens (storefront.css), so it follows the site's
+   light/dark toggle (F10). The board is drawn dark; the dark values below
+   are the board's, the light ones their equivalents.
+
+   Motion rules:
+   - Load-time entrances (.svc-rise) only run while <html data-dk-motion="ok">
+     (set before first paint by the layout, kept in sync by DeskMotionSync),
+     and they start from the keyframe, not a hidden base state, so with
+     motion off everything is simply at rest.
+   - Hover choreography sits under prefers-reduced-motion: no-preference, and
+     the site's own pause toggle (accessibility.css) stops transitions too.
+   - No infinite CSS loops. The canvases pause themselves off screen.
+   ========================================================================= */
+
+/* ---- local tokens ------------------------------------------------------- */
+.amw.svc,
+.amw .amw-tabs--solid,
+.amw .svc-panel,
+.amw .svc-pi-tile {
+  --amw-panel: #f4f4f5;
+  --amw-tab-on: #ffffff;
+  --svc-head: #18181b;
+  --svc-body: #3f3f46;
+  --svc-wp-card: #ffffff;
+  --svc-card-lift: 0 1px 2px rgba(24, 24, 27, 0.05),
+    0 8px 24px -16px rgba(24, 24, 27, 0.18);
+  --svc-hero-drop: 0 32px 64px -32px rgba(24, 24, 27, 0.25);
+  --pi-ink: #3f3f46;
+  --pi-fill: #e4e4e7;
+  --pi-fill-2: #f4f4f5;
+  --pi-teal: #ccfbf1;
+  --pi-accent: #14bbac;
+  --pi-accent-deep: #0b756c;
+  --pi-tile-a: #ffffff;
+  --pi-tile-b: #f4f4f5;
+  --pi-ring: rgba(24, 24, 27, 0.08);
+  --pi-drop: 0 10px 24px -14px rgba(24, 24, 27, 0.25);
+}
+:where(.dark) .amw.svc,
+:where(.dark) .amw .amw-tabs--solid,
+:where(.dark) .amw .svc-panel,
+:where(.dark) .amw .svc-pi-tile {
+  --amw-panel: #18181b;
+  --amw-tab-on: #27272a;
+  --svc-head: #fafafa;
+  --svc-body: #d4d4d8;
+  --svc-wp-card: #101015;
+  --svc-card-lift: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.15);
+  --svc-hero-drop: 0 32px 64px -32px rgba(0, 0, 0, 0.7);
+  --pi-ink: #d4d4d8;
+  --pi-fill: #2a2a33;
+  --pi-fill-2: #1d1d24;
+  --pi-teal: #123c37;
+  --pi-accent: #3ce8ce;
+  --pi-accent-deep: #0b756c;
+  --pi-tile-a: #18181e;
+  --pi-tile-b: #0e0e12;
+  --pi-ring: rgba(255, 255, 255, 0.08);
+  --pi-drop: 0 10px 24px -14px rgba(0, 0, 0, 0.9);
+}
+
+/* ---- page shell --------------------------------------------------------- */
+/* The ASCII accent hangs past the right edge on purpose; clip, not hidden,
+   so sticky and anchor scrolling still work. */
+.svc {
+  overflow-x: clip;
+  padding-bottom: 96px;
+  color: var(--amw-ink);
+}
+.svc-wrap {
+  box-sizing: border-box;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 3vw, 32px);
+}
+.svc-proof,
+.svc-engagements,
+.svc-book {
+  margin-top: 80px;
+}
+@media (min-width: 768px) {
+  .svc-proof,
+  .svc-engagements,
+  .svc-book {
+    margin-top: 128px;
+  }
+}
+/* Anchors land below the fixed header. */
+.svc-engagements,
+.svc-book {
+  scroll-margin-top: 112px;
+}
+
+/* Type helpers. The dark eyebrow is the raw accent, as drawn; light keeps
+   the AA ink. */
+.amw .svc-eyebrow {
+  margin: 0;
+  font-family: var(--amw-mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amw-accent-ink);
+}
+:where(.dark) .amw .svc-eyebrow {
+  color: var(--amw-accent);
+}
+.svc-price {
+  margin: 0;
+  font-family: var(--amw-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+}
+.svc-h2 {
+  margin: 0;
+  font-family: Layer, sans-serif;
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--svc-head);
+}
+@media (min-width: 640px) {
+  .svc-h2 {
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+  }
+}
+
+/* The filled action is the storefront's .amw-cta at its own width. */
+.amw .svc-cta {
+  width: auto;
+  font-weight: 600;
+  text-decoration: none;
+}
+.svc-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  min-height: 44px;
+  font-family: var(--amw-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--svc-body);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.svc-quiet:hover {
+  color: var(--amw-accent-ink);
+}
+:where(.dark) .svc-quiet:hover {
+  color: var(--amw-accent);
+}
+.amw .svc-quiet:focus-visible {
+  outline: 2px solid var(--amw-accent-ink);
+  outline-offset: 3px;
+}
+
+@keyframes svc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Higher specificity than accessibility.css's blanket `animation: none`,
+   which the server render always carries (motion-flag.jsx explains why). */
+html[data-dk-motion='ok'] .svc .svc-rise {
+  animation: svc-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0s) both !important;
+}
+
+/* ---- S0 hero ------------------------------------------------------------ */
+.svc-hero-section {
+  margin-top: 8px;
+}
+.svc-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 640px;
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(--amw-card);
+  box-shadow: 0 0 0 1px var(--amw-line), var(--svc-hero-drop);
+}
+.svc-hero-wall,
+.svc-hero-field,
+.svc-hero-scrim {
+  position: absolute;
+  inset: 0;
+}
+.svc-hero-field {
+  display: none;
+}
+.svc-hero-scrim {
+  pointer-events: none;
+  background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--amw-card) 97%, transparent) 0%,
+      color-mix(in srgb, var(--amw-card) 90%, transparent) 34%,
+      color-mix(in srgb, var(--amw-card) 45%, transparent) 62%,
+      color-mix(in srgb, var(--amw-card) 20%, transparent) 100%
+    ),
+    linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--amw-card) 80%, transparent) 0%,
+      transparent 30%
+    );
+}
+.svc-hero-copy {
+  position: relative;
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  padding: clamp(40px, 6vw, 80px) clamp(24px, 5vw, 64px) clamp(40px, 5vw, 64px);
+}
+.svc-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+.svc-hero-rule {
+  width: 32px;
+  border-top: 1px dashed var(--amw-line-strong);
+}
+.svc-hero-location {
+  margin: 0;
+  font-family: var(--amw-mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+}
+.svc-hero-title {
+  margin: 24px 0 0;
+  max-width: 14ch;
+  font-family: Layer, sans-serif;
+  font-size: clamp(40px, 5.6vw, 64px);
+  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--svc-head);
+  text-wrap: balance;
+}
+.svc-hero-lede {
+  margin: 24px 0 0;
+  max-width: 34rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--amw-mut);
+}
+.svc-hero-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 40px;
+}
+.svc-hero-price {
+  margin-top: 16px;
+}
+
+/* The phone hero (HeroMobile.dc.html): a full-height card under the header,
+   the ASCII field in place of the wall, stacked actions. */
+@media (max-width: 767px) {
+  .svc-hero-section {
+    display: flex;
+    min-height: calc(100vh - 80px);
+    min-height: calc(100dvh - 80px);
+    margin-top: 0;
+    padding: 0 16px 16px;
+  }
+  .svc-hero {
+    flex-grow: 1;
+    min-height: 0;
+    box-shadow: 0 0 0 1px var(--amw-line);
+  }
+  .svc-hero-wall,
+  .svc-hero-rule,
+  .svc-hero-location {
+    display: none;
+  }
+  .svc-hero-field {
+    display: block;
+  }
+  .svc-hero-scrim {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--amw-card) 94%, transparent) 0%,
+      color-mix(in srgb, var(--amw-card) 72%, transparent) 44%,
+      transparent 70%
+    );
+  }
+  .svc-hero-copy {
+    padding: 40px 24px 16px;
+  }
+  .svc-hero-title {
+    margin-top: 20px;
+    max-width: none;
+    font-size: 40px;
+    line-height: 1.05;
+  }
+  .svc-hero-lede {
+    margin-top: 20px;
+    font-size: 16px;
+  }
+  .svc-hero-ctas {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin-top: 32px;
+  }
+  .amw .svc-hero-ctas .svc-cta {
+    width: 100%;
+  }
+  .svc-hero-ctas .svc-quiet {
+    display: flex;
+    justify-content: center;
+  }
+  .svc-hero-price {
+    text-align: center;
+  }
+}
+
+/* ---- the work wall (GridMotion) ----------------------------------------- */
+.svc-wall {
+  overflow: hidden;
+  pointer-events: none;
+}
+/* The poster: the same tilted grid, as plain tiles, until the wall arrives. */
+.svc-wall-poster {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  perspective: 1600px;
+  -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 12%,
+      #000 88%,
+      transparent
+    ),
+    linear-gradient(to bottom, transparent, #000 15%, #000 85%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 12%,
+      #000 88%,
+      transparent
+    ),
+    linear-gradient(to bottom, transparent, #000 15%, #000 85%, transparent);
+  mask-composite: intersect;
+  transition: opacity 0.9s ease;
+}
+.svc-wall-poster::before {
+  content: '';
+  position: absolute;
+  inset: -40% -30%;
+  background: var(--amw-card-2);
+  opacity: 0.9;
+  -webkit-mask-image: repeating-linear-gradient(
+      90deg,
+      #000 0 300px,
+      transparent 300px 314px
+    ),
+    repeating-linear-gradient(0deg, #000 0 226px, transparent 226px 240px);
+  -webkit-mask-composite: source-in;
+  mask-image: repeating-linear-gradient(
+      90deg,
+      #000 0 300px,
+      transparent 300px 314px
+    ),
+    repeating-linear-gradient(0deg, #000 0 226px, transparent 226px 240px);
+  mask-composite: intersect;
+  transform: rotateX(14deg) rotate(-12deg);
+}
+.svc-wall[data-wall='live'] .svc-wall-poster {
+  opacity: 0;
+}
+.svc-wall-grid {
+  position: absolute;
+  inset: 0;
+}
+
+/* GridMotion's own rules (the board's Tailwind classes, as plain CSS). */
+.gm-root {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.gm-plane {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  opacity: 0;
+}
+.gm-row {
+  position: absolute;
+  left: 0;
+  display: flex;
+  gap: var(--gm-gap);
+  will-change: transform;
+}
+.gm-tile {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--gm-tile-w);
+  height: var(--gm-tile-h);
+  overflow: hidden;
+  border-radius: var(--gm-radius);
+  background: var(--gm-tile);
+  color: var(--gm-text);
+  font-size: var(--gm-font);
+  line-height: 1.2;
+  text-align: center;
+  opacity: calc(1 - var(--gm-dim) * (1 - var(--spot, 0)));
+}
+.gm-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--gm-border);
+  pointer-events: none;
+}
+.gm-tile--gray {
+  filter: grayscale(calc(1 - var(--spot, 0)));
+}
+.gm-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+.gm-text {
+  padding: 0 1em;
+}
+
+/* ---- the ASCII field (GradientASCII) ------------------------------------ */
+.svc-ascii {
+  overflow: hidden;
+  pointer-events: none;
+}
+.svc-ascii-poster,
+.svc-ascii-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.svc-ascii-poster {
+  transition: opacity 0.8s ease;
+}
+.svc-ascii--hero .svc-ascii-poster {
+  background: radial-gradient(
+    90% 45% at 50% 100%,
+    color-mix(in srgb, var(--amw-accent) 26%, transparent),
+    transparent 75%
+  );
+}
+.svc-ascii--accent .svc-ascii-poster {
+  background: radial-gradient(
+    closest-side at 60% 45%,
+    color-mix(in srgb, var(--amw-accent) 14%, transparent),
+    transparent
+  );
+}
+.svc-ascii-canvas {
+  display: block;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+.svc-ascii[data-field='live'] .svc-ascii-canvas {
+  opacity: 1;
+}
+.svc-ascii[data-field='live'] .svc-ascii-poster {
+  opacity: 0;
+}
+
+/* The light behind the engagement cards, fading out from the top right. */
+.svc-eng-accent {
+  position: absolute;
+  z-index: -1;
+  top: 120px;
+  right: -200px;
+  display: none;
+  width: min(560px, 60vw);
+  height: 440px;
+  opacity: 0.85;
+  -webkit-mask-image: radial-gradient(
+    closest-side at 60% 45%,
+    #000 30%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    closest-side at 60% 45%,
+    #000 30%,
+    transparent 100%
+  );
+}
+@media (min-width: 768px) {
+  .svc-eng-accent {
+    display: block;
+  }
+}
+
+/* ---- S1 engagements ----------------------------------------------------- */
+.svc-engagements {
+  position: relative;
+  isolation: isolate;
+}
+
+/* The track tabs, the board's way: a grey solid pill on a dark track. The
+   fill still slides (F4); OfferTabs keeps the keys and ARIA. */
+.amw .amw-tabs--solid {
+  gap: 4px;
+  padding: 4px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--amw-muted);
+  box-shadow: 0 0 0 1px var(--amw-line);
+}
+.amw .amw-tabs--solid .amw-tab {
+  min-height: 44px;
+  height: 44px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--amw-mut);
+}
+.amw .amw-tabs--solid .amw-tab:hover {
+  color: var(--amw-ink);
+}
+.amw .amw-tabs--solid .amw-tab[aria-selected='true'] {
+  color: var(--svc-head);
+}
+.amw .amw-tabs--solid .amw-tab__fill {
+  background: var(--amw-tab-on);
+  box-shadow: 0 1px 2px rgba(24, 24, 27, 0.12), 0 0 0 1px var(--amw-line);
+}
+:where(.dark) .amw .amw-tabs--solid .amw-tab__fill {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.amw .amw-tabs--solid .amw-tab:focus-visible {
+  outline: 2px solid var(--amw-accent-ink);
+  outline-offset: 3px;
+}
+
+/* The hatched panel both tracks sit in. The site's dark page column is the
+   same #18181b as the board's panel, so a hairline keeps its edge. */
+.svc-panel {
+  --pattern-fg: var(--amw-grid);
+  position: relative;
+  box-sizing: border-box;
+  max-width: calc(72rem - 10px);
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(--amw-panel);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+.svc-panel-hatch {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 50%, transparent);
+  mask-image: linear-gradient(to bottom, #000 50%, transparent);
+}
+.svc-panel--cards {
+  padding: 32px 12px;
+}
+.svc-panel--package {
+  padding: 40px 0;
+}
+@media (min-width: 640px) {
+  .svc-panel--cards {
+    padding: 48px 24px;
+  }
+  .svc-panel--package {
+    padding: 64px 0;
+  }
+}
+/* The featured card's hatch at the board's strength (.08 white): the
+   Pattern's 14% foreground at 57% opacity. */
+.svc-panel .amw-on-teal > div[aria-hidden='true']:first-child {
+  opacity: 0.57;
+}
+
+/* A service card's folded paragraphs (service-body.jsx). */
+.svc-more {
+  margin-top: 0.75rem;
+}
+.svc-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  font-family: var(--amw-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amw-accent-ink);
+  cursor: pointer;
+  list-style: none;
+}
+.svc-more > summary::-webkit-details-marker {
+  display: none;
+}
+.svc-more > summary::after {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.2s ease;
+}
+.svc-more[open] > summary::after {
+  transform: translateY(1px) rotate(225deg);
+}
+.svc-load-error {
+  padding: 48px 24px;
+  text-align: center;
+}
+
+/* ---- Build & support: the website package -------------------------------- */
+.svc-wp-card {
+  background: var(--svc-wp-card);
+  box-shadow: var(--svc-card-lift);
+}
+.svc-wp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+}
+.svc-wp-wide {
+  grid-column: 1 / -1;
+}
+.svc-pi-list {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 40px 20px;
+  margin-top: 56px;
+  padding: 0 16px;
+  list-style: none;
+}
+@media (min-width: 768px) {
+  .svc-pi-list {
+    margin-top: 96px;
+    padding: 0 32px;
+  }
+}
+.svc-pi-host {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+/* The premium icon tile: a raised duotone square with a passing shine. */
+.svc-pi-tile {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--pi-tile-a), var(--pi-tile-b));
+  box-shadow: inset 0 0 0 1px var(--pi-ring),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06), var(--pi-drop);
+}
+.svc-pi-tile svg {
+  display: block;
+  width: 34px;
+  height: 34px;
+}
+.svc-pi-tile::after {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(
+    115deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.16) 50%,
+    transparent 58%
+  );
+  transform: translateX(-70%);
+  pointer-events: none;
+}
+.svc-pi-host:hover .svc-pi-tile {
+  box-shadow: inset 0 0 0 1px
+      color-mix(in srgb, var(--amw-accent) 45%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 16px 32px -14px color-mix(in srgb, var(--amw-accent) 40%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .svc-pi-tile {
+    transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.3s;
+  }
+  .svc-pi-tile svg {
+    transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .svc-pi-tile::after {
+    transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .svc-pi-host:hover .svc-pi-tile {
+    transform: translateY(-3px) rotate(-4deg);
+  }
+  .svc-pi-host:hover .svc-pi-tile::after {
+    transform: translateX(70%);
+  }
+  .svc-pi-host:hover .svc-pi-tile svg {
+    transform: scale(1.08);
+  }
+}
+
+/* ---- S2 book band ------------------------------------------------------- */
+.svc-book-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  align-items: stretch;
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(--amw-card);
+  box-shadow: 0 0 0 1px var(--amw-line);
+}
+.svc-book-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(40px, 6vw, 72px) clamp(24px, 5vw, 56px);
+}
+.svc-book-title {
+  margin: 16px 0 0;
+  max-width: 16ch;
+  font-family: Layer, sans-serif;
+  font-size: clamp(30px, 3.6vw, 40px);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--svc-head);
+  text-wrap: balance;
+}
+.svc-book-lede {
+  margin: 16px 0 0;
+  max-width: 30rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--amw-mut);
+}
+.svc-book-terms {
+  max-width: 30rem;
+  margin-top: 32px;
+}
+.svc-book-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+/* The desk's glass panel, as the band's right half: no radius or shadow of
+   its own (the card clips it), a hairline seam, and the lens in the accent. */
+.amw .svc-book-glass.amw-glass {
+  min-height: 380px;
+  border-radius: 0;
+  border-left: 1px solid var(--amw-line);
+  box-shadow: none;
+  color: var(--amw-accent-ink);
+}
+:where(.dark) .amw .svc-book-glass.amw-glass {
+  color: var(--amw-accent);
+}
+@media (max-width: 800px) {
+  .svc-book-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .amw .svc-book-glass.amw-glass {
+    min-height: 300px;
+    border-top: 1px solid var(--amw-line);
+    border-left: 0;
+  }
+}
+
+/* ---- print -------------------------------------------------------------- */
+@media print {
+  .svc [data-print='hide'] {
+    display: none !important;
+  }
+  .svc-hero-scrim {
+    display: none;
+  }
+}

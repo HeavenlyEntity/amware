@@ -1,10 +1,7 @@
 import { withSocialImage } from '@/lib/social/metadata'
-import { Container } from '@/components/Container'
 import { TrackView } from '@/components/analytics/TrackView'
-import { RichText } from '@/components/site/RichText'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import {
-  StoreHero,
   StoreEmpty,
   ServiceCard,
   ServiceGrid,
@@ -12,14 +9,22 @@ import {
 } from '@/components/commerce/storefront'
 import { groupServices } from '@/lib/services/tracks'
 import { pricedGridClass, splitByPrice } from '@/lib/services/layout'
+import { strategyCall } from '@/lib/services/strategy-call'
 import { cn } from '@/lib/utils'
-import { ServiceTracks } from '@/components/services/service-tracks'
+import { DeskMotionSync } from '@/components/founders/desk/motion-flag'
+import { ServicesHero } from '@/components/services/services-hero'
+import { Engagements } from '@/components/services/engagements'
+import { BookBand } from '@/components/services/book-band'
+import { ServiceBody } from '@/components/services/service-body'
+import { EngagementsLoadError } from '@/components/services/load-error'
 import { BigTestimonial } from '@/components/testimonials/big-testimonial'
 import { MasonryTestimonials } from '@/components/testimonials/masonry-testimonials'
 import { servicesTestimonials } from '@/lib/testimonials/services-testimonials'
 import { WebsitePackage } from '@/components/website-package'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { servicesSchema } from '@/lib/seo/schema'
+import type { Service } from '@/payload-types'
+import '@/styles/services.css'
 
 export const revalidate = 60
 
@@ -33,28 +38,48 @@ export const metadata = withSocialImage(
   'services'
 )
 
-export default async function ServicesPage() {
-  const payload = await getPayloadClient()
-  const { docs } = await payload.find({
-    collection: 'services',
-    where: { status: { equals: 'published' } },
-    sort: 'order',
-    depth: 0,
-    limit: 100,
-  })
+/* /services, rebuilt to the services board (Main.dc.html and
+   HeroMobile.dc.html): the hero over the work wall, what the people on the
+   other side of the work said, the two engagement tracks, and the book band
+   for anyone still undecided. Everything priced or bookable comes from the
+   Payload `services` rows; the page's own words are in
+   content/site/services-page.js. */
 
+async function loadServices(): Promise<{
+  docs: Service[]
+  loadError: boolean
+}> {
+  try {
+    const payload = await getPayloadClient()
+    const { docs } = await payload.find({
+      collection: 'services',
+      where: { status: { equals: 'published' } },
+      sort: 'order',
+      depth: 0,
+      limit: 100,
+    })
+    return { docs, loadError: false }
+  } catch (err) {
+    // A public page degrades, never throws: the hero and band still sell
+    // the strategy call (through the contact form) while the cards are out.
+    console.error('Services lookup failed', err)
+    return { docs: [], loadError: true }
+  }
+}
+
+export default async function ServicesPage() {
+  const { docs, loadError } = await loadServices()
   const { consulting, technical } = groupServices(docs)
+  const { price, booking } = strategyCall(consulting)
   const proof = servicesTestimonials({
     nodeEnv: process.env.NODE_ENV,
     vercelEnv: process.env.VERCEL_ENV,
   })
-  const body = (service: (typeof docs)[number]) => (
-    <RichText data={service.description} className="prose-sm" />
-  )
+  const body = (service: Service) => <ServiceBody data={service.description} />
   /* The studio template's pricing section: priced services side by side at
      equal height, joined by 1px seams in one frame, then anything without a
      price as a wide strip underneath. */
-  const cards = (list: typeof docs) => {
+  const cards = (list: Service[]) => {
     const { priced, unpriced } = splitByPrice(list)
     return (
       <>
@@ -92,51 +117,44 @@ export default async function ServicesPage() {
   }
 
   return (
-    <Container className="mt-16 sm:mt-32">
+    <div className="amw svc">
       {/* Built from the same Payload rows as the cards below. */}
       <JsonLd data={servicesSchema(docs)} />
       <TrackView type="services" id="services" name="Services" />
-      <div className="amw">
-        <StoreHero
-          eyebrow="// AMWARE · ENGAGEMENTS"
-          title="Work with the engineer behind the tools."
-          intro="Fractional CTO leadership and focused build engagements — scoped, senior, and pointed at the outcome instead of the hours."
-          meta={
-            <>
-              <span className="amw-chip amw-chip--accent amw-chip--dot">
-                {docs.length} engagements
-              </span>
-              <span className="amw-chip">remote-first</span>
-            </>
-          }
-        />
+      <DeskMotionSync />
 
-        <ServiceTracks
-          panels={{
-            consulting: consulting.length ? (
-              cards(consulting)
-            ) : (
-              <StoreEmpty label="consulting track" />
-            ),
-            technical: (
-              <>
-                {technical.length > 0 && cards(technical)}
-                <WebsitePackage />
-              </>
-            ),
-          }}
-        />
+      <ServicesHero price={price} booking={booking} />
 
-        {/* Below both tracks, where the objection forms: what the people
-            on the other side of the work said. */}
-        <div className="mt-24 sm:mt-32">
-          <BigTestimonial
-            featured={proof.featured}
-            supporting={proof.supporting}
-          />
-          <MasonryTestimonials items={proof.wall} />
-        </div>
+      {/* Before the tracks, where the price first lands: what the people on
+          the other side of the work said (owner decision F1). */}
+      <div className="svc-wrap svc-proof">
+        <BigTestimonial
+          featured={proof.featured}
+          supporting={proof.supporting}
+        />
+        <MasonryTestimonials items={proof.wall} />
       </div>
-    </Container>
+
+      <Engagements
+        pricedCount={splitByPrice(consulting).priced.length}
+        consulting={
+          loadError ? (
+            <EngagementsLoadError />
+          ) : consulting.length ? (
+            cards(consulting)
+          ) : (
+            <StoreEmpty label="consulting track" />
+          )
+        }
+        technical={
+          <>
+            {technical.length > 0 && cards(technical)}
+            <WebsitePackage />
+          </>
+        }
+      />
+
+      <BookBand price={price} booking={booking} />
+    </div>
   )
 }

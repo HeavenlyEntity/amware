@@ -80,6 +80,7 @@ function DocumentFan() {
             </li>
           ))}
         </ul>
+        {/* TODO(alec): the same unsourced "12 planted findings" as MODULES[0]. */}
         <div className="cv-big">
           <strong>12</strong>
           <span>planted findings</span>
@@ -190,6 +191,8 @@ export function CoursesHero() {
               className="co-chips pj-rise m-0 list-none p-0"
               style={{ '--d': '.36s' }}
             >
+              {/* TODO(alec): hard-coded. Decide what it says once a CMS course
+                  is published and listed under "All courses". */}
               <li className="co-chip">
                 <i className="co-dot" aria-hidden="true" />1 course in
                 pre-launch
@@ -200,6 +203,8 @@ export function CoursesHero() {
                   strokeWidth={2.5}
                   aria-hidden="true"
                 />
+                {/* TODO(alec): "Self-paced" sits beside "Join the first
+                    cohort". Confirm the course model. */}
                 Self-paced
               </li>
               <li className="co-chip">
