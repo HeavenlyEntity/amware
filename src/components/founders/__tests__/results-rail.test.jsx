@@ -11,8 +11,23 @@ describe('ResultsRail', () => {
     render(<ResultsRail read={read} step={1} />)
     expect(screen.getByText(/Possible range/)).toBeInTheDocument()
     expect(screen.queryByText('Founding executive')).not.toBeInTheDocument()
-    expect(screen.getByText('Still needed')).toBeInTheDocument()
+    expect(screen.getByText('No badge yet')).toBeInTheDocument()
+    /* The board's unlock checklist replaced the "Still needed" list; it still
+       names every step left and where it is. */
+    expect(screen.getByText('0 of 3 unlocked')).toBeInTheDocument()
     expect(screen.getByText('step 2')).toBeInTheDocument()
+  })
+
+  it('unlocks a step once it is behind the visitor, and the offer once entered', () => {
+    const { rerender } = render(<ResultsRail read={EXAMPLE_READ} step={2} />)
+    expect(screen.getByText('1 of 3 unlocked')).toBeInTheDocument()
+    expect(
+      screen.getByText('Role and how you’re joining').parentElement
+    ).toHaveAttribute('data-done', 'true')
+    rerender(<ResultsRail read={EXAMPLE_READ} step={3} />)
+    /* The worked example carries an offer, so step 3 is unlocked already. */
+    expect(screen.getByText('3 of 3 unlocked')).toBeInTheDocument()
+    expect(screen.getByText(/Offered 3% · below the band/)).toBeInTheDocument()
   })
 
   it('keeps the badge at "?" on step 2 with zero chips and asks the user to pick', () => {

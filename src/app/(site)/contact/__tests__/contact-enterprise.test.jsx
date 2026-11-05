@@ -27,8 +27,10 @@ describe('ContactForm subject', () => {
     render(<ContactForm />)
     expect(subjectBox().value).toBe('')
     document.body.innerHTML = ''
+    /* The offer review has its own form now (offer-review.test.jsx), so
+       the old topic name is just an unknown topic here. */
     render(<ContactForm topic="offer-review" />)
-    expect(subjectBox().value).toBe('Offer review')
+    expect(subjectBox().value).toBe('')
   })
 })
 

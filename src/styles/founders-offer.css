@@ -1,0 +1,659 @@
+/* =========================================================================
+   Job offer calculator (design: the Offer board). Page-only pieces: the
+   rail's target and mini ladder, the verdict, the ask ladder and its
+   timeline, the offer row, the action row and the market plot. The shared
+   wizard primitives live in founders-wizard.css. Board class `jo-x` is
+   `amw-jo-x` here.
+
+   Everything sits under `.amw` and reads tokens, so both site themes work and
+   the print sheet (storefront.css @media print) flips to light on its own.
+
+   TEAL (spec fork F2, option b). The target rung, its node and the headline
+   values are ink, never teal: the target is dominant by scale and weight.
+   Teal stays on the reader's own rows (the offer row, their plot row and its
+   hatch), the deltas, and the CTA.
+
+   MOTION. No entrance hides an element at rest: the hidden state lives only
+   in a keyframe's `from`, with `both` fill, so the site's reduced-motion
+   switch (`animation: none`) leaves everything visible and in place.
+   ========================================================================= */
+
+.amw {
+  --jo-node: #ffffff; /* rung node */
+  --jo-node-ring: #a1a1aa;
+  --jo-line: rgba(24, 24, 27, 0.1); /* the timeline */
+  --jo-seg-cash: #3f3f46; /* plot bar: guaranteed cash */
+  --jo-seg-liquid: #a1a1aa; /* plot bar: reported equity */
+  --jo-over-bg: #ffffff; /* "Off scale" chip */
+  --jo-over-edge: rgba(24, 24, 27, 0.16);
+}
+
+:where(.dark) .amw {
+  --jo-node: #18181b;
+  --jo-node-ring: #52525b;
+  --jo-line: rgba(255, 255, 255, 0.08);
+  --jo-seg-cash: #d4d4d8;
+  --jo-seg-liquid: #71717a;
+  --jo-over-bg: #09090b;
+  --jo-over-edge: rgba(255, 255, 255, 0.14);
+}
+
+@media print {
+  .amw,
+  :where(.dark) .amw {
+    --jo-node: #ffffff;
+    --jo-node-ring: #a1a1aa;
+    --jo-line: rgba(24, 24, 27, 0.12);
+    --jo-seg-cash: #3f3f46;
+    --jo-seg-liquid: #a1a1aa;
+    --jo-over-bg: #ffffff;
+    --jo-over-edge: rgba(24, 24, 27, 0.16);
+  }
+}
+
+/* ---- rail ------------------------------------------------------------------ */
+.amw-jo-rail-aim {
+  margin: 4px 0 0;
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--amw-ink);
+  transition: color 0.3s;
+}
+.amw-jo-rail-aim [aria-hidden='true'] {
+  font-weight: 400;
+  color: var(--amw-mut);
+}
+/* Before a class exists the target is a possibility, not a verdict (F4). */
+.amw-jo-rail-aim[data-pending='true'] {
+  color: var(--amw-mut);
+  font-weight: 500;
+}
+.amw-jo-mini {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.amw-jo-mini-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--amw-mut);
+  transition: background-color 0.3s;
+}
+.amw-jo-mini-row b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--wz-ink-2);
+}
+.amw-jo-mini-row[data-main='true'] {
+  background: var(--wz-fill-2);
+  box-shadow: inset 0 0 0 1px var(--wz-edge);
+  color: var(--wz-ink-2);
+}
+.amw-jo-mini-row[data-main='true'] b {
+  font-weight: 600;
+  color: var(--amw-ink);
+}
+
+/* ---- verdict --------------------------------------------------------------- */
+.amw-jo-headline {
+  margin: 14px 0 0;
+  font-family: Layer, sans-serif;
+  font-size: clamp(36px, 5.6vw, 64px);
+  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  color: var(--amw-ink);
+  text-wrap: balance;
+  outline: none;
+}
+.amw-jo-headline em {
+  font-style: normal;
+}
+.amw-jo-line {
+  margin: 16px 0 0;
+  max-width: 44rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--wz-ink-2);
+}
+.amw-jo-flags {
+  display: grid;
+  gap: 8px;
+  max-width: 44rem;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.amw-jo-flag {
+  padding: 10px 0 10px 14px;
+  border-left: 2px solid var(--wz-accent-edge);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wz-ink-2);
+}
+
+/* ---- the ask ladder -------------------------------------------------------- */
+@keyframes amw-jo-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes amw-jo-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.amw-jo-ladder {
+  position: relative;
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 20px;
+  background: var(--wz-card);
+  box-shadow: inset 0 0 0 1px var(--wz-edge);
+  overflow: hidden;
+}
+.amw-jo-rung,
+.amw-jo-table {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 24px;
+  align-items: baseline;
+  padding: 22px 24px 22px 56px;
+}
+.amw-jo-rung {
+  animation: amw-jo-rise 0.7s var(--wz-ease-out) both;
+  animation-delay: var(--d, 0s);
+  transition: background-color 0.25s;
+}
+.amw-jo-rung + .amw-jo-rung {
+  border-top: 1px solid var(--wz-edge);
+}
+.amw-jo-rung:hover {
+  background: var(--wz-fill);
+}
+.amw-jo-rung::before {
+  content: '';
+  position: absolute;
+  left: 27px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--jo-line);
+}
+.amw-jo-node {
+  position: absolute;
+  left: 20px;
+  top: 28px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--jo-node);
+  box-shadow: inset 0 0 0 2px var(--jo-node-ring);
+  transition: transform 0.35s var(--wz-spring);
+}
+.amw-jo-rung:hover .amw-jo-node {
+  transform: scale(1.2);
+}
+/* The target: weight and an ink node, never a teal fill (F2). */
+.amw-jo-rung[data-main='true'] {
+  background: var(--wz-fill);
+}
+.amw-jo-rung[data-main='true'] .amw-jo-node {
+  background: var(--amw-ink);
+  box-shadow: 0 0 0 5px var(--wz-fill-3);
+}
+.amw-jo-rung[data-main='true']::before {
+  background: linear-gradient(
+    to bottom,
+    var(--jo-line),
+    var(--wz-edge-2) 50%,
+    var(--jo-line)
+  );
+}
+.amw-jo-rung-label {
+  margin: 0;
+}
+.amw-jo-rung[data-main='true'] .amw-jo-rung-label {
+  color: var(--amw-ink);
+}
+.amw .amw-jo-amt {
+  display: block;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--amw-ink);
+}
+.amw .amw-jo-amt--big {
+  font-size: clamp(28px, 3.4vw, 40px);
+  font-weight: 600;
+  line-height: 1.05;
+}
+.amw .amw-jo-amt--sm {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--wz-ink-2);
+}
+.amw-jo-est {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 0.3rem;
+  background: var(--wz-fill-2);
+  font-family: var(--amw-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+  cursor: help;
+}
+.amw-jo-note {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--amw-mut);
+}
+.amw-jo-note--ink {
+  color: var(--wz-ink-2);
+}
+
+/* The offer row: the one row about the reader, so it keeps the accent. */
+.amw-jo-table {
+  background: var(--amw-accent-soft);
+  border-top: 2px solid var(--amw-accent);
+  animation: amw-jo-rise 0.7s var(--wz-ease-out) 0.45s both;
+}
+.amw-jo-table::after {
+  content: '';
+  position: absolute;
+  left: 21px;
+  top: 26px;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--amw-ink);
+  transform: rotate(45deg);
+}
+.amw-jo-delta {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--amw-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--amw-accent-ink);
+}
+
+/* Phones: the board's three columns overflow at 343px (two ~25px amount
+   columns), so the label takes its own row and cash and equity sit side by
+   side under it, with a narrower timeline gutter. */
+@media (max-width: 639px) {
+  .amw-jo-rung,
+  .amw-jo-table {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 16px;
+    padding: 18px 16px 18px 44px;
+  }
+  .amw-jo-rung-label,
+  .amw-jo-table > p:first-child {
+    grid-column: 1 / -1;
+  }
+  .amw-jo-rung::before {
+    left: 21px;
+  }
+  .amw-jo-node {
+    left: 14px;
+    top: 21px;
+  }
+  .amw-jo-table::after {
+    left: 15px;
+    top: 21px;
+  }
+}
+
+.amw-jo-trade {
+  margin: 24px 0 0;
+  max-width: 48rem;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--amw-mut);
+}
+.amw-jo-trade + .amw-jo-trade,
+.amw-jo-floor + .amw-jo-trade {
+  margin-top: 16px;
+}
+.amw-jo-trade-link {
+  color: var(--wz-ink-2);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.amw-jo-trade-link:hover {
+  color: var(--amw-accent-ink);
+}
+.amw-jo-floor {
+  margin: 16px 0 0;
+  padding-left: 16px;
+  border-left: 2px solid var(--wz-edge-2);
+  max-width: 48rem;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--wz-ink-2);
+}
+
+/* ---- actions --------------------------------------------------------------- */
+.amw-jo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+.amw-jo-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--amw-accent);
+  color: var(--wz-on-accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-radius 0.5s, transform 0.15s;
+}
+.amw-jo-copy:hover {
+  border-radius: 50px;
+}
+.amw-jo-copy:active {
+  transform: scale(0.97);
+}
+.amw-jo-copy svg {
+  transition: transform 0.35s var(--wz-spring);
+}
+.amw-jo-copy[data-done='true'] svg {
+  transform: scale(1.2) rotate(-8deg);
+}
+@media (max-width: 639px) {
+  .amw-jo-copy {
+    width: 100%;
+  }
+}
+.amw-jo-fallback {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--wz-fill-2);
+  box-shadow: inset 0 0 0 1px var(--wz-edge);
+  color: var(--amw-ink);
+  font-family: var(--amw-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ---- the market plot ------------------------------------------------------- */
+.amw-jo-plot-copy {
+  max-width: 44rem;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--wz-ink-2);
+}
+.amw-jo-plot {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 20px;
+  background: var(--wz-rail);
+  box-shadow: inset 0 0 0 1px var(--wz-edge);
+  overflow: hidden;
+}
+.amw-jo-prow + .amw-jo-prow {
+  border-top: 1px solid var(--wz-edge);
+}
+.amw-jo-prow[data-user='true'] {
+  background: var(--wz-accent-tint);
+}
+.amw-jo-prow-btn {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr) 6.5rem auto;
+  grid-template-areas: 'label bar total meta';
+  align-items: center;
+  gap: 10px 16px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.amw-jo-prow-btn:hover {
+  background: var(--wz-fill);
+}
+.amw-jo-prow-label {
+  grid-area: label;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.amw-jo-prow-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  color: var(--amw-ink);
+  white-space: nowrap;
+}
+.amw-jo-prow[data-user='true'] .amw-jo-prow-name {
+  font-weight: 600;
+  color: var(--amw-accent-ink);
+}
+.amw-jo-prow-level {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.amw-jo-bar {
+  grid-area: bar;
+  position: relative;
+  display: flex;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--wz-fill-2);
+  overflow: hidden;
+}
+.amw-jo-bar i {
+  display: block;
+  flex-shrink: 0;
+  height: 100%;
+  transition: width 0.7s var(--wz-ease-out);
+}
+.amw-jo-seg--cash {
+  background: var(--jo-seg-cash);
+}
+.amw-jo-seg--liquid {
+  background: var(--jo-seg-liquid);
+}
+/* Hatched, because it has not happened yet; teal, because it is theirs. */
+.amw-jo-seg--modeled {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--amw-accent) 0 4px,
+    color-mix(in srgb, var(--amw-accent) 25%, transparent) 4px 8px
+  );
+}
+.amw-jo-over {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  height: 12px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--jo-over-bg);
+  box-shadow: inset 0 0 0 1px var(--jo-over-edge);
+  font-family: var(--amw-mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amw-accent-ink);
+  transform: translateY(-50%);
+  animation: amw-jo-fade 0.5s 0.5s both;
+}
+.amw .amw-jo-total {
+  grid-area: total;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--wz-ink-2);
+}
+.amw-jo-prow-meta {
+  grid-area: meta;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.amw-jo-liq {
+  padding: 2px 6px;
+  border-radius: 0.3rem;
+  box-shadow: inset 0 0 0 1px var(--wz-edge-2);
+  font-family: var(--amw-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+  white-space: nowrap;
+}
+.amw-jo-chev {
+  color: var(--amw-mut);
+  transition: transform 0.3s var(--wz-ease-out), color 0.3s;
+}
+.amw-jo-prow[data-open='true'] .amw-jo-chev {
+  transform: rotate(180deg);
+  color: var(--amw-accent-ink);
+}
+/* Closed panels are hidden from assistive tech by `visibility`, which waits
+   for the rows to finish collapsing before it applies. */
+.amw-jo-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows 0.35s cubic-bezier(0.65, 0, 0.35, 1),
+    visibility 0s linear 0.35s;
+}
+.amw-jo-prow[data-open='true'] .amw-jo-panel {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows 0.35s cubic-bezier(0.65, 0, 0.35, 1),
+    visibility 0s;
+}
+.amw-jo-panel > div {
+  min-height: 0;
+  overflow: hidden;
+}
+.amw-jo-panel-body {
+  padding: 4px 16px 16px;
+}
+.amw-jo-dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 6px 24px;
+  margin: 0;
+}
+.amw-jo-dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.amw-jo-dl dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--wz-ink-2);
+}
+.amw-jo-legend {
+  display: inline-flex;
+  align-items: center;
+}
+.amw-jo-legend i {
+  display: inline-block;
+  width: 18px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 2px;
+}
+
+/* Phones: the bar takes its own line, and the total stays beside the label
+   rather than being hidden (spec fork F11). */
+@media (max-width: 760px) {
+  .amw-jo-prow-btn {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label total'
+      'bar meta';
+  }
+}
+
+@media print {
+  .amw-jo-panel {
+    grid-template-rows: 1fr;
+    visibility: visible;
+  }
+  .amw-jo-rung,
+  .amw-jo-table {
+    break-inside: avoid;
+  }
+}
+
+@media (hover: none) {
+  .amw-jo-rung:hover .amw-jo-node {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .amw-jo-ladder,
+  .amw-jo-plot,
+  .amw-jo-copy {
+    border: 1px solid CanvasText;
+  }
+  .amw-jo-rung[data-main='true'] .amw-jo-node,
+  .amw-jo-table::after {
+    background: Highlight;
+  }
+}

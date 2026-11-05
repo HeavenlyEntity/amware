@@ -1,22 +1,15 @@
 'use client'
 
 import { identity } from '@/content/site/identity'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, Clock, MapPin, MessageSquare } from 'lucide-react'
 import { motion } from 'motion/react'
 import { GitHubIcon, LinkedInIcon, TwitterIcon } from '@/components/SocialIcons'
 import { SectionEyebrow } from '@/components/landing/section-eyebrow'
-import { briefForContact } from '@/lib/founders/handoff'
-import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
-import { computeRead } from '@/lib/founders/equity/engine'
 import { ContactCaptcha } from '@/components/ContactCaptcha'
-import {
-  hasHydrated,
-  onHydrated,
-  useOfferStore,
-} from '@/lib/founders/offer-store'
+import { useContactSubmit } from './use-contact-submit'
 
 /* Contact page in the "minimal" landing template's grammar: a centred
    section header, soft muted panels, template-style inputs, and the
@@ -101,9 +94,9 @@ function Field({ id, label, hint, required, children }) {
   )
 }
 
-/* Copy variants per entry point. `offer-review` is the Founders' Desk
-   CTA: it acknowledges the tool and prefills a template with blanks; no
-   calculator value is ever passed here. */
+/* Copy variants per entry point. The Founders' Desk offer review has its
+   own page and form (offer-review/OfferReviewForm.jsx); it shares only the
+   send path, through `useContactSubmit`. */
 const TOPICS = {
   default: {
     eyebrow: 'OPEN A LINE',
@@ -112,24 +105,6 @@ const TOPICS = {
     subject: undefined,
     message: undefined,
     ack: null,
-  },
-  'offer-review': {
-    eyebrow: 'OFFER REVIEW',
-    title: 'Get a read on your offer',
-    lead: 'Your read from the Founders’ Desk is already in the message. Add your name and email, change anything, and send.',
-    subject: 'Offer review',
-    message: [
-      'Role and seat: ',
-      'Stage (last closed round): ',
-      'Joining as (formation / converting from fractional / hired after): ',
-      'Offered equity (% fully diluted, or option count / FD shares): ',
-      'Salary vs market: ',
-      'Company’s stated exit path: ',
-      'The read the calculator gave me: ',
-      '',
-      'What I want help with: ',
-    ].join('\n'),
-    ack: 'Prefilled from your read. Your answers stay in this browser. Edit anything before you send.',
   },
   /* A license holder who has outgrown Team. The page behind it passes the
      subject with their kit and tier in it, so this is only the fallback for
@@ -153,93 +128,25 @@ export default function ContactForm({ topic = 'default', initialSubject }) {
   const router = useRouter()
   const [subject, setSubject] = useState(initialSubject ?? copy.subject ?? '')
   const [message, setMessage] = useState(copy.message ?? '')
+  const goThankYou = () => router.push('/thank-you')
+  const {
+    submitting,
+    error,
+    captchaToken,
+    setCaptchaToken,
+    captchaAttempt,
+    submit,
+  } = useContactSubmit({ onSuccess: goThankYou })
 
-  /* The calculator's CTA stashes a filled brief for this device only;
-     take it once so the form arrives with the values, never a blank
-     template. A plain visit keeps the template with blanks. */
-  /* Prefill from the shared store rather than a second stash of the same data
-     (design review D6). `askedAt` is the intent signal: it is set when the user
-     clicks a review CTA, so typing this URL directly still gets an empty form.
-     The store persists to sessionStorage and hydrates after mount, so wait for
-     that rather than reading defaults on the first paint. */
-  useEffect(() => {
-    if (topic !== 'offer-review') return undefined
-    const fill = () => {
-      const s = useOfferStore.getState()
-      if (!s.askedAt) return
-      try {
-        const filled = briefForContact(computeRead(s.inputs()))
-        setSubject(filled.subject)
-        setMessage(filled.message)
-      } catch {
-        /* leave the template in place rather than clearing what they can see */
-      }
-    }
-    if (hasHydrated()) {
-      fill()
-      return undefined
-    }
-    return onHydrated(fill)
-  }, [topic])
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState(null)
-  const [captchaToken, setCaptchaToken] = useState('')
-  const [captchaAttempt, setCaptchaAttempt] = useState(0)
-
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault()
-    if (submitting) return
-    if (!captchaToken) {
-      setError(
-        'Please complete the security check before sending your message.'
-      )
-      return
-    }
-    setSubmitting(true)
-    setError(null)
-
     const form = new FormData(event.currentTarget)
-    const payload = {
+    submit({
       name: form.get('name'),
       email: form.get('email'),
       subject: form.get('subject'),
       message: form.get('message'),
-    }
-
-    try {
-      const res = await fetch('/api/contact-submissions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-turnstile-token': captchaToken,
-        },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error('Submission failed')
-
-      /* Reported here, in the success handler, not on /thank-you: that page
-         is also where the newsletter lands, and a page cannot tell which
-         form sent someone to it. Payload returns the created row, and its id
-         is the event id, so a retried send is one lead rather than two.
-         Fired before the navigation on purpose -- Whop sends with keepalive,
-         and a client-side route change cancels nothing anyway. */
-      const created = await res.json().catch(() => null)
-      const submissionId = created?.doc?.id
-      whopTrack(WHOP_EVENT.lead, {
-        event_id: submissionId ? `contact_${submissionId}` : undefined,
-        name: payload.name ? String(payload.name) : undefined,
-        email: payload.email ? String(payload.email) : undefined,
-      })
-      router.push('/thank-you')
-    } catch {
-      // Tokens are single-use, including when a later step in the request fails.
-      setCaptchaToken('')
-      setCaptchaAttempt((value) => value + 1)
-      setError(
-        'Your message did not send. Check your connection and try again; nothing you typed was lost.'
-      )
-      setSubmitting(false)
-    }
+    })
   }
 
   return (

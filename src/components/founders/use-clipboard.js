@@ -16,6 +16,10 @@ import { trackCopied } from '@/components/founders/analytics'
  * Extracted from `BriefActions`, which is now one of its two callers. Two
  * copies of this would drift, and the one that drifts is the one that stops
  * having a fallback.
+ *
+ * `copy` resolves true when the text really reached the clipboard, so a caller
+ * that confirms each copy (the desk's toast) can say so per click; the state
+ * alone cannot tell two copies of the same row apart.
  */
 export function useClipboard({ resetAfter = 2000 } = {}) {
   const [state, setState] = useState('idle')
@@ -39,8 +43,10 @@ export function useClipboard({ resetAfter = 2000 } = {}) {
       await navigator.clipboard.writeText(text)
       setState('copied')
       trackCopied()
+      return true
     } catch {
       setState('fallback')
+      return false
     }
   }, [])
 

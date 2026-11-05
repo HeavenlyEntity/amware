@@ -29,6 +29,7 @@ export const OFFER_STEPS = [
       'responsibilities',
     ],
     pending: 'Your seat and what you own',
+    railIcon: 'programmer',
   },
   {
     id: 'company',
@@ -39,6 +40,7 @@ export const OFFER_STEPS = [
     next: 'Next: the offer',
     fields: ['stage', 'industry', 'geo'],
     pending: 'Stage, industry and location',
+    railIcon: 'network',
   },
   {
     id: 'offer',
@@ -57,6 +59,7 @@ export const OFFER_STEPS = [
       'vestingYears',
     ],
     pending: 'What they offered',
+    railIcon: 'checklist',
   },
   {
     id: 'ask',
@@ -77,10 +80,10 @@ export const offerStepByIndex = (index) =>
 export const offerPendingAfter = (currentIndex) =>
   OFFER_STEPS.filter((step) => step.index > currentIndex && step.pending)
 
-/* Options for the two selects. Kept beside the steps so the labels and the
-   engine keys cannot drift apart.
+/* Options for the industry and location chip rows. Kept beside the steps so
+   the labels and the engine keys cannot drift apart.
 
-   `label` answers the question the select asks. `short` is the same choice
+   `label` answers the question the chip row asks. `short` is the same choice
    said mid-sentence, which is what the copied ask needs: "times 1.1 for AI"
    reads, "times 1.1 for AI or machine learning" does not. One list, so a new
    industry cannot arrive with a label and no way to name it in prose. */
@@ -112,10 +115,12 @@ export const GEO_OPTIONS = [
   },
 ]
 
+/* `icon` is an icon-pack name (src/components/icon-pack.jsx), the same tiles
+   the equity calculator's seat cards use. */
 export const SEAT_OPTIONS = [
-  { id: 'cto', label: 'CTO' },
-  { id: 'engineer', label: 'Software engineer' },
-  { id: 'ceo_builder', label: 'CEO who builds' },
+  { id: 'cto', label: 'CTO', icon: 'system' },
+  { id: 'engineer', label: 'Software engineer', icon: 'computer' },
+  { id: 'ceo_builder', label: 'CEO who builds', icon: 'rocket' },
 ]
 
 export const JOINING_OPTIONS = [
@@ -133,6 +138,25 @@ export const STAGE_OPTIONS = [
   { id: 'series_a', label: 'Series A' },
   { id: 'series_b_plus', label: 'Series B or later' },
 ]
+
+export const OFFER_MODE_OPTIONS = [
+  { id: 'percent', label: 'Percent, fully diluted' },
+  { id: 'shares', label: 'Option count / shares' },
+]
+
+/* TODO(alec): confirm the vesting presets. The board draws 3 / 4 / 5 years;
+   they are UI presets, not engine figures (BOUNDS allows 1–10 years), so
+   "Other" takes any other value and a stored 6 never shows as "3 years". */
+export const VESTING_PRESETS = [
+  { value: 3, label: '3 years' },
+  { value: 4, label: '4 years' },
+  { value: 5, label: '5 years' },
+]
+
+/* TODO(alec): confirm the equity stepper's increment. The board steps the
+   offered percent by 0.25 points; BOUNDS has no grain for it. The steppers
+   round to two decimals, so 3 goes to 2.75 and then 2.5, never 2.8. */
+export const EQUITY_STEP = 0.25
 
 export const YES_NO = [
   { id: 'yes', label: 'Yes' },

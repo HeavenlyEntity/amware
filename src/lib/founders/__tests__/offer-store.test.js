@@ -16,6 +16,8 @@ const { ENGINE_KEYS, INITIAL, INITIAL_KEYS, STORAGE_KEY, useOfferStore } =
   await import('../offer-store.js')
 const { normalizeInputs } = await import('../equity/normalize.js')
 const { computeRead } = await import('../equity/engine.js')
+const { EXAMPLE } = await import('../equity/benchmarks.js')
+const { exampleStorePatch } = await import('../worked-example.js')
 
 const stored = () => {
   const raw = backing.get(STORAGE_KEY)
@@ -151,5 +153,125 @@ describe('the asked marker', () => {
     expect(useOfferStore.getState().askedAt).toMatch(
       /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/
     )
+  })
+})
+
+describe('the ask snapshot', () => {
+  /* The equity wizard keeps `founders`, `path`, the fractional fields and the
+     leaver terms in its own reducer, so the store alone cannot reproduce its
+     read. The snapshot carries its full inputs across to the review. */
+  it('keeps markAsked() with no arguments working, with no snapshot', () => {
+    useOfferStore.getState().markAsked()
+    const s = useOfferStore.getState()
+    expect(s.askedAt).toBeTruthy()
+    expect(s.askedFrom).toBeNull()
+    expect(s.askedInputs).toBeNull()
+    expect(s.askedOptions).toBeNull()
+  })
+
+  it('records the source and a detached copy of the inputs', () => {
+    const inputs = {
+      ...EXAMPLE,
+      responsibilities: [...EXAMPLE.responsibilities],
+    }
+    useOfferStore.getState().markAsked({ from: 'equity', inputs })
+    inputs.founders = 99
+    inputs.responsibilities.push('mutated')
+    const s = useOfferStore.getState()
+    expect(s.askedFrom).toBe('equity')
+    expect(s.askedInputs.founders).toBe(EXAMPLE.founders)
+    expect(s.askedInputs.responsibilities).toEqual(EXAMPLE.responsibilities)
+    expect(s.askedOptions).toBeNull()
+  })
+
+  it('persists the snapshot with the rest of the store', () => {
+    useOfferStore.getState().markAsked({
+      from: 'job-offer',
+      inputs: { role: 'engineer', path: 'acquisition' },
+      options: { valuations: { seed: 10 } },
+    })
+    expect(stored().askedFrom).toBe('job-offer')
+    expect(stored().askedInputs).toEqual({
+      role: 'engineer',
+      path: 'acquisition',
+    })
+    expect(stored().askedOptions).toEqual({ valuations: { seed: 10 } })
+  })
+
+  it('is removed by clear(), in memory and on disk', () => {
+    useOfferStore.getState().markAsked({ from: 'equity', inputs: EXAMPLE })
+    expect(backing.has(STORAGE_KEY)).toBe(true)
+    useOfferStore.getState().clear()
+    const s = useOfferStore.getState()
+    expect(s.askedAt).toBeNull()
+    expect(s.askedFrom).toBeNull()
+    expect(s.askedInputs).toBeNull()
+    expect(s.askedOptions).toBeNull()
+    expect(backing.has(STORAGE_KEY)).toBe(false)
+  })
+
+  it('is replaced, not kept, by a later ask without one', () => {
+    useOfferStore.getState().markAsked({ from: 'equity', inputs: EXAMPLE })
+    useOfferStore.getState().markAsked()
+    expect(useOfferStore.getState().askedInputs).toBeNull()
+    expect(useOfferStore.getState().askedFrom).toBeNull()
+  })
+
+  it('ignores an unknown source and a click event passed as the argument', () => {
+    useOfferStore.getState().markAsked({ from: 'somewhere', inputs: EXAMPLE })
+    expect(useOfferStore.getState().askedFrom).toBeNull()
+    expect(useOfferStore.getState().askedInputs).toBeNull()
+    useOfferStore.getState().markAsked({ type: 'click', target: {} })
+    expect(useOfferStore.getState().askedAt).toBeTruthy()
+    expect(useOfferStore.getState().askedInputs).toBeNull()
+  })
+
+  it('records a source without inputs (the job offer tool reads the store)', () => {
+    useOfferStore.getState().markAsked({ from: 'job-offer' })
+    expect(useOfferStore.getState().askedFrom).toBe('job-offer')
+    expect(useOfferStore.getState().askedRead()).toMatchObject({
+      from: 'job-offer',
+      snapshot: false,
+    })
+  })
+
+  it('is bookkeeping: not an engine input, not an answer', () => {
+    for (const key of ['askedFrom', 'askedInputs', 'askedOptions']) {
+      expect(INITIAL_KEYS).toContain(key)
+      expect(ENGINE_KEYS).not.toContain(key)
+    }
+    useOfferStore.getState().markAsked({ from: 'equity', inputs: EXAMPLE })
+    expect(useOfferStore.getState().isPristine()).toBe(true)
+  })
+
+  it('askedRead() is null until asked, then prefers the snapshot', () => {
+    expect(useOfferStore.getState().askedRead()).toBeNull()
+    useOfferStore.getState().set({ role: 'engineer' })
+    useOfferStore.getState().markAsked()
+    expect(useOfferStore.getState().askedRead()).toMatchObject({
+      snapshot: false,
+      inputs: { role: 'engineer' },
+    })
+    useOfferStore.getState().markAsked({ from: 'equity', inputs: EXAMPLE })
+    expect(useOfferStore.getState().askedRead()).toMatchObject({
+      from: 'equity',
+      snapshot: true,
+      inputs: { role: EXAMPLE.role, path: EXAMPLE.path },
+    })
+  })
+
+  it('gives the review the equity calculator’s numbers, which the store alone cannot', () => {
+    /* The worked example as the dock loads it: only the store's own keys. */
+    useOfferStore.setState(exampleStorePatch())
+    useOfferStore.getState().markAsked()
+    const drifted = computeRead(useOfferStore.getState().askedRead().inputs)
+    expect(drifted.offer.numberToSay.value).toBe(13)
+    expect(drifted.offer.range).toMatchObject({ lo: 9.5, hi: 16.5 })
+
+    useOfferStore.getState().markAsked({ from: 'equity', inputs: EXAMPLE })
+    const asked = useOfferStore.getState().askedRead()
+    const read = computeRead(asked.inputs, asked.options ?? undefined)
+    expect(read.offer.numberToSay.value).toBe(12)
+    expect(read.offer.range).toMatchObject({ lo: 8.5, hi: 15.5 })
   })
 })

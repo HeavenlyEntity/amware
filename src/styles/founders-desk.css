@@ -1,0 +1,1540 @@
+/* =========================================================================
+   Founders' Desk: the landing (/founders), its glass panel and the backdrop
+   every desk page mounts. Design: the Founders' Desk board (Desk.dc.html).
+
+   Built on the `.amw` tokens (storefront.css), so it follows the site's
+   light/dark toggle and prints in the light set. The board is drawn dark; the
+   dark values below are the board's, the light ones are their equivalents.
+
+   Motion rules, so nothing can be left invisible:
+   - Entrances never rely on a hidden base state. The hero rise and tick draw
+     are keyframes that START hidden (`both` fill), so when the site's
+     reduced-motion rule kills the animation the element is simply at rest.
+     They only run while <html data-dk-motion="ok"> (motion-flag.jsx).
+   - Reveal-on-scroll hides an element only while JS has marked it
+     `[data-armed="true"]` (use-reveal.js): mounted, motion allowed, and not
+     on screen yet. Server HTML, no-JS and print are always at rest.
+   - No infinite loops: the travelling dot runs three times, the soon cards'
+     shimmer once on reveal, and the "Soon" dot does not blink.
+   ========================================================================= */
+
+/* ---- local tokens ------------------------------------------------------- */
+.amw-dk,
+.amw-glass,
+.amw-deskbg-frame {
+  --dk-strong: #27272a; /* links, emphasis (board #e4e4e7) */
+  --dk-body: #3f3f46; /* values, labels, tick text (board #d4d4d8) */
+  --dk-meter: #d4d4d8; /* idle meter fill (board #52525b) */
+  --dk-mark: var(--amw-accent-ink); /* accent graphics: 3:1 on white */
+  --dk-burst-b: #2dd4bf;
+  --dk-chip: #ffffff;
+  --dk-wash: rgba(24, 24, 27, 0.04);
+  --dk-lift: 0 1px 2px rgba(24, 24, 27, 0.05),
+    0 8px 24px -16px rgba(24, 24, 27, 0.18);
+  --dk-lift-hover: 0 24px 48px -24px rgba(24, 24, 27, 0.28);
+  --dk-deep: 0 30px 60px -30px rgba(24, 24, 27, 0.28);
+  --dk-glow: 0 0 20px color-mix(in srgb, var(--amw-accent) 22%, transparent);
+  --dk-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --dk-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:where(.dark) .amw-dk,
+:where(.dark) .amw-glass,
+:where(.dark) .amw-deskbg-frame {
+  --dk-strong: #e4e4e7;
+  --dk-body: #d4d4d8;
+  --dk-meter: #52525b;
+  --dk-mark: var(--amw-accent);
+  --dk-burst-b: #ccfbf1;
+  --dk-chip: #18181b;
+  --dk-wash: rgba(255, 255, 255, 0.06);
+  --dk-lift: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.15);
+  --dk-lift-hover: 0 24px 48px -24px rgba(0, 0, 0, 0.8);
+  --dk-deep: 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+  --dk-glow: 0 0 32px rgba(60, 232, 206, 0.35);
+}
+
+/* ---- page shell --------------------------------------------------------- */
+/* 168px clears the fixed dock, which ships no spacer of its own. */
+.amw-dk {
+  min-height: 100vh;
+  padding-bottom: 168px;
+  color: var(--amw-ink);
+}
+
+.amw-dk-wrap {
+  box-sizing: border-box;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 3vw, 32px);
+}
+
+.amw-dk :is(a, button, input):focus-visible {
+  outline-offset: 3px;
+}
+
+.amw-dk-link {
+  color: var(--dk-strong);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--amw-ink) 30%, transparent);
+  text-underline-offset: 4px;
+  transition: color 0.2s, text-decoration-color 0.2s;
+}
+.amw-dk-link:hover {
+  color: var(--amw-accent-ink);
+  text-decoration-color: var(--amw-accent-ink);
+}
+.amw-dk-link .amw-dk-arr {
+  display: inline-block;
+  transition: transform 0.25s;
+}
+.amw-dk-link:hover .amw-dk-arr {
+  transform: translateX(3px);
+}
+.amw-dk-link-quiet {
+  color: var(--amw-mut);
+}
+
+.amw-dk-num {
+  margin: 0;
+  font-family: var(--amw-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  /* --amw-mut, not the board's zinc-500: that is about 4.1:1 on the dark
+     panel, under AA for 12px text. */
+  color: var(--amw-mut);
+}
+
+.amw-dk-kicker {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ---- hero --------------------------------------------------------------- */
+.amw-dk-hero-section {
+  padding-top: 32px;
+}
+.amw-dk-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: center;
+}
+.amw-dk-hero-copy {
+  min-width: 0;
+  max-width: 46rem;
+}
+.amw-dk-h1 {
+  /* The eyebrow keeps its own 16px bottom margin; 8 more makes the board's 24. */
+  margin: 8px 0 0;
+  max-width: 42rem;
+  font-family: Layer, sans-serif;
+  font-size: clamp(34px, 4.6vw, 54px);
+  line-height: 1.06;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--amw-ink);
+  text-wrap: balance;
+}
+.amw-dk-sub {
+  margin: 24px 0 0;
+  max-width: 34rem;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--amw-mut);
+}
+.amw-dk-cta-row {
+  margin-top: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+}
+.amw-dk-cta {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 10px 10px 22px;
+  border-radius: 6px;
+  background: var(--amw-accent);
+  color: #09090b;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.5s;
+}
+@media (min-width: 640px) {
+  .amw-dk-cta {
+    width: auto;
+  }
+}
+.amw-dk-cta:hover {
+  border-radius: 50px;
+  color: #09090b;
+  filter: brightness(1.06);
+}
+.amw-dk-cta-dot {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #09090b;
+  color: #fafafa;
+  transition: transform 0.3s;
+}
+.amw-dk-cta:hover .amw-dk-cta-dot {
+  transform: scale(1.1) translateX(2px);
+}
+.amw-dk-secondary {
+  margin: 0;
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--amw-mut);
+}
+.amw-dk-ticks-list {
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.amw-dk-ticks-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--dk-body);
+}
+.amw-dk-tick {
+  flex: none;
+  color: var(--dk-mark);
+}
+
+/* Rise and draw. `both` fill and a hidden FROM: killed, they are at rest. */
+@keyframes amw-dk-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes amw-dk-draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.amw-dk-tick path {
+  stroke-dasharray: 24;
+}
+/* Higher specificity than accessibility.css's blanket `animation: none`,
+   which the server render always carries (motion-flag.jsx explains why).
+   `data-dk-motion="ok"` is only ever set when the OS allows motion. */
+html[data-dk-motion='ok'] .amw-dk .amw-dk-rise {
+  animation: amw-dk-rise 0.8s var(--dk-ease) var(--d, 0s) both !important;
+}
+html[data-dk-motion='ok'] .amw-dk .amw-dk-tick path {
+  animation: amw-dk-draw 0.5s cubic-bezier(0.65, 0, 0.35, 1) var(--d, 0s) both !important;
+}
+
+/* ---- the glass panel (shared with the review page) ---------------------- */
+.amw-glass {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  background: radial-gradient(
+      70% 80% at 60% 45%,
+      color-mix(in srgb, var(--amw-accent) 12%, transparent),
+      transparent 70%
+    ),
+    repeating-linear-gradient(0deg, var(--amw-grid) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(
+      90deg,
+      var(--amw-grid) 0 1px,
+      transparent 1px 28px
+    ),
+    var(--amw-card);
+  box-shadow: inset 0 0 0 1px var(--amw-line), var(--dk-deep);
+  font-family: Layer, sans-serif;
+  color: var(--amw-ink);
+}
+.amw-glass-poster {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  margin: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8%;
+  font-size: clamp(40px, 7vw, 96px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  white-space: pre-line;
+  text-align: center;
+  transition: opacity 0.6s;
+}
+.amw-glass[data-lens='live'] .amw-glass-poster {
+  opacity: 0;
+}
+.amw-glass-lens {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.amw-glass-content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+}
+.amw-glass-tag {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  font-family: var(--amw-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+}
+.amw-glass-tag b {
+  color: var(--amw-accent-ink);
+  font-weight: 600;
+}
+.amw-glass-tl {
+  left: 18px;
+  top: 16px;
+  color: var(--amw-accent-ink);
+}
+.amw-glass-bl {
+  left: 18px;
+  bottom: 16px;
+}
+.amw-glass-br {
+  right: 18px;
+  bottom: 16px;
+}
+/* "Move to look closer" only means something once the lens is there. */
+.amw-glass[data-lens='poster'] .amw-glass-live-only {
+  display: none;
+}
+
+.amw-dk-glass {
+  height: 420px;
+}
+
+@media (max-width: 900px) {
+  .amw-dk-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .amw-dk-glass {
+    height: 320px;
+  }
+  .amw-glass-br {
+    display: none;
+  }
+}
+/* Phones: a decorative box should not push the example a screen down. */
+@media (max-width: 640px) {
+  .amw-dk-glass {
+    height: 200px;
+  }
+}
+
+/* ---- the backdrop (every desk page) ------------------------------------- */
+/* Inside the layout's centred surface column (max-w-7xl, sm:px-8, lg:px-8),
+   so the canvas, painted in that surface's colour, never meets the body. */
+.amw-deskbg-frame {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+.amw-deskbg-column {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 80rem;
+}
+.amw-deskbg-surface {
+  position: relative;
+  height: 720px;
+  overflow: hidden;
+}
+@media (min-width: 640px) {
+  .amw-deskbg-frame {
+    padding: 0 2rem;
+  }
+}
+@media (min-width: 1024px) {
+  .amw-deskbg-column {
+    padding: 0 2rem;
+  }
+}
+.amw-deskbg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(820px, 64vw);
+  height: 100%;
+  -webkit-mask-image: radial-gradient(
+    closest-side at 64% 40%,
+    #000 55%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    closest-side at 64% 40%,
+    #000 55%,
+    transparent 100%
+  );
+}
+.amw-deskbg-poster {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      circle at 64% 40%,
+      transparent 0 26%,
+      color-mix(in srgb, var(--amw-accent) 16%, transparent) 26.4% 26.9%,
+      transparent 27.4%
+    ),
+    radial-gradient(
+      closest-side at 64% 40%,
+      color-mix(in srgb, var(--amw-accent) 10%, transparent),
+      transparent 75%
+    );
+}
+.amw-deskbg-canvas {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  animation: amw-deskbg-in 2s ease 0.3s both;
+}
+:where(.dark) .amw-deskbg-canvas {
+  opacity: 0.72;
+}
+@keyframes amw-deskbg-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (max-width: 900px) {
+  .amw-deskbg-surface {
+    height: 520px;
+  }
+  .amw-deskbg {
+    width: 100%;
+  }
+}
+
+/* ---- reveal on scroll --------------------------------------------------- */
+.amw-dk [data-reveal] {
+  transition: opacity 0.8s var(--dk-ease), transform 0.8s var(--dk-ease);
+  transition-delay: var(--d, 0s);
+}
+
+/* ---- section rhythm ----------------------------------------------------- */
+.amw-dk-example {
+  margin-top: 48px;
+}
+.amw-dk-path {
+  margin-top: 80px;
+}
+.amw-dk-coming {
+  margin-top: 72px;
+}
+@media (min-width: 768px) {
+  .amw-dk-example {
+    margin-top: 72px;
+  }
+  .amw-dk-path {
+    margin-top: 128px;
+  }
+  .amw-dk-coming {
+    margin-top: 112px;
+  }
+}
+
+.amw-dk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 24px;
+}
+.amw-dk-h3 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  color: var(--amw-ink);
+}
+.amw-dk-h2 {
+  margin: 16px 0 0;
+  font-family: Layer, sans-serif;
+  font-size: clamp(28px, 3.4vw, 36px);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--amw-ink);
+}
+.amw-dk-lede {
+  margin: 12px 0 0;
+  max-width: 36rem;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--amw-mut);
+}
+
+/* ---- the example panel -------------------------------------------------- */
+.amw-dk-panel {
+  position: relative;
+  isolation: isolate;
+  border-radius: 24px;
+  background: var(--amw-card-2);
+  padding: clamp(24px, 4vw, 48px);
+  box-shadow: var(--dk-lift), inset 0 0 0 1px var(--amw-line);
+}
+.amw-dk-hatch {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 50%, transparent);
+  mask-image: linear-gradient(to bottom, #000 50%, transparent);
+}
+.amw-dk-hatch > span {
+  position: absolute;
+  inset: 0;
+  background-size: 5px 5px;
+  background-attachment: fixed;
+}
+/* `fixed` is ignored on iOS and repaints on scroll on Android. */
+@media (hover: none) {
+  .amw-dk-hatch > span {
+    background-attachment: scroll;
+  }
+}
+.amw-dk-hatch-a {
+  background-image: repeating-linear-gradient(
+    315deg,
+    var(--amw-grid) 0,
+    var(--amw-grid) 1px,
+    transparent 0,
+    transparent 50%
+  );
+}
+.amw-dk-hatch-b {
+  background-image: repeating-linear-gradient(
+    -315deg,
+    var(--amw-grid) 0,
+    var(--amw-grid) 1px,
+    transparent 0,
+    transparent 50%
+  );
+}
+.amw-dk-rule {
+  margin: 40px 0;
+  border: 0;
+  border-top: 1px solid var(--amw-line);
+}
+.amw-dk-sources {
+  margin: 32px 0 0;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+/* ---- 01 · the gap ------------------------------------------------------- */
+.amw-dk-gap {
+  margin-top: 32px;
+}
+.amw-dk-gap-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 32px;
+}
+.amw-dk-gap-figure {
+  margin: 12px 0 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.amw-dk-big {
+  font-size: 56px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--amw-ink);
+}
+.amw-dk-gap-offered {
+  font-size: 15px;
+  color: var(--amw-mut);
+}
+.amw-dk-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 9999px;
+  padding: 6px 12px 6px 8px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.amw-dk-status-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.amw-dk-status-below {
+  background: var(--dk-wash);
+  color: var(--amw-ink);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+.amw-dk-status-hit,
+.amw-dk-status-above {
+  background: color-mix(in srgb, var(--amw-accent) 14%, transparent);
+  color: var(--amw-accent-ink);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--amw-accent) 40%, transparent);
+}
+@keyframes amw-dk-pop {
+  from {
+    transform: scale(0.96);
+    opacity: 0.6;
+  }
+}
+.amw-dk-pop {
+  animation: amw-dk-pop 0.35s var(--dk-spring);
+}
+
+.amw-dk-track {
+  position: relative;
+  margin-top: 32px;
+  height: 96px;
+}
+/* 8px either side so the knob and the burst at 0% or 30% are not cut off. */
+.amw-dk-track-inner {
+  position: absolute;
+  inset: 0 8px;
+}
+.amw-dk-axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 40px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--amw-line);
+}
+.amw-dk-band {
+  position: absolute;
+  top: 24px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--amw-accent-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--amw-accent) 45%, transparent);
+  transform-origin: center;
+  transition: transform 0.9s var(--dk-ease) 0.2s, background-color 0.4s,
+    box-shadow 0.4s;
+}
+.amw-dk-band[data-hit='true'] {
+  background: color-mix(in srgb, var(--amw-accent) 24%, transparent);
+  box-shadow: inset 0 0 0 1px var(--amw-accent), var(--dk-glow);
+}
+.amw-dk-edge {
+  position: absolute;
+  top: 66px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: var(--amw-accent-ink);
+}
+.amw-dk-bracket {
+  position: absolute;
+  top: 40px;
+  height: 0;
+  border-top: 2px dashed color-mix(in srgb, var(--amw-ink) 45%, transparent);
+  transition: left 0.55s var(--dk-spring), width 0.55s var(--dk-spring);
+}
+.amw-dk-bracket-label {
+  position: absolute;
+  top: 14px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  border-radius: 9999px;
+  background: var(--dk-chip);
+  padding: 3px 8px;
+  font-family: var(--amw-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--dk-strong);
+  box-shadow: 0 0 0 1px var(--amw-line-strong);
+  transition: left 0.55s var(--dk-spring), opacity 0.4s;
+}
+.amw-dk-burst {
+  position: absolute;
+  top: 41px;
+  width: 0;
+  height: 0;
+}
+.amw-dk-burst i {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--dk-mark);
+  opacity: 0;
+  animation: amw-dk-burst 0.8s var(--dk-ease) forwards;
+}
+.amw-dk-burst i:nth-child(even) {
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  background: var(--dk-burst-b);
+}
+@keyframes amw-dk-burst {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--a)) translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateX(var(--r, 46px)) scale(0.2);
+  }
+}
+.amw-dk-marker {
+  position: absolute;
+  top: 12px;
+  width: 0;
+  transition: left 0.55s var(--dk-spring);
+}
+.amw-dk-marker-stem {
+  position: absolute;
+  left: -1px;
+  top: 8px;
+  width: 2px;
+  height: 48px;
+  border-radius: 2px;
+  background: var(--amw-ink);
+}
+.amw-dk-marker-knob {
+  position: absolute;
+  left: -8px;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--amw-ink);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--amw-ink) 15%, transparent);
+}
+.amw-dk-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin: -4px 8px 0;
+}
+
+.amw-dk-controls {
+  margin-top: 28px;
+  display: grid;
+  gap: 16px;
+}
+.amw-dk-range-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  font-size: 14px;
+  color: var(--dk-body);
+}
+/* 44px tall for the touch floor; the track itself is 6px. */
+.amw-dk-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.amw-dk-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--amw-accent) 0,
+    var(--amw-accent) var(--p),
+    var(--amw-line-strong) var(--p),
+    var(--amw-line-strong) 100%
+  );
+}
+.amw-dk-range::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--amw-line-strong);
+}
+.amw-dk-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--amw-accent);
+}
+.amw-dk-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -9px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--amw-ink);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--amw-accent) 20%, transparent),
+    0 4px 10px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s var(--dk-spring), box-shadow 0.2s;
+}
+.amw-dk-range::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--amw-ink);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--amw-accent) 20%, transparent),
+    0 4px 10px rgba(0, 0, 0, 0.35);
+}
+.amw-dk-range:hover::-webkit-slider-thumb {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--amw-accent) 25%, transparent),
+    0 4px 10px rgba(0, 0, 0, 0.35);
+}
+.amw-dk-range:active::-webkit-slider-thumb {
+  transform: scale(1.22);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--amw-accent) 30%, transparent),
+    var(--dk-glow);
+}
+.amw-dk-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* A 44px hit area around the board's 36px pill. */
+.amw-dk-preset {
+  position: relative;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--dk-body);
+  font-family: var(--amw-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s var(--dk-spring);
+}
+.amw-dk-preset::before {
+  content: '';
+  position: absolute;
+  inset: 4px 0;
+  z-index: -1;
+  border-radius: 9999px;
+  background: var(--dk-wash);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.amw-dk-preset > span {
+  position: relative;
+}
+.amw-dk-preset:hover {
+  color: var(--amw-accent-ink);
+  transform: translateY(-2px);
+}
+.amw-dk-preset:hover::before,
+.amw-dk-preset[aria-pressed='true']::before {
+  background: var(--amw-accent-soft);
+}
+.amw-dk-preset[aria-pressed='true'] {
+  color: var(--amw-accent-ink);
+}
+.amw-dk-preset[aria-pressed='true']::before {
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--amw-accent) 45%, transparent);
+}
+.amw-dk-preset:active {
+  transform: scale(0.96);
+}
+.amw-dk-presets {
+  isolation: isolate;
+}
+
+/* ---- 02 · the ask ------------------------------------------------------- */
+.amw-dk-ladder {
+  margin: 0;
+}
+.amw-dk-rungs {
+  width: calc(100% + 24px);
+  margin: 16px -12px 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+.amw-dk-rungs thead th {
+  padding: 0 0 8px 16px;
+  font-weight: 400;
+  text-align: right;
+}
+.amw-dk-rungs thead th:first-child {
+  padding-left: 12px;
+}
+.amw-dk-rungs thead th:last-child {
+  padding-right: 12px;
+}
+.amw-dk-rungs thead th:nth-child(1) {
+  width: auto;
+}
+.amw-dk-rungs thead th:nth-child(2) {
+  width: 9rem;
+}
+.amw-dk-rungs thead th:nth-child(3) {
+  width: 6rem;
+}
+.amw-dk-rungs thead th:nth-child(4) {
+  width: 68px;
+}
+.amw-dk-rung > * {
+  height: 64px;
+  padding: 0 0 0 16px;
+  vertical-align: middle;
+  transition: background-color 0.25s;
+}
+.amw-dk-rung > :first-child {
+  padding-left: 12px;
+  border-radius: 12px 0 0 12px;
+}
+.amw-dk-rung > :last-child {
+  padding-right: 12px;
+  border-radius: 0 12px 12px 0;
+}
+.amw-dk-rung + .amw-dk-rung > * {
+  border-top: 1px solid var(--amw-line);
+}
+.amw-dk-rung {
+  transition: transform 0.3s var(--dk-ease);
+}
+.amw-dk-rung:hover > * {
+  background: var(--dk-wash);
+}
+@media (hover: hover) {
+  .amw-dk-rung:hover {
+    transform: translateX(4px);
+  }
+}
+.amw-dk-rung-label {
+  text-align: left;
+  font-weight: 400;
+}
+.amw-dk-rung-main .amw-dk-rung-label {
+  color: var(--amw-ink);
+}
+.amw-dk-meter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.amw-dk-value {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dk-body);
+}
+.amw-dk-rung-main .amw-dk-value {
+  font-size: 20px;
+  color: var(--amw-ink);
+}
+.amw-dk-meter-bar {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--amw-line);
+}
+.amw-dk-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--dk-meter);
+  transform-origin: left;
+  transform: scaleX(var(--w));
+  transition: transform 1s var(--dk-ease), background-color 0.25s;
+}
+/* The dominant rung leads by ink, not by teal: the accent here would read as
+   "selected" before the reader has used the tool. Teal is feedback only. */
+.amw-dk-rung-main .amw-dk-meter-fill {
+  background: var(--amw-ink);
+}
+.amw-dk-rung:hover .amw-dk-meter-fill,
+.amw-dk-rung:focus-within .amw-dk-meter-fill {
+  background: var(--amw-accent);
+}
+.amw-dk-rung-copy {
+  text-align: right;
+}
+.amw-dk-copy {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--amw-mut);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, background-color 0.2s, color 0.2s,
+    transform 0.2s var(--dk-spring);
+}
+.amw-dk-rung:hover .amw-dk-copy,
+.amw-dk-copy:focus-visible {
+  opacity: 1;
+}
+.amw-dk-copy:hover {
+  background: var(--amw-accent-soft);
+  color: var(--amw-accent-ink);
+}
+.amw-dk-copy:active {
+  transform: scale(0.9);
+}
+@media (hover: none) {
+  .amw-dk-copy {
+    opacity: 1;
+  }
+}
+.amw-dk-fallback {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+}
+.amw-dk-fallback textarea {
+  width: 100%;
+  resize: none;
+  border-radius: 10px;
+  border: 1px solid var(--amw-line-strong);
+  background: var(--amw-card);
+  padding: 8px 10px;
+  font-family: var(--amw-mono);
+  font-size: 13px;
+  color: var(--amw-ink);
+}
+.amw-dk-note {
+  margin: 20px 0 0;
+  max-width: 42rem;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--amw-mut);
+}
+.amw-dk-note-em {
+  color: var(--dk-strong);
+}
+
+/* Phones: the board's fixed columns (9rem, 6rem, 44px) leave the label
+   column nothing at 375px, so the values narrow and drop a size. */
+@media (max-width: 639px) {
+  .amw-dk-rungs thead th:nth-child(2) {
+    width: 5rem;
+  }
+  .amw-dk-rungs thead th:nth-child(3) {
+    width: 4rem;
+  }
+  .amw-dk-rungs thead th:nth-child(4) {
+    width: 56px;
+  }
+  .amw-dk-rung > * {
+    padding-left: 12px;
+  }
+  .amw-dk-value {
+    font-size: 16px;
+  }
+  .amw-dk-rung-main .amw-dk-value {
+    font-size: 18px;
+  }
+}
+
+/* ---- the path ----------------------------------------------------------- */
+.amw-dk-steps-wrap {
+  position: relative;
+  margin-top: 40px;
+}
+.amw-dk-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 24px;
+}
+.amw-dk-step-item {
+  display: flex;
+}
+.amw-dk-step {
+  --mx: 50%;
+  --my: 50%;
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--amw-card-2);
+  padding: 24px;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: var(--dk-lift), inset 0 0 0 1px var(--amw-line);
+  transition: transform 0.45s var(--dk-ease), box-shadow 0.45s;
+}
+@media (min-width: 768px) {
+  .amw-dk-step {
+    padding: 32px;
+  }
+}
+.amw-dk-step::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    420px circle at var(--mx) var(--my),
+    color-mix(in srgb, var(--amw-accent) 14%, transparent),
+    transparent 45%
+  );
+  opacity: 0;
+  transition: opacity 0.35s;
+  pointer-events: none;
+}
+.amw-dk-step:hover {
+  color: inherit;
+  transform: translateY(-6px);
+  box-shadow: var(--dk-lift-hover),
+    inset 0 0 0 1px color-mix(in srgb, var(--amw-accent) 35%, transparent);
+}
+.amw-dk-step:hover::before {
+  opacity: 1;
+}
+.amw-dk-step > * {
+  position: relative;
+}
+.amw-dk-step-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.amw-dk-tile {
+  display: flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--amw-accent-soft);
+  color: var(--dk-mark);
+  transition: transform 0.45s var(--dk-spring);
+}
+.amw-dk-step:hover .amw-dk-tile {
+  transform: rotate(-8deg) scale(1.08);
+}
+.amw-dk-step-body {
+  display: block;
+}
+.amw-dk-kicker-block {
+  display: block;
+}
+.amw-dk-step-title {
+  display: block;
+  margin-top: 8px;
+  font-size: 22px;
+  line-height: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--amw-ink);
+}
+.amw-dk-step-blurb {
+  display: block;
+  margin-top: 8px;
+  max-width: 26rem;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--amw-mut);
+}
+.amw-dk-step-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  font-family: var(--amw-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amw-accent-ink);
+}
+.amw-dk-step-go span {
+  display: inline-block;
+  transition: transform 0.3s var(--dk-ease);
+}
+.amw-dk-step:hover .amw-dk-step-go span {
+  transform: translateX(6px);
+}
+.amw-dk-link-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 48px;
+  height: 2px;
+  margin-left: -24px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--amw-accent) 35%, transparent);
+  transition: transform 0.8s var(--dk-ease) 0.4s;
+}
+.amw-dk-link-line::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--amw-accent);
+  box-shadow: 0 0 12px var(--amw-accent);
+  opacity: 0;
+}
+/* Three passes once revealed, then still: the join, not a loading bar. */
+[data-in='true'] .amw-dk-link-line::after {
+  animation: amw-dk-travel 2.2s cubic-bezier(0.65, 0, 0.35, 1) 1.2s 3;
+}
+@keyframes amw-dk-travel {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 40px;
+    opacity: 0;
+  }
+}
+/* The board hides it at 760px, but the two cards only sit side by side from
+   about 776px (2 x 22rem + the gap + the gutters), so it would float over a
+   single card between the two. */
+@media (max-width: 800px) {
+  .amw-dk-link-line {
+    display: none;
+  }
+}
+.amw-dk-aside {
+  margin: 24px 0 0;
+  font-size: 15px;
+  color: var(--amw-mut);
+}
+
+/* ---- coming to the desk ------------------------------------------------- */
+.amw-dk-soon-list {
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 16px;
+}
+/* Three across from md, one below: auto-fit orphans the third on tablets. */
+@media (min-width: 768px) {
+  .amw-dk-soon-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.amw-dk-soon {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px dashed var(--amw-line-strong);
+  background: color-mix(in srgb, var(--amw-card) 82%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.amw-dk-soon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    color-mix(in srgb, var(--amw-ink) 5%, transparent) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+/* One sweep each, staggered, when the list arrives. */
+[data-in='true'] > .amw-dk-soon::after {
+  animation: amw-dk-shimmer 3.2s ease-in-out var(--d, 0s) 1;
+}
+@keyframes amw-dk-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  55%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+.amw-dk-soon-tile {
+  position: relative;
+  display: flex;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, #f4f4f5);
+  box-shadow: inset 0 0 0 1px var(--amw-line),
+    0 10px 24px -14px rgba(24, 24, 27, 0.35);
+  transition: transform 0.45s var(--dk-spring), box-shadow 0.3s;
+}
+:where(.dark) .amw-dk-soon-tile {
+  background: linear-gradient(180deg, #18181e, #0e0e12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 10px 24px -14px rgba(0, 0, 0, 0.9);
+}
+.amw-dk-soon-tile img {
+  display: block;
+  width: 34px;
+  height: 34px;
+  transition: transform 0.45s var(--dk-spring), filter 0.45s ease;
+}
+.amw-dk-soon-tile[data-locked] img {
+  filter: grayscale(1) brightness(0.6);
+}
+.amw-dk-soon-tile::after {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(
+    115deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.16) 50%,
+    transparent 58%
+  );
+  transform: translateX(-70%);
+  transition: transform 0.8s var(--dk-ease);
+  pointer-events: none;
+}
+.amw-dk-soon-lock {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  z-index: 1;
+  display: flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #e4e4e7;
+  color: #52525b;
+  box-shadow: 0 0 0 2px #f4f4f5;
+  transition: transform 0.45s var(--dk-spring), opacity 0.3s;
+}
+:where(.dark) .amw-dk-soon-lock {
+  background: #27272a;
+  color: #a1a1aa;
+  box-shadow: 0 0 0 2px #0e0e12;
+}
+.amw-dk-soon:hover .amw-dk-soon-tile {
+  transform: translateY(-3px) rotate(-4deg);
+  box-shadow: inset 0 0 0 1px
+      color-mix(in srgb, var(--amw-accent) 45%, transparent),
+    0 16px 32px -14px color-mix(in srgb, var(--amw-accent) 40%, transparent);
+}
+.amw-dk-soon:hover .amw-dk-soon-tile::after {
+  transform: translateX(70%);
+}
+.amw-dk-soon:hover .amw-dk-soon-tile img {
+  transform: scale(1.08);
+  filter: none;
+}
+.amw-dk-soon:hover .amw-dk-soon-lock {
+  transform: scale(0) rotate(-45deg);
+  opacity: 0;
+}
+.amw-dk-soon-body {
+  display: block;
+  min-width: 0;
+}
+.amw-dk-soon-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dk-strong);
+}
+.amw-dk-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 0.4rem;
+  background: var(--dk-wash);
+  font-family: var(--amw-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+}
+.amw-dk-tag i {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+}
+.amw-dk-soon-blurb {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--amw-mut);
+}
+
+/* ---- the waiting state -------------------------------------------------- */
+/* Everything use-reveal.js holds back until it scrolls into view: the block
+   itself, then the band, bracket and marker (which springs in from 0%), the
+   meters and the path's join. Screen only, so print is always at rest. */
+@media screen {
+  .amw-dk [data-reveal][data-armed='true'] {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  [data-armed='true'] .amw-dk-band {
+    transform: scaleX(0);
+  }
+  [data-armed='true'] .amw-dk-bracket {
+    width: 0 !important;
+  }
+  [data-armed='true'] .amw-dk-bracket-label {
+    opacity: 0;
+  }
+  [data-armed='true'] .amw-dk-marker {
+    left: 0 !important;
+  }
+  [data-armed='true'] .amw-dk-meter-fill {
+    transform: scaleX(0);
+  }
+  [data-armed='true'] .amw-dk-link-line {
+    transform: scaleX(0);
+  }
+}
+
+/* ---- reduced motion: the OS setting and the site's own toggle ----------- */
+/* accessibility.css already zeroes every animation and transition; these
+   remove what would otherwise still move or sit mid-state. */
+@media (prefers-reduced-motion: reduce) {
+  .amw-dk-burst,
+  .amw-dk-link-line::after {
+    display: none;
+  }
+  .amw-dk-step:hover,
+  .amw-dk-rung:hover,
+  .amw-dk-preset:hover,
+  .amw-dk-step:hover .amw-dk-tile,
+  .amw-dk-soon:hover .amw-dk-soon-tile {
+    transform: none;
+  }
+}
+[data-reduced-motion='true'] .amw-dk-burst,
+[data-reduced-motion='true'] .amw-dk-link-line::after {
+  display: none;
+}
+[data-reduced-motion='true'] .amw-dk-step:hover,
+[data-reduced-motion='true'] .amw-dk-rung:hover,
+[data-reduced-motion='true'] .amw-dk-preset:hover,
+[data-reduced-motion='true'] .amw-dk-step:hover .amw-dk-tile,
+[data-reduced-motion='true'] .amw-dk-soon:hover .amw-dk-soon-tile {
+  transform: none;
+}
+
+/* ---- print: the light set, everything at rest --------------------------- */
+@media print {
+  .amw-dk,
+  .amw-glass,
+  :where(.dark) .amw-dk,
+  :where(.dark) .amw-glass {
+    --dk-strong: #27272a;
+    --dk-body: #3f3f46;
+    --dk-meter: #d4d4d8;
+    --dk-mark: #0b756c;
+    --dk-chip: #ffffff;
+    --dk-wash: rgba(24, 24, 27, 0.04);
+    --dk-lift: none;
+    --dk-deep: none;
+  }
+  .amw-dk {
+    padding-bottom: 0;
+  }
+  html[data-dk-motion] .amw-dk .amw-dk-rise,
+  html[data-dk-motion] .amw-dk .amw-dk-tick path {
+    animation: none !important;
+  }
+  .amw-dk .amw-dk-tick path {
+    stroke-dashoffset: 0;
+  }
+  .amw-dk [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .amw-dk .amw-dk-band,
+  .amw-dk .amw-dk-link-line {
+    transform: none !important;
+  }
+  .amw-dk .amw-dk-meter-fill {
+    transform: scaleX(var(--w)) !important;
+  }
+  .amw-dk-panel,
+  .amw-dk-step,
+  .amw-dk-soon {
+    break-inside: avoid;
+  }
+}

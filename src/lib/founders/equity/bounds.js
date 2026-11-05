@@ -74,6 +74,18 @@ export const SLIDER_TRACKS = Object.freeze({
       tick(400_000, '$400k+'),
     ]),
   }),
+  /* The desk landing's "try a different offer" slider, and the axis its gap
+     figure draws: 0 to 30 percent covers every band the engine can produce at
+     the example's stage with room either side. Presentational only; the
+     engine's own bound on the field stays 0 to 100. */
+  offeredEquityPct: Object.freeze({
+    min: 0,
+    max: 30,
+    step: 0.5,
+    unit: '%',
+    pinSuffix: '',
+    ticks: Object.freeze([tick(0, '0%'), tick(15, '15%'), tick(30, '30%')]),
+  }),
 })
 
 /**

@@ -3,12 +3,13 @@
 import { useId, useState } from 'react'
 import { AlertTriangle, ChevronDown } from 'lucide-react'
 
-import { ChipGroup } from '@/components/founders/chip-group'
+import '@/styles/founders-offer.css'
+import { Segmented } from '@/components/founders/wizard/segmented'
 import { fmtMoney } from '@/components/founders/format'
 import { SOURCE_URL } from '@/lib/founders/equity/company-comp'
 
 /*
- * Where the offer sits against named companies.
+ * Where the offer sits against named companies, in the Offer board's look.
  *
  * ONE COMPONENT, FULLY DATA-DRIVEN. The IC and leadership ladders differ in
  * domain, row count and exclusions. A seat prop would grow a branch per row, so
@@ -18,87 +19,68 @@ import { SOURCE_URL } from '@/lib/founders/equity/company-comp'
  * TAP, NEVER HOVER. Every row is a button that expands its own breakdown. Hover
  * does not exist on a phone, and detail behind hover is detail a phone user
  * cannot reach at all. Making it a disclosure fixes touch, keyboard and print in
- * one move (DD10).
+ * one move (DD10). The panel opens by animating its grid rows; while closed it
+ * is `visibility: hidden`, so assistive tech skips it, and in print it is open.
  *
- * NO NEW COLOUR. DESIGN.md gives the desk one accent and lists where it may
- * appear. The staleness warning gets a mono kicker and a glyph rather than an
- * amber that would exist for one banner and then spread.
+ * NO NEW COLOUR. The staleness warning gets a mono kicker and a glyph rather
+ * than an amber that would exist for one banner and then spread. The user's
+ * modeled equity is the teal hatch: their own row, not yet vested.
+ *
+ * PHONES (spec fork F11). Below 760px the bar takes its own line and the total
+ * stays beside the label rather than being hidden.
  */
 
+/* Segment ids from `plot.segments` to their bar classes. */
 const SEGMENT_CLASS = {
-  cash: 'bg-zinc-700 dark:bg-zinc-300',
-  liquid: 'bg-zinc-400 dark:bg-zinc-500',
-  /* Hatched, because it has not happened yet. */
-  modeled:
-    'bg-[repeating-linear-gradient(135deg,var(--amw-line-strong)_0_4px,transparent_4px_8px)]',
-}
-
-function Badge({ liquidity }) {
-  return (
-    <span
-      className="amw-kicker border-[var(--amw-line-strong)] shrink-0 rounded border px-1.5 py-0.5"
-      title={liquidity.detail}
-    >
-      {liquidity.label}
-    </span>
-  )
+  cash: 'amw-jo-seg--cash',
+  liquid: 'amw-jo-seg--liquid',
+  modeled: 'amw-jo-seg--modeled',
 }
 
 function Row({ row, domain, isUser, open, onToggle, panelId }) {
-  const pct = (n) => `${Math.min(100, (n / domain) * 100)}%`
+  const share = (n) => Math.min(100, Math.max(0, (n / domain) * 100))
+  const cashW = share(row.cash)
+  /* Never past the end of the bar: an off-scale row fills it and says so. */
+  const equityW = Math.min(share(row.equity), 100 - cashW)
   const overflows = row.total > domain
 
   return (
     <li
-      className={`amw-plot-row border-[var(--amw-line)] border-b last:border-b-0 ${
-        isUser ? 'bg-[var(--amw-accent-soft)]' : ''
-      }`}
+      className="amw-plot-row amw-jo-prow"
+      data-user={isUser ? 'true' : undefined}
+      data-open={open ? 'true' : undefined}
     >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={panelId}
-        className="min-h-11 hover:bg-[var(--amw-card-2)] grid w-full grid-cols-1 items-center gap-x-4 gap-y-2 px-4 py-3 text-left transition-colors md:grid-cols-[13rem_1fr_7rem_auto]"
+        className="amw-jo-prow-btn"
       >
-        <span className="flex items-center gap-2">
-          <span
-            className={`text-sm ${
-              isUser
-                ? 'text-[var(--amw-accent-ink)] font-semibold'
-                : 'text-zinc-900 dark:text-zinc-100'
-            }`}
-          >
-            {row.label}
-          </span>
-          {row.level && <span className="amw-kicker">{row.level}</span>}
-        </span>
-
-        {/* The bar. Full width under the label on a phone, its own column on a
-            larger screen. Never squeezed into 200px with a $1.4M domain. */}
-        <span className="bg-[var(--amw-card-2)] flex h-5 w-full items-center overflow-hidden rounded-sm">
-          <span
-            className={`h-full ${SEGMENT_CLASS.cash}`}
-            style={{ width: pct(row.cash) }}
-          />
-          <span
-            className={`h-full ${
-              isUser ? SEGMENT_CLASS.modeled : SEGMENT_CLASS.liquid
-            }`}
-            style={{ width: pct(row.equity) }}
-          />
-          {overflows && (
-            <span className="amw-kicker text-[var(--amw-accent-ink)] pl-1">
-              ▸
-            </span>
+        <span className="amw-jo-prow-label">
+          <span className="amw-jo-prow-name">{row.label}</span>
+          {row.level && (
+            <span className="amw-wz-kicker amw-jo-prow-level">{row.level}</span>
           )}
         </span>
 
-        <span className="amw-price flex items-center gap-2 text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
+        {/* Full width under the label on a phone, its own column on a larger
+            screen. Never squeezed into 200px with a $1.4M domain. */}
+        <span className="amw-jo-bar" aria-hidden="true">
+          <i className={SEGMENT_CLASS.cash} style={{ width: `${cashW}%` }} />
+          <i
+            className={isUser ? SEGMENT_CLASS.modeled : SEGMENT_CLASS.liquid}
+            style={{ width: `${equityW}%` }}
+          />
+          {overflows && <span className="amw-jo-over">Off scale →</span>}
+        </span>
+
+        <span className="amw-price amw-jo-total">
           {fmtMoney(row.total)}
+          {overflows && <span className="sr-only">, off scale</span>}
           {row.confidence && row.confidence !== 'sourced' && (
             <span
-              className="amw-kicker"
+              className="amw-jo-est"
               title={`This row is ${row.confidence}`}
             >
               est.
@@ -106,51 +88,38 @@ function Row({ row, domain, isUser, open, onToggle, panelId }) {
           )}
         </span>
 
-        <span className="flex items-center gap-2">
-          <Badge liquidity={row.liquidity} />
-          <ChevronDown
-            aria-hidden="true"
-            className={`size-4 text-zinc-500 transition-transform ${
-              open ? 'rotate-180' : ''
-            }`}
-          />
+        <span className="amw-jo-prow-meta">
+          <span className="amw-jo-liq" title={row.liquidity.detail}>
+            {row.liquidity.label}
+          </span>
+          <ChevronDown aria-hidden="true" className="amw-jo-chev size-4" />
         </span>
       </button>
 
-      {/* In the DOM but display:none when collapsed, so it is hidden from
-          assistive tech and still prints. Hover is never the only path. */}
-      <div
-        id={panelId}
-        className={`px-4 pb-4 ${open ? 'block' : 'hidden print:block'}`}
-      >
-        <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
-          {row.breakdown.map((b) => (
-            <div
-              key={b.label}
-              className="flex items-baseline justify-between gap-3"
-            >
-              <dt className="amw-kicker">{b.label}</dt>
-              <dd className="amw-price m-0 text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
-                {fmtMoney(b.value)}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        {/* Only when the row has no note of its own; Netflix already explains
-            itself and saying it twice reads as a bug. */}
-        {row.allCash && !isUser && !row.note && (
-          <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            No stock line: this package is all cash.
-          </p>
-        )}
-        {row.note && (
-          <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            {row.note}
-          </p>
-        )}
-        <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-          {row.liquidity.detail}
-        </p>
+      {/* `print:block` keeps a collapsed panel on paper; hover is never the
+          only path. */}
+      <div id={panelId} className="amw-jo-panel print:block">
+        <div>
+          <div className="amw-jo-panel-body">
+            <dl className="amw-jo-dl">
+              {row.breakdown.map((b) => (
+                <div key={b.label}>
+                  <dt className="amw-wz-kicker">{b.label}</dt>
+                  <dd className="amw-price">{fmtMoney(b.value)}</dd>
+                </div>
+              ))}
+            </dl>
+            {/* Only when the row has no note of its own; Netflix already
+                explains itself and saying it twice reads as a bug. */}
+            {row.allCash && !isUser && !row.note && (
+              <p className="amw-wz-hint">
+                No stock line: this package is all cash.
+              </p>
+            )}
+            {row.note && <p className="amw-wz-hint">{row.note}</p>}
+            <p className="amw-wz-hint">{row.liquidity.detail}</p>
+          </div>
+        </div>
       </div>
     </li>
   )
@@ -164,11 +133,14 @@ export function MarketPlot({ plot, onScenarioChange }) {
 
   if (plot.withheld) {
     return (
-      <section className="border-[var(--amw-line)] mt-12 rounded-2xl border p-6">
-        <h3 className="amw-kicker">Against the market</h3>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-          {plot.reason}
-        </p>
+      <section
+        className="amw-wz-card mt-12"
+        aria-labelledby={`${baseId}-title`}
+      >
+        <h2 id={`${baseId}-title`} className="amw-wz-kicker m-0">
+          Against the market
+        </h2>
+        <p className="amw-jo-plot-copy mt-3">{plot.reason}</p>
       </section>
     )
   }
@@ -177,43 +149,41 @@ export function MarketPlot({ plot, onScenarioChange }) {
   const toggle = (id) => setOpenId((current) => (current === id ? null : id))
 
   return (
-    <section className="mt-12" aria-labelledby={`${baseId}-title`}>
-      <h3
-        id={`${baseId}-title`}
-        className="text-xl font-medium tracking-tight text-zinc-900 dark:text-zinc-100 md:text-2xl"
-      >
-        Against the market
-      </h3>
-
-      {/* The thesis, before the bars. Without it the honest reading of this
-          chart is "you are underpaid", which is true and useless. */}
-      <p className="mt-3 max-w-3xl text-base leading-relaxed text-zinc-700 dark:text-zinc-300">
-        {plot.thesis}
-      </p>
-      <p className="amw-kicker mt-3">{plot.axisLabel}</p>
+    <section className="amw-wz-card mt-12" aria-labelledby={`${baseId}-title`}>
+      <div className="max-w-[44rem]">
+        <h2
+          id={`${baseId}-title`}
+          className="text-[var(--amw-ink)] m-0 text-[22px] font-semibold leading-[30px]"
+        >
+          Against the market
+        </h2>
+        {/* The thesis, before the bars. Without it the honest reading of this
+            chart is "you are underpaid", which is true and useless. */}
+        <p className="amw-jo-plot-copy mt-2">{plot.thesis}</p>
+        <p className="amw-wz-kicker mt-2.5">{plot.axisLabel}</p>
+      </div>
 
       {/* The control sits above the thing it drives. The $0 outcome is the most
           useful thing here and cannot live below the fold of its own chart. */}
       {plot.scenarios.length > 0 && (
-        <div className="mt-6">
-          <ChipGroup
-            label="If the company ends up worth"
-            variant="segmented"
-            options={plot.scenarios.map((s) => ({ id: s.id, label: s.label }))}
-            value={plot.scenarioId}
-            onChange={(id) => onScenarioChange?.(id)}
-          />
-        </div>
+        <Segmented
+          label="If the company ends up worth"
+          options={plot.scenarios.map((s) => ({ id: s.id, label: s.label }))}
+          value={plot.scenarioId}
+          onChange={(id) => onScenarioChange?.(id)}
+          fold={false}
+          className="mt-5 max-w-[34rem]"
+        />
       )}
 
       {plot.stale && (
-        <p className="amw-kicker mt-6 flex items-center gap-2 text-zinc-500">
+        <p className="amw-wz-kicker mt-5 flex items-center gap-2">
           <AlertTriangle aria-hidden="true" className="size-3.5" />
           These figures were retrieved {plot.asOf} and are due a refresh.
         </p>
       )}
 
-      <ul className="border-[var(--amw-line)] mt-6 list-none overflow-hidden rounded-2xl border p-0">
+      <ul role="list" className="amw-jo-plot">
         {rows.map((row) => (
           <Row
             key={row.id + row.kind}
@@ -227,21 +197,21 @@ export function MarketPlot({ plot, onScenarioChange }) {
         ))}
       </ul>
 
-      <p className="amw-kicker mt-4">
+      <p className="amw-wz-kicker mt-3.5">
         Market reference · {plot.marketReference.label} ·{' '}
         {fmtMoney(plot.marketReference.total)}
       </p>
 
-      <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
+      <div className="mt-3.5 flex flex-wrap gap-x-5 gap-y-2">
         {Object.values(plot.segments).map((s) => (
-          <span key={s.id} className="amw-kicker flex items-center gap-2">
-            <span className={`h-2.5 w-5 rounded-sm ${SEGMENT_CLASS[s.id]}`} />
+          <span key={s.id} className="amw-wz-kicker amw-jo-legend">
+            <i className={SEGMENT_CLASS[s.id]} aria-hidden="true" />
             {s.label}
           </span>
         ))}
       </div>
 
-      <p className="amw-kicker mt-6 leading-relaxed">
+      <p className="amw-wz-hint mt-3.5 max-w-[52rem]">
         {plot.caveats.join(' ')} Figures from{' '}
         <a
           href={SOURCE_URL}

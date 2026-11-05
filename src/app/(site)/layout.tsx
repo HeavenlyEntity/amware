@@ -72,6 +72,9 @@ const modeScript = `
     window.setTimeout(() => { document.documentElement.classList.remove('[&_*]:transition-none!') }, 0)
   }
   function updateModeWithoutTransitions() { disableTransitionsTemporarily(); updateMode() }
+  // Founders' Desk entrances: the motion wrapper renders reduced motion on the
+  // server, so CSS entrances key off this pre-paint flag instead (DeskMotionSync).
+  try { document.documentElement.dataset.dkMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'reduce' : 'ok' } catch (e) {}
 `
 
 export default function SiteLayout({

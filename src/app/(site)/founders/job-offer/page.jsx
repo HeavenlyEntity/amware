@@ -10,11 +10,8 @@ export const metadata = withSocialImage(
   'founders-job-offer'
 )
 
+/* The visible h1 is the tool's question, rendered by the calculator in every
+   state (the skeleton included), so the page has exactly one. */
 export default function JobOfferCalculatorPage() {
-  return (
-    <>
-      <h1 className="sr-only">Job offer calculator</h1>
-      <JobOfferCalculator />
-    </>
-  )
+  return <JobOfferCalculator />
 }
