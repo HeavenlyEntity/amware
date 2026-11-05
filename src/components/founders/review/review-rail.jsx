@@ -3,7 +3,10 @@ import { Eye, Lock, Mail, MapPin, Send } from 'lucide-react'
 
 import { identity } from '@/content/site/identity'
 import { GitHubIcon, LinkedInIcon, TwitterIcon } from '@/components/SocialIcons'
-import portrait from '@/images/portrait.jpg'
+/* A square crop of portrait.jpg centred on the face. The full photo is a tall
+   2:3 shot, so squaring it into the 56px circle kept the torso and left the
+   face small and high. 224px is 4x the circle, for sharp retina rendering. */
+import portrait from '@/images/portrait-headshot.jpg'
 
 const SOCIALS = [
   {

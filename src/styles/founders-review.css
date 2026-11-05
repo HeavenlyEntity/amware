@@ -1288,7 +1288,6 @@ html[data-dk-motion='ok'] .amw-rv .rv-fact-li {
   height: 56px;
   border-radius: 9999px;
   object-fit: cover;
-  object-position: 50% 30%;
   box-shadow: 0 0 0 2px var(--rv-sub-card),
     0 0 0 4px color-mix(in srgb, var(--amw-accent) 50%, transparent);
 }
