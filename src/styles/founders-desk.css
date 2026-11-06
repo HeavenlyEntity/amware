@@ -326,6 +326,11 @@ html[data-dk-motion='ok'] .amw-dk .amw-dk-tick path {
   right: 18px;
   bottom: 16px;
 }
+/* With a caption in both bottom corners, the two lines are wider than the
+   panel and run into each other, so the hint moves up a line. */
+.amw-glass-bl ~ .amw-glass-br {
+  bottom: 36px;
+}
 /* "Move to look closer" only means something once the lens is there. */
 .amw-glass[data-lens='poster'] .amw-glass-live-only {
   display: none;
