@@ -1,3 +1,7 @@
+import Link from 'next/link'
+
+import { legalHref } from '@/content/legal/sets'
+
 /* Text colours for the two grounds the terms sit on: a regular card, and a
    popular service card's deep-teal gradient (.amw-on-teal in
    storefront.css), where the text turns white. */
@@ -48,7 +52,13 @@ export function DepositRiskReversal({
       </div>
       <div className="mt-4">{children}</div>
       <p className={`mt-2.5 text-center text-xs leading-relaxed ${t.fine}`}>
-        Full refund if we don’t work together.
+        <span>Full refund if we don’t work together.</span>{' '}
+        <Link
+          href={legalHref('services', 'refund')}
+          className="min-h-11 inline-flex items-center underline underline-offset-2 hover:opacity-80"
+        >
+          Refund policy
+        </Link>
       </p>
     </div>
   )
