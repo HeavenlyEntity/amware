@@ -1,79 +1,96 @@
 'use client'
 
-import { motion } from 'motion/react'
-import { useReducedMotion } from '@/components/AccessibilityProvider'
-
 import { fmtPct } from '@/components/founders/format'
-import CountUp from '@/components/react-bits/count-up'
 
-/* The stake through the rounds for one path, as bars scaled by transform
-   (never height). Starts from the offer when present, otherwise from the
-   band midpoint. */
+/* "Your stake through the rounds" for one path (board `.eq-round`): two bars
+   per round, the stake starting from the band middle (teal) and from the
+   offer (grey). Widths are relative to the larger of the two stakes in the
+   first round, so the shrink reads round over round. The bars grow in with a
+   CSS animation that the site's motion switch turns off.
 
-const ROUND_LABELS = {
-  today: 'Today',
-  seed: 'Seed',
-  series_a: 'A',
-  series_b: 'B',
-  series_c: 'C',
-  series_d: 'D',
-  ipo: 'IPO',
-}
+   With no offer the grey series, its legend and its figures are left out
+   rather than drawn at zero. Each row states both figures in text. */
 
 export function RoundsTimeline({ rounds, hasOffer, pathLabel }) {
-  const reduce = useReducedMotion()
-  const series = rounds.map((r) => ({
-    key: r.round,
-    label: ROUND_LABELS[r.round] ?? r.round,
-    value: hasOffer && r.stakeOffer !== null ? r.stakeOffer : r.stakeMid,
-  }))
-  if (series.length === 0) {
+  if (rounds.length === 0) {
     return (
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        No priced rounds assumed on this path. Your stake stays where it is
-        until an exit.
-      </p>
+      <div>
+        <p className="amw-wz-kicker">Your stake through the rounds</p>
+        <p className="text-[var(--amw-mut)] mt-3 text-sm">
+          No further rounds on this path: your stake holds where it starts.
+        </p>
+      </div>
     )
   }
-  const max = Math.max(...series.map((s) => s.value), 0.0001)
+  const showOffer = hasOffer && rounds.some((r) => r.stakeOffer !== null)
+  const first = rounds[0]
+  const scale = Math.max(
+    first.stakeMid,
+    showOffer ? first.stakeOffer ?? 0 : 0,
+    0.0001
+  )
+  const width = (v) => `${Math.min(1, Math.max(0, v / scale)) * 100}%`
 
   return (
     <figure className="m-0">
-      <figcaption className="text-xs text-zinc-500 dark:text-zinc-400">
-        Your stake through the rounds ({pathLabel}),{' '}
-        {hasOffer ? 'from the offer' : 'from the band midpoint'}
+      <figcaption className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+        <span className="amw-wz-kicker">
+          Your stake through the rounds
+          <span className="sr-only"> on the {pathLabel} path</span>
+        </span>
+        <span className="flex flex-wrap gap-3" aria-hidden="true">
+          <span className="amw-wz-legend">
+            <i className="bg-[var(--amw-accent)]" />
+            At the band middle
+          </span>
+          {showOffer && (
+            <span className="amw-wz-legend">
+              <i className="bg-[var(--amw-mut)]" />
+              As offered
+            </span>
+          )}
+        </span>
       </figcaption>
-      <div className="mt-3 flex h-24 items-end gap-2" role="list">
-        {series.map((point, index) => (
-          <div
-            key={point.key}
-            className="flex flex-1 flex-col items-center"
-            role="listitem"
-          >
-            <span className="amw-mono mb-1 text-xs tabular-nums text-zinc-700 dark:text-zinc-300">
-              <CountUp
-                key={`${pathLabel}-${point.key}-${point.value}`}
-                to={point.value}
-                duration={0.8}
-                format={fmtPct}
-              />
+      <ul role="list" className="mt-3 list-none p-0">
+        {rounds.map((r, index) => (
+          <li key={r.round} className="amw-wz-round">
+            <span className="text-[var(--wz-ink-2)] text-[13px]">
+              {r.label}
             </span>
-            <div className="relative h-14 w-full">
-              <motion.span
-                aria-hidden="true"
-                className="bg-[var(--amw-line-strong)] absolute inset-x-0 bottom-0 origin-bottom rounded-t-sm"
-                style={{ height: '100%' }}
-                initial={reduce ? false : { scaleY: 0 }}
-                animate={{ scaleY: point.value / max }}
-                transition={{ duration: 0.5, delay: index * 0.05 }}
-              />
+            <div className="min-w-0">
+              <div className="amw-wz-rbar" aria-hidden="true">
+                <i
+                  data-series="mid"
+                  style={{
+                    width: width(r.stakeMid),
+                    '--d': `${index * 0.08}s`,
+                  }}
+                />
+                {showOffer && r.stakeOffer !== null && (
+                  <i
+                    data-series="offer"
+                    style={{
+                      width: width(r.stakeOffer),
+                      '--d': `${index * 0.08 + 0.04}s`,
+                    }}
+                  />
+                )}
+              </div>
+              <p className="amw-mono text-[var(--amw-mut)] mt-1 text-[11px] tabular-nums">
+                <span className="sr-only">At the band middle </span>
+                {fmtPct(r.stakeMid)}
+                {showOffer && (
+                  <>
+                    {' · '}
+                    <span className="sr-only">as offered </span>
+                    {fmtPct(r.stakeOffer)}
+                  </>
+                )}
+              </p>
             </div>
-            <span className="amw-mono mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
-              {point.label}
-            </span>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </figure>
   )
 }

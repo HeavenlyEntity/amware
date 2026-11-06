@@ -1,11 +1,14 @@
 'use client'
 
-import { ChipGroup } from '@/components/founders/chip-group'
+import { SeatCards } from '@/components/founders/wizard/seat-cards'
+import { ChoiceChips } from '@/components/founders/wizard/choice-chips'
+import { CountStepper } from '@/components/founders/wizard/count-stepper'
 import { JOINING, LABELS, ROLES } from '@/lib/founders/equity/benchmarks'
+import { BOUNDS } from '@/lib/founders/equity/bounds'
 
-/* Step 1: which seat, how you're joining, and (only when it matters)
-   how many founders. One question family; the role switch is a
-   segmented control with the selected seat's description under it. */
+/* Step 1: which seat, how you're joining, and (only when it matters) how many
+   founders. The seats are the board's icon cards, every description visible;
+   they stay a radiogroup named by the seat alone. */
 
 const ROLE_DESCRIPTIONS = {
   cto: 'You own the technology and the team, now or on signing.',
@@ -13,11 +16,18 @@ const ROLE_DESCRIPTIONS = {
   ceo_builder: 'You run the company and write the code.',
 }
 
+const ROLE_ICONS = {
+  cto: 'system',
+  engineer: 'computer',
+  ceo_builder: 'rocket',
+}
+
 export function WhoYouAre({ inputs, read, onChange }) {
   const roleOptions = ROLES.map((id) => ({
     id,
     label: LABELS.role[id],
     description: ROLE_DESCRIPTIONS[id],
+    icon: ROLE_ICONS[id],
   }))
   const joiningOptions = JOINING.map((id) => ({
     id,
@@ -25,73 +35,40 @@ export function WhoYouAre({ inputs, read, onChange }) {
   }))
   const showFounders =
     inputs.joining === 'formation' || read.classification.deFacto
+  const founders = inputs.founders ?? BOUNDS.founders.default
 
   return (
     <>
-      <ChipGroup
+      <SeatCards
         label="Which seat?"
         options={roleOptions}
         value={inputs.role}
         onChange={(role) => onChange({ role })}
-        mode="single"
-        variant="segmented"
-        describeSelected
+        className="amw-wz-field"
       />
-      <ChipGroup
+      <ChoiceChips
         label="How are you joining?"
         options={joiningOptions}
         value={inputs.joining}
         onChange={(joining) => onChange({ joining })}
-        mode="single"
+        className="amw-wz-field"
       />
       {showFounders && (
-        <div>
-          <label
-            htmlFor="founders-count"
-            className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
-          >
-            How many founders, including you?
-          </label>
-          <div className="mt-3 inline-flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="Fewer founders"
-              onClick={() =>
-                onChange({ founders: Math.max(1, (inputs.founders ?? 2) - 1) })
-              }
-              className="border-[var(--amw-line-strong)] bg-[var(--amw-card)] h-11 w-11 rounded-md border text-lg"
-            >
-              −
-            </button>
-            <input
-              id="founders-count"
-              type="number"
-              min={1}
-              max={6}
-              value={inputs.founders ?? 2}
-              onChange={(event) =>
-                onChange({ founders: Number(event.target.value) || 1 })
-              }
-              className="border-[var(--amw-line-strong)] bg-[var(--amw-card)] amw-mono h-11 w-16 rounded-md border text-center text-sm tabular-nums"
-            />
-            <button
-              type="button"
-              aria-label="More founders"
-              onClick={() =>
-                onChange({ founders: Math.min(6, (inputs.founders ?? 2) + 1) })
-              }
-              className="border-[var(--amw-line-strong)] bg-[var(--amw-card)] h-11 w-11 rounded-md border text-lg"
-            >
-              +
-            </button>
-          </div>
-          {read.classification.deFacto && (
-            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              Your work reads as a de facto co-founder, so the founder pool
-              applies.
-            </p>
-          )}
-        </div>
+        <CountStepper
+          label="How many founders, including you?"
+          value={founders}
+          min={BOUNDS.founders.min}
+          max={BOUNDS.founders.max}
+          onChange={(next) => onChange({ founders: next })}
+          decLabel="Fewer founders"
+          incLabel="More founders"
+          hint={
+            read.classification.deFacto
+              ? 'Your work reads as a de facto co-founder, so the founder pool applies.'
+              : null
+          }
+          className="amw-wz-field"
+        />
       )}
     </>
   )

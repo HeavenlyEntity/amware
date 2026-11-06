@@ -84,13 +84,133 @@ describe('cold start (plan tests 21 and 22)', () => {
     ).toBeTruthy()
   })
 
-  it('puts industry and location behind selects, not chip rows', () => {
+  it('asks industry and location as radio chip rows (spec fork F1)', () => {
     render(<JobOfferCalculator />)
     clickText(/^Next: the company$/)
-    expect(screen.getByLabelText(/industry/i).tagName).toBe('SELECT')
-    expect(screen.getByLabelText(/where the role is paid/i).tagName).toBe(
-      'SELECT'
+    const industry = screen.getByRole('radiogroup', { name: /^industry$/i })
+    const geo = screen.getByRole('radiogroup', {
+      name: /where the role is paid/i,
+    })
+    expect(
+      within(industry).getByRole('radio', { name: /SaaS or general/ })
+    ).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(
+      within(industry).getByRole('radio', { name: /AI or machine learning/ })
     )
+    expect(useOfferStore.getState().industry).toBe('ai')
+    fireEvent.click(within(geo).getByRole('radio', { name: /Bay Area/ }))
+    expect(useOfferStore.getState().geo).toBe('bay_nyc')
+  })
+
+  it('has one visible h1, the tool question, in the wizard and the ask', () => {
+    const { unmount } = render(<JobOfferCalculator />)
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(
+      screen.getByRole('heading', { level: 1, name: /what to ask for/i })
+    ).toBeInTheDocument()
+    unmount()
+    useOfferStore.setState({ ...INITIAL, role: 'engineer' })
+    render(<JobOfferCalculator />)
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+
+  it('goes back to a done step from the stepper, never forward', () => {
+    render(<JobOfferCalculator />)
+    clickText(/^Next: the company$/)
+    clickText(/^Next: the offer$/)
+    const progress = screen.getByRole('list', { name: 'Progress' })
+    /* A step not reached yet is announced as such and does nothing. */
+    const ask = within(progress).getByRole('button', { name: /your ask/i })
+    expect(ask).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(ask)
+    expect(screen.getByText(/step 3 of 4/i)).toBeInTheDocument()
+    fireEvent.click(
+      within(progress).getByRole('button', { name: /your seat, done/i })
+    )
+    expect(screen.getByText(/step 1 of 4/i)).toBeInTheDocument()
+  })
+
+  it('moves focus to the verdict on See my ask', () => {
+    render(<JobOfferCalculator />)
+    walkToAsk()
+    expect(document.activeElement).toBe(
+      screen.getByRole('heading', { level: 2, name: /^Ask for/ })
+    )
+  })
+
+  it('names the industry by its label in the context line, not its key', () => {
+    useOfferStore.setState({ ...INITIAL, role: 'engineer', industry: 'ai' })
+    render(<JobOfferCalculator />)
+    const section = screen
+      .getByRole('heading', { level: 2, name: /^Ask for/ })
+      .closest('section')
+    expect(within(section).getByText(/· AI ·/)).toBeInTheDocument()
+    expect(within(section).queryByText(/· ai ·/)).toBeNull()
+  })
+
+  it('keeps each seat’s picks when arrowing across the seat cards', () => {
+    render(<JobOfferCalculator />)
+    fireEvent.click(
+      screen.getByRole('button', { name: /designed the architecture/i })
+    )
+    expect(useOfferStore.getState().responsibilities).toEqual(['architecture'])
+    const cto = screen.getByRole('radio', { name: 'CTO' })
+    /* Arrowing is selecting in a radiogroup: right to the engineer seat and
+       back again must not lose the CTO's answer on the way. */
+    fireEvent.keyDown(cto, { key: 'ArrowRight' })
+    expect(useOfferStore.getState().role).toBe('engineer')
+    expect(useOfferStore.getState().responsibilities).toEqual([])
+    fireEvent.keyDown(
+      screen.getByRole('radio', { name: 'Software engineer' }),
+      {
+        key: 'ArrowLeft',
+      }
+    )
+    expect(useOfferStore.getState().role).toBe('cto')
+    expect(useOfferStore.getState().responsibilities).toEqual(['architecture'])
+    expect(useOfferStore.getState().workAnswered).toBe(true)
+  })
+
+  it('lets a chip replace "None of these" instead of being swallowed by it', () => {
+    render(<JobOfferCalculator />)
+    clickText('None of these')
+    expect(useOfferStore.getState().workAnswered).toBe(true)
+    fireEvent.click(
+      screen.getByRole('button', { name: /designed the architecture/i })
+    )
+    expect(useOfferStore.getState().responsibilities).toEqual(['architecture'])
+    expect(
+      screen.getByRole('button', { name: 'None of these' })
+    ).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('steps the offered equity by a quarter point, rounded to two places', () => {
+    render(<JobOfferCalculator />)
+    clickText(/^Next: the company$/)
+    clickText(/^Next: the offer$/)
+    act(() => useOfferStore.setState({ offeredEquityPct: 3 }))
+    clickText('Less equity')
+    expect(useOfferStore.getState().offeredEquityPct).toBe(2.75)
+    clickText('Less equity')
+    expect(useOfferStore.getState().offeredEquityPct).toBe(2.5)
+    clickText('More equity')
+    expect(useOfferStore.getState().offeredEquityPct).toBe(2.75)
+  })
+
+  it('takes a vesting length outside the presets through Other', () => {
+    useOfferStore.setState({ ...INITIAL, vestingYears: 6 })
+    render(<JobOfferCalculator />)
+    /* A stored 6 is an answer, so this lands on the ask; go back to it. */
+    clickText(/edit answers/i)
+    clickText(/^Next: the company$/)
+    clickText(/^Next: the offer$/)
+    const vesting = screen.getByRole('radiogroup', { name: /^vesting$/i })
+    expect(
+      within(vesting).getByRole('radio', { name: 'Other' })
+    ).toHaveAttribute('aria-checked', 'true')
+    expect(
+      within(vesting).getByRole('radio', { name: '3 years' })
+    ).toHaveAttribute('aria-checked', 'false')
   })
 
   it('reaches a real classification rather than staying pending', () => {
@@ -130,7 +250,12 @@ describe('clear my answers (plan test 24)', () => {
       offeredSalary: 200000,
     })
     render(<JobOfferCalculator />)
-    fireEvent.click(screen.getByRole('button', { name: /clear my answers/i }))
+    /* The ask's own control, not the desk dock's bin of the same name. */
+    fireEvent.click(
+      screen
+        .getAllByRole('button', { name: /clear my answers/i })
+        .find((button) => !button.closest('[role="toolbar"]'))
+    )
     expect(useOfferStore.getState().role).toBe('cto')
     expect(useOfferStore.getState().offeredSalary).toBeNull()
     expect(screen.getByText(/step 1 of 4/i)).toBeInTheDocument()
@@ -227,5 +352,63 @@ describe('provenance and motion (plan tests 30f and 30)', () => {
   it('keeps the privacy line honest about what persists', () => {
     render(<JobOfferCalculator />)
     expect(screen.getByText(/nothing leaves your browser/i)).toBeInTheDocument()
+  })
+})
+
+describe('the ask, in the board’s layout', () => {
+  it('keeps the trade warning the board drops, at Series B and later', () => {
+    useOfferStore.setState({
+      ...INITIAL,
+      role: 'engineer',
+      stage: 'series_b_plus',
+      offeredSalary: 90_000,
+    })
+    render(<JobOfferCalculator />)
+    /* Its own sentence under the floor note, not only a flag. */
+    const lines = screen.getAllByText(/rarely worth what you get back/i)
+    expect(lines.some((el) => el.tagName === 'P')).toBe(true)
+  })
+
+  it('draws the rungs and the offer as one ordered ladder', () => {
+    useOfferStore.setState({ ...INITIAL, role: 'engineer', offeredSalary: 9e4 })
+    render(<JobOfferCalculator />)
+    const ladder = screen.getByRole('list', { name: 'The ask ladder' })
+    const rows = within(ladder).getAllByRole('listitem')
+    expect(rows).toHaveLength(4)
+    expect(within(rows[3]).getByText('On the table now')).toBeInTheDocument()
+  })
+
+  it('records the ask from this tool before opening the review', () => {
+    useOfferStore.setState({ ...INITIAL, role: 'engineer' })
+    render(<JobOfferCalculator />)
+    /* The page's own CTA under the ask, not the desk dock's tile. */
+    const link = screen
+      .getAllByRole('link', { name: /review my offer/i })
+      .find((el) => !el.closest('[role="toolbar"]'))
+    expect(link).toHaveAttribute('href', '/contact/offer-review')
+    fireEvent.click(link)
+    const state = useOfferStore.getState()
+    expect(state.askedAt).toBeTruthy()
+    expect(state.askedFrom).toBe('job-offer')
+  })
+})
+
+describe('the worked example from the desk dock', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'))
+
+  it('loads from ?example, opens on the ask and strips the param', () => {
+    window.history.replaceState(null, '', '/founders/job-offer?example')
+    render(<JobOfferCalculator />)
+    expect(window.location.search).toBe('')
+    expect(useOfferStore.getState().offeredEquityPct).toBe(3)
+    expect(useOfferStore.getState().workAnswered).toBe(true)
+    expect(screen.queryByText(/step 1 of 4/i)).toBeNull()
+  })
+
+  it('fills it in place from step 1, so the visitor can walk through it', () => {
+    render(<JobOfferCalculator />)
+    clickText(/fill in the worked example/i)
+    expect(useOfferStore.getState().offeredEquityPct).toBe(3)
+    expect(screen.getByText(/step 1 of 4/i)).toBeInTheDocument()
   })
 })

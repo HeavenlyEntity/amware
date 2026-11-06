@@ -1176,3 +1176,21 @@
   --pc-press: brightness(0.8);
   --pc-shade: rgba(0, 0, 0, 0.4);
 }
+
+/* ---- Founders' Desk dock: the entrance ------------------------------------ */
+/* The dock's root is centred with translateX(-50%), so the keyframes carry it.
+   Keyed off <html data-dk-motion="ok"> (layout head script + DeskMotionSync),
+   not the motion wrapper, which renders reduced on the server and flips at
+   hydration: the dock would show, drop away, then slide in. */
+@keyframes amw-desk-dock-in {
+  from {
+    transform: translate(-50%, calc(100% + 24px));
+  }
+  to {
+    transform: translate(-50%, 0);
+  }
+}
+
+html[data-dk-motion='ok'] .amw-desk-dock-in {
+  animation: amw-desk-dock-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both !important;
+}

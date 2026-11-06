@@ -1,7 +1,8 @@
 /* The Founders' Desk tool registry. One source of truth for the nav
-   dropdown (live tools only), the desk eyebrow row, the landing's
+   dropdown (live tools only), the desk dock, the landing's
    "coming to the desk" line, and the tests that assert every live tool
-   has a real route. Icons are lucide names resolved by the components. */
+   has a real route. Icons are lucide names resolved by the components.
+   `cta` is the live tool's action on the landing's path cards. */
 
 export const TOOLS = [
   {
@@ -12,6 +13,7 @@ export const TOOLS = [
     status: 'live',
     kicker: '/founders/equity · no account',
     blurb: 'Are you being sized as a hire while doing founder work?',
+    cta: 'Read my offer',
   },
   {
     id: 'dilution',
@@ -32,6 +34,7 @@ export const TOOLS = [
     status: 'live',
     kicker: '/founders/job-offer · no account',
     blurb: 'What to ask for, in cash and equity, and where to stop.',
+    cta: 'Build my ask',
   },
   {
     id: 'glossary',

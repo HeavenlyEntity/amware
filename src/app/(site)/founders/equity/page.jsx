@@ -10,11 +10,8 @@ export const metadata = withSocialImage(
   'founders-equity'
 )
 
+/* The page's h1 is the tool's question, drawn visibly by the calculator's
+   header in every state (the board), so there is no sr-only one here. */
 export default function EquityCalculatorPage() {
-  return (
-    <>
-      <h1 className="sr-only">Founder equity calculator</h1>
-      <EquityCalculator />
-    </>
-  )
+  return <EquityCalculator />
 }

@@ -2,92 +2,65 @@
 
 import { fmtMoney, fmtPct } from '@/components/founders/format'
 import CountUp from '@/components/react-bits/count-up'
+import { CARD_FOOTER, ZERO_BASE_RATE } from '@/lib/founders/equity/scenarios'
 
-/* Exit scenarios as a four-row table for the selected path; the $0 row
-   comes first with kicker emphasis. Below it the "Ask sanity" line
-   compares the same offered percent under acquisition and IPO. */
+/* What the stake is worth at exit on the selected path (board `.eq-scn`):
+   four cards, `$0` first because most startup equity ends there. Every figure
+   is the engine's (`read.scenarios[path]`); the footnote is the engine's own
+   copy, not retyped.
+
+   The kicker follows the cards' basis: with no offer the engine values the
+   band middle, so it never claims to be "your offered stake". Under the cards,
+   kept from the old table: the stake at exit and the ask-sanity line. */
+
+const firstSentence = (text) => {
+  const end = text.indexOf('. ')
+  return end < 0 ? text : text.slice(0, end + 1)
+}
 
 export function ScenarioTable({ read, path }) {
   const cards = read.scenarios[path] ?? []
   const hasOffer = read.offer.pct !== null
-  const stakeAtExit = (p) => {
-    const rounds = read.rounds[p] ?? []
-    const last = rounds[rounds.length - 1]
-    if (!last)
-      return hasOffer
-        ? read.offer.pct
-        : (read.offer.range.lo + read.offer.range.hi) / 2
-    return hasOffer && last.stakeOffer !== null
-      ? last.stakeOffer
-      : last.stakeMid
-  }
+  const basis = cards[0]?.basis ?? (hasOffer ? 'offer' : 'midpoint')
+  const stakeAtExit = cards[0]?.stake ?? null
 
   return (
     <div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="amw-kicker text-left">
-            <th
-              scope="col"
-              className="border-[var(--amw-line)] border-b pb-2 pr-3 font-medium"
-            >
-              Outcome
-            </th>
-            <th
-              scope="col"
-              className="border-[var(--amw-line)] border-b pb-2 pr-3 font-medium"
-            >
-              Exit value
-            </th>
-            <th
-              scope="col"
-              className="border-[var(--amw-line)] border-b pb-2 text-right font-medium"
-            >
-              Your stake
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {cards.map((card) => {
-            const zero = card.id === 'zero'
-            return (
-              <tr
-                key={card.id}
-                className={
-                  zero
-                    ? 'bg-[var(--amw-muted)]'
-                    : 'border-[var(--amw-line)] border-b'
-                }
-              >
-                <td
-                  className={`py-2.5 pr-3 ${
-                    zero ? 'amw-kicker' : 'text-zinc-800 dark:text-zinc-200'
-                  }`}
-                >
-                  {card.label}
-                </td>
-                <td className="amw-mono py-2.5 pr-3 tabular-nums text-zinc-700 dark:text-zinc-300">
-                  {zero ? '—' : fmtMoney(card.valuation)}
-                </td>
-                <td className="amw-mono py-2.5 text-right tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {zero ? (
-                    fmtMoney(card.value)
-                  ) : (
-                    <CountUp
-                      key={`${path}-${card.id}-${card.value}`}
-                      to={card.value}
-                      duration={0.9}
-                      format={fmtMoney}
-                    />
-                  )}
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-      <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-        Stake at exit {fmtPct(stakeAtExit(path))}.
+      <p className="amw-wz-kicker">
+        {basis === 'offer'
+          ? 'What your offered stake is worth at exit'
+          : 'What the band middle is worth at exit'}
+      </p>
+      <ul role="list" className="amw-wz-scn mt-3">
+        {cards.map((card) => {
+          const zero = card.id === 'zero'
+          return (
+            <li key={card.id} className="amw-wz-scn-card">
+              <span className="amw-wz-kicker">{card.label}</span>
+              <span className="amw-wz-scn-value">
+                {zero ? (
+                  fmtMoney(card.value)
+                ) : (
+                  <CountUp
+                    key={`${path}-${card.id}-${card.value}`}
+                    to={card.value}
+                    duration={0.9}
+                    format={fmtMoney}
+                  />
+                )}
+              </span>
+              <span className="text-[var(--amw-mut)] mt-1 block text-xs">
+                {zero ? card.note : `at a ${fmtMoney(card.valuation)} exit`}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+      <p className="amw-wz-hint">
+        {CARD_FOOTER} {firstSentence(ZERO_BASE_RATE)}
+      </p>
+      <p className="amw-wz-hint" style={{ marginTop: 4 }}>
+        Stake at exit {fmtPct(stakeAtExit)}.
         {hasOffer && read.askSanity && (
           <>
             {' '}
@@ -95,8 +68,7 @@ export function ScenarioTable({ read, path }) {
             {fmtMoney(read.askSanity.acquisition)} base · under IPO ≈{' '}
             {fmtMoney(read.askSanity.ipo)} base.
           </>
-        )}{' '}
-        Assumes fully vested, no liquidation preferences, no tax.
+        )}
       </p>
     </div>
   )

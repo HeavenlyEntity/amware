@@ -1,11 +1,20 @@
 'use client'
 
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, PenLine } from 'lucide-react'
 
-import { trackPrinted } from '@/components/founders/analytics'
+import '@/styles/founders-offer.css'
+import { trackCta, trackPrinted } from '@/components/founders/analytics'
+import { announceDesk } from '@/components/founders/desk-toast'
 import { useClipboard } from '@/components/founders/use-clipboard'
+import {
+  BackButton,
+  MonoLink,
+  TextButton,
+} from '@/components/founders/wizard/buttons'
 import { askForClipboard } from '@/lib/founders/handoff'
+import { useOfferStore } from '@/lib/founders/offer-store'
 import { GEO_OPTIONS, INDUSTRY_OPTIONS } from '@/lib/founders/offer-steps'
+import { REVIEW_HREF } from '@/lib/founders/tools'
 
 /*
  * What the reader does next.
@@ -15,15 +24,20 @@ import { GEO_OPTIONS, INDUSTRY_OPTIONS } from '@/lib/founders/offer-steps'
  * Without a way to act on it the page ends as a report about someone's own
  * offer, which they then have to translate into their own words while anxious.
  * "Copy the ask" is the primary action for that reason, and it is the only
- * accent-filled control on the results screen (DESIGN.md budgets teal for the
- * primary CTA; the ladder's target rung earns its weight from scale instead).
+ * accent-filled control on the results screen.
  *
  * IT COPIES SENTENCES, NOT A TABLE. See `askForClipboard`. Numbers alone are a
- * demand; the reasons and their sources are what make it an ask.
+ * demand; the reasons and their sources are what make it an ask. A copy says
+ * so twice: the button's own `aria-live` label, and the desk's toast. A
+ * blocked clipboard reveals the text, focused and selected, instead.
  *
- * PRINT IS THE LONG FORM. The screen's collapsed plot rows are `print:block`,
- * so the printed sheet carries the ladder, the whole company list and the
- * citations. Copy is for a reply, print is for a meeting.
+ * PRINT IS THE LONG FORM. The plot's collapsed rows print open, so the
+ * printed sheet carries the ladder, the whole company list and the citations.
+ * Copy is for a reply, print is for a meeting.
+ *
+ * REVIEW. "Review my offer" records the ask (`markAsked`, from this tool) so
+ * the review form opens prefilled from this store, on this device only. A
+ * quiet link, not a second teal button: two primaries side by side is a menu.
  */
 
 export function AskActions({ ask, onEdit, onClear }) {
@@ -34,59 +48,57 @@ export function AskActions({ ask, onEdit, onClear }) {
     geoOptions: GEO_OPTIONS,
   })
 
-  const secondary =
-    'border-[var(--amw-line-strong)] bg-[var(--amw-card)] min-h-11 hover:border-[var(--amw-accent-ink)] inline-flex items-center rounded-md border px-4 text-sm font-medium text-zinc-800 transition-colors dark:text-zinc-200'
-  const quiet =
-    'hover:text-[var(--amw-accent-ink)] text-sm text-zinc-600 underline underline-offset-4 transition-colors dark:text-zinc-400'
+  const copied = state === 'copied'
 
   return (
-    <div className="mt-10" data-print="hide">
-      <div className="flex flex-wrap items-center gap-4">
+    <div className="mt-8" data-print="hide">
+      <div className="amw-jo-actions">
         {text && (
           <button
             type="button"
-            onClick={() => copy(text)}
-            className="bg-[var(--amw-accent)] text-zinc-950 min-h-11 group inline-flex w-full items-center justify-center gap-3 rounded-md px-5 font-medium transition-all duration-500 ease-out hover:rounded-[50px] sm:w-auto"
+            onClick={async () => {
+              if (await copy(text)) announceDesk('Your ask is on the clipboard')
+            }}
+            className="amw-jo-copy"
+            data-done={copied ? 'true' : undefined}
           >
             {/* aria-live on the label, so a screen reader hears the
                 confirmation instead of only seeing it. */}
-            <span aria-live="polite">
-              {state === 'copied' ? 'Copied' : 'Copy the ask'}
-            </span>
-            {state === 'copied' ? (
-              <Check aria-hidden="true" className="size-4" />
+            <span aria-live="polite">{copied ? 'Copied' : 'Copy the ask'}</span>
+            {copied ? (
+              <Check
+                aria-hidden="true"
+                className="size-[18px]"
+                strokeWidth={2.75}
+              />
             ) : (
-              <Copy aria-hidden="true" className="size-4" />
+              <Copy aria-hidden="true" className="size-[18px]" />
             )}
           </button>
         )}
 
-        <button type="button" onClick={onEdit} className={secondary}>
+        <BackButton
+          onClick={onEdit}
+          icon={<PenLine className="size-4" aria-hidden="true" />}
+        >
           Edit answers
-        </button>
+        </BackButton>
 
-        <button
-          type="button"
+        <TextButton
           onClick={() => {
             trackPrinted()
             window.print()
           }}
-          className={quiet}
         >
           Print
-        </button>
+        </TextButton>
 
-        <button type="button" onClick={onClear} className={quiet}>
-          Clear my answers
-        </button>
+        <TextButton onClick={onClear}>Clear my answers</TextButton>
       </div>
 
       {state === 'fallback' && (
         <div className="mt-4">
-          <label
-            htmlFor="ask-fallback"
-            className="text-xs text-zinc-500 dark:text-zinc-400"
-          >
+          <label htmlFor="ask-fallback" className="amw-wz-hint mt-0 block">
             Your browser blocked the clipboard. Select all and copy:
           </label>
           <textarea
@@ -95,10 +107,26 @@ export function AskActions({ ask, onEdit, onClear }) {
             readOnly
             value={text}
             rows={10}
-            className="border-[var(--amw-line-strong)] bg-[var(--amw-card)] amw-mono mt-2 w-full rounded-md border p-3 text-xs"
+            className="amw-jo-fallback"
           />
         </div>
       )}
+
+      <div className="mt-6">
+        <MonoLink
+          href={REVIEW_HREF}
+          onClick={() => {
+            useOfferStore.getState().markAsked({ from: 'job-offer' })
+            trackCta()
+          }}
+        >
+          Review my offer →
+        </MonoLink>
+        <p className="amw-wz-hint">
+          Your ask is carried into the form on this device only; nothing goes
+          into the link or leaves your browser.
+        </p>
+      </div>
     </div>
   )
 }

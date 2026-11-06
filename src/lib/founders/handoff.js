@@ -12,13 +12,15 @@ import { fmtMoney, fmtPct } from './equity/brief.js'
  */
 
 /**
- * Build the subject and the filled message for the contact form from a
- * read: the seat, the offer, the read itself, the leaver terms, then the
- * full plain-text brief so nothing has to be retyped.
+ * The labelled lines of the brief, one per fact, in the order an advisor reads
+ * them. The review page renders these as toggleable rows, and
+ * `briefForContact()` joins them into its message, so the two can never
+ * disagree. `label` is the brief's own label (what the owner receives);
+ * `short` is the review board's row label.
  * @param {object} read a computeRead() result
- * @returns {{ subject: string, message: string }}
+ * @returns {Array<{ id: string, label: string, short: string, value: string, line: string }>}
  */
-export function briefForContact(read) {
+export function briefLines(read) {
   const { inputs, classification, offer, adjustments, leaver, brief } = read
   const hasOffer = offer.pct !== null
   const salary =
@@ -29,53 +31,122 @@ export function briefForContact(read) {
           adjustments.salary.gap >= 0 ? 'below' : 'above'
         })`
       : `not entered (market ${fmtMoney(inputs.marketSalary)})`
-  const lines = [
-    `Role and seat: ${LABELS.role[inputs.role]}, ${LABELS.joining[
-      inputs.joining
-    ].toLowerCase()}`,
-    `Stage (last closed round): ${LABELS.stage[inputs.stageKey]}`,
-    `Offered equity: ${
+  const rows = [
+    [
+      'seat',
+      'Role and seat',
+      'Seat',
+      `${LABELS.role[inputs.role]}, ${LABELS.joining[
+        inputs.joining
+      ].toLowerCase()}`,
+    ],
+    [
+      'stage',
+      'Stage (last closed round)',
+      'Stage',
+      LABELS.stage[inputs.stageKey],
+    ],
+    [
+      'equity',
+      'Offered equity',
+      'Equity offered',
       hasOffer
         ? `${fmtPct(offer.pct)}% fully diluted${
             offer.mode === 'shares' ? ' (from option count / FD shares)' : ''
           }`
-        : 'not entered'
-    }`,
-    `Salary vs market: ${salary}`,
-    `Company’s stated exit path: ${LABELS.path[inputs.path]}`,
-    `The read: ${
-      classification.pending ? 'pending' : LABELS.class[classification.class]
-    }, range ${fmtPct(offer.range.lo)}–${fmtPct(offer.range.hi)}%${
-      hasOffer ? `, offer ${offer.position} the band` : ''
-    }`,
-    `The number to say: ${
-      offer.numberToSay?.sentence ?? brief.numberToSay?.sentence ?? ''
-    }`,
+        : 'not entered',
+    ],
+    ['salary', 'Salary vs market', 'Salary', salary],
+    [
+      'path',
+      'Company’s stated exit path',
+      'Exit path',
+      LABELS.path[inputs.path],
+    ],
+    [
+      'read',
+      'The read',
+      'The read',
+      `${
+        classification.pending ? 'pending' : LABELS.class[classification.class]
+      }, range ${fmtPct(offer.range.lo)}–${fmtPct(offer.range.hi)}%${
+        hasOffer ? `, offer ${offer.position} the band` : ''
+      }`,
+    ],
+    [
+      'say',
+      'The number to say',
+      'Number to say',
+      offer.numberToSay?.sentence ?? brief.numberToSay?.sentence ?? '',
+    ],
   ]
   if (leaver) {
-    lines.push(
-      `If it ends: ${leaver.exercise.label}; acceleration ${
+    rows.push([
+      'ends',
+      'If it ends',
+      'If it ends',
+      `${leaver.exercise.label}; acceleration ${
         LABELS.accelerationCoC[inputs.accelerationCoC]
       }, ${
         inputs.accelerationTerminationMonths
       } mo on termination; repurchase ${
         LABELS.repurchaseVested[inputs.repurchaseVested]
-      }; severance ${inputs.severanceMonths} mo`
-    )
+      }; severance ${inputs.severanceMonths} mo`,
+    ])
   }
+  return rows.map(([id, label, short, value]) => ({
+    id,
+    label,
+    short,
+    value,
+    line: `${label}: ${value}`,
+  }))
+}
+
+/** The subject line for a read: "Offer review: CTO at pre-seed". */
+export function briefSubject(read) {
+  return `Offer review: ${LABELS.role[read.inputs.role]} at ${
+    LABELS.stage[read.inputs.stageKey]
+  }`
+}
+
+/**
+ * Build the subject and the filled message for the contact form from a
+ * read: the seat, the offer, the read itself, the leaver terms, then the
+ * full plain-text brief so nothing has to be retyped.
+ * @param {object} read a computeRead() result
+ * @returns {{ subject: string, message: string }}
+ */
+export function briefForContact(read) {
+  const lines = briefLines(read).map((row) => row.line)
   lines.push(
     '',
     'What I want help with: ',
     '',
     '--- Full brief ---',
-    brief.text
+    read.brief.text
   )
   return {
-    subject: `Offer review: ${LABELS.role[inputs.role]} at ${
-      LABELS.stage[inputs.stageKey]
-    }`,
+    subject: briefSubject(read),
     message: lines.join('\n'),
   }
+}
+
+/**
+ * The job offer ask as one message line: "The ask: $97k and 13.5%, floor
+ * $80k". Empty when the ladder is malformed, so a caller can drop the line.
+ * @param {object} ask a computeAsk() ladder
+ * @returns {string}
+ */
+export function askLine(ask) {
+  const target = ask?.target
+  if (!target || !Number.isFinite(target.cash)) return ''
+  const floor = Number.isFinite(ask.floor?.cash)
+    ? `, floor ${fmtMoney(ask.floor.cash)}`
+    : ''
+  return `The ask: ${fmtMoney(target.cash)} and ${fmtPct(
+    target.equityPct
+  )}%${floor}`
 }
 
 /*

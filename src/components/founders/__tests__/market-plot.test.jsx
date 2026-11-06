@@ -161,3 +161,26 @@ describe('the rows are a list, never a squeezed chart (plan test 30b)', () => {
     expect(panel.className).toMatch(/print:block/)
   })
 })
+
+describe('the board layout (Offer board)', () => {
+  it('says so in words when a bar runs past the end of the scale', () => {
+    const plot = plotFor({ role: 'cto' })
+    render(<MarketPlot plot={plot} />)
+    const over = [...plot.rows, plot.user].filter((r) => r.total > plot.domain)
+    /* The chip is drawn on the (decorative) bar; the row's name carries it
+       in words beside the total. */
+    expect(screen.queryAllByText(/^Off scale/)).toHaveLength(over.length)
+    expect(screen.queryAllByText(', off scale')).toHaveLength(over.length)
+  })
+
+  it('never lets a bar’s two segments pass 100%', () => {
+    render(<MarketPlot plot={plotFor({ role: 'cto' })} />)
+    for (const bar of document.querySelectorAll('.amw-jo-bar')) {
+      const total = [...bar.querySelectorAll('i')].reduce(
+        (sum, seg) => sum + parseFloat(seg.style.width),
+        0
+      )
+      expect(total).toBeLessThanOrEqual(100.0001)
+    }
+  })
+})

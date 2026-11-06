@@ -194,6 +194,9 @@ export function Footer() {
     <footer
       className={`amw ${pathname === '/' ? '' : 'mt-32'}`}
       data-print="hide"
+      /* The Founders' Desk dock sets this while it is mounted, so the last of
+         the footer never sits under it. Zero everywhere else. */
+      style={{ paddingBottom: 'var(--desk-dock-space, 0px)' }}
     >
       <FooterCard />
       <div className="flex justify-center py-4 text-zinc-700 dark:text-zinc-300">

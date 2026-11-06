@@ -11,10 +11,10 @@ import { classify } from './classify.js'
 import { computeDilution } from './dilution.js'
 import { computeLeaver } from './leaver.js'
 import { normalizeInputs } from './normalize.js'
+import { gapFor, positionFor } from './position.js'
 import { roundRange } from './rounding.js'
 import { computeScenarios } from './scenarios.js'
 
-const round2 = (n) => Number(n.toFixed(2))
 const round4 = (n) => Number(n.toFixed(4))
 
 /**
@@ -42,19 +42,9 @@ export function resolveOfferPct(inputs) {
   }
 }
 
-/**
- * Position the offer against the rounded range.
- * @param {number|null} pct
- * @param {{ lo: number, hi: number }} range
- * @param {boolean} pending true when the class is still unknown
- * @returns {'below'|'within'|'above'|'unknown'}
- */
-export function positionFor(pct, range, pending) {
-  if (pct === null || pending) return 'unknown'
-  if (pct < range.lo) return 'below'
-  if (pct > range.hi) return 'above'
-  return 'within'
-}
+/* `positionFor` lives in the import-free position.js so the desk landing's
+   slider can run it without shipping the engine; re-exported for callers. */
+export { positionFor }
 
 function buildRead(rawInputs, options) {
   const inputs = normalizeInputs(rawInputs)
@@ -70,13 +60,7 @@ function buildRead(rawInputs, options) {
 
   const resolved = resolveOfferPct(inputs)
   const position = positionFor(resolved.pct, range, classification.pending)
-  const gapPts =
-    position === 'below'
-      ? Object.freeze([
-          round2(range.lo - resolved.pct),
-          round2(range.hi - resolved.pct),
-        ])
-      : null
+  const gapPts = position === 'below' ? gapFor(resolved.pct, range).below : null
   const offerBase = {
     pct: resolved.pct,
     mode: resolved.mode,

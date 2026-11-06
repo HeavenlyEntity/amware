@@ -1,7 +1,10 @@
 'use client'
 
-import { pendingAfter } from '@/lib/founders/steps'
+import { STEPS } from '@/lib/founders/steps'
 import { AnimateDigits } from '@/components/founders/animate-digits'
+import { RailCard, RailChecklist } from '@/components/founders/wizard/rail'
+import { Badge } from '@/components/founders/wizard/badge'
+import { BandTrack, axisMaxFor } from '@/components/founders/wizard/band-track'
 import {
   CLASS_LABELS,
   PATH_LABELS,
@@ -10,14 +13,21 @@ import {
   fmtPct,
 } from '@/components/founders/format'
 
-/* "Your read so far": one line of what is known, a muted possible range,
-   the class badge once the work step has an answer, and the steps still
-   needed. Deliberately quiet: the display-size number belongs to the
-   results screen only. Used as the sticky desktop column, the tablet
-   card above the step, and the body of the mobile sheet. */
+/* "Your read so far", the board's live rail: what is known, the class badge
+   once the work step has an answer, the range with the band figure, a note,
+   and the checklist of what is still to answer. Used as the desktop column
+   and the body of the phone sheet.
+
+   The range is `read.offer.range`, the band after the banked-work and salary
+   adjustments (spec fork F12, option b): the same range the step 3 figure and
+   the results show, and the one `offer.position` is measured against, so the
+   rail's number, its figure and its "below the band" note cannot disagree. */
+
+const RAIL_ICONS = { seat: 'programmer', work: 'blocks', offer: 'checklist' }
 
 export function ResultsRail({ read, step, className = '' }) {
-  const { inputs, classification, band, offer } = read
+  const { inputs, classification, offer } = read
+  const range = offer.range
   const known = [
     ROLE_LABELS[inputs.role] ?? '—',
     step >= 2 && inputs.stage ? STAGE_LABELS[inputs.stage] : '—',
@@ -25,72 +35,70 @@ export function ResultsRail({ read, step, className = '' }) {
       ? `${PATH_LABELS[inputs.path]} path`
       : '—',
   ].join(' · ')
-  const classLabel = classification.pending
-    ? '?'
-    : CLASS_LABELS[classification.class] ?? '?'
   const hasClass = !classification.pending && step >= 2
   const showsOffer = step >= 3 && offer.pct !== null
+  const axisMax = axisMaxFor(range.hi, showsOffer ? offer.pct : null)
+
+  const note = hasClass
+    ? showsOffer
+      ? offer.position === 'unknown'
+        ? `Offered ${fmtPct(offer.pct)}`
+        : `Offered ${fmtPct(offer.pct)} · ${offer.position} the band`
+      : 'Offer not entered yet.'
+    : step >= 2
+    ? 'Pick what was yours to narrow it.'
+    : 'Narrows from the next step. No badge yet.'
+
+  const items = STEPS.filter((s) => s.pending).map((s) => ({
+    id: s.id,
+    label: s.pending,
+    icon: RAIL_ICONS[s.id],
+    note: `step ${s.index}`,
+    done: step > s.index || (s.id === 'offer' && showsOffer),
+  }))
 
   return (
-    <aside
-      aria-label="Your read so far"
-      className={`bg-[var(--amw-card)] border-[var(--amw-line)] rounded-2xl border p-5 ${className}`}
-    >
-      <p className="amw-kicker">Your read so far</p>
-      <p className="amw-mono mt-3 text-xs text-zinc-700 dark:text-zinc-300">
-        {known}
+    <RailCard title="Your read so far" className={className}>
+      <p className="amw-mono text-[var(--wz-ink-2)] mt-3.5 text-xs">{known}</p>
+      <div className="mt-3.5 min-h-[26px]">
+        {hasClass ? (
+          <Badge>{CLASS_LABELS[classification.class] ?? '?'}</Badge>
+        ) : (
+          <Badge quiet pop={false}>
+            No badge yet
+          </Badge>
+        )}
+      </div>
+      <p className="amw-wz-kicker mt-4">
+        {hasClass ? 'Range' : 'Possible range'}
       </p>
-      {hasClass && (
-        <p className="mt-3">
-          <span className="amw-chip amw-chip--accent">{classLabel}</span>
-        </p>
-      )}
-      <p className="amw-mono mt-3 text-2xl tabular-nums text-zinc-500 dark:text-zinc-400">
-        {hasClass ? 'Range' : 'Possible range'}{' '}
-        <AnimateDigits value={`${fmtPct(band.lo)}–${fmtPct(band.hi)}`} />
+      <p className="amw-wz-rail-range">
+        <AnimateDigits value={`${fmtPct(range.lo)}–${fmtPct(range.hi)}`} />
       </p>
-      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-        {hasClass
-          ? showsOffer
-            ? offer.position === 'unknown'
-              ? `Offered ${fmtPct(offer.pct)}`
-              : `Offered ${fmtPct(offer.pct)} · ${offer.position} the band`
-            : 'Offer not entered yet.'
-          : step >= 2
-          ? 'Pick what was yours to narrow it.'
-          : 'Narrows from the next step. No badge yet.'}
-      </p>
+      <BandTrack
+        lo={range.lo}
+        hi={range.hi}
+        offer={showsOffer ? offer.pct : null}
+        max={axisMax}
+        className="mt-3"
+      />
+      <p className="amw-wz-hint">{note}</p>
       {classification.pending && step >= 2 && (
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="amw-wz-hint" style={{ marginTop: 2 }}>
           Work: re-answer for {ROLE_LABELS[inputs.role]}.
         </p>
       )}
-      <StillNeeded step={step} inputs={inputs} />
-    </aside>
-  )
-}
-
-function StillNeeded({ step, inputs }) {
-  const pending = pendingAfter(step)
-  const rows = [
-    ...pending.map((s) => ({ label: s.pending, note: `step ${s.index}` })),
-  ]
-  if (step >= 2 && inputs.joining !== 'fractional_conversion') {
-    rows.unshift({ label: 'Banked work', note: 'n/a (salaried)' })
-  }
-  if (rows.length === 0) return null
-  return (
-    <dl className="mt-4">
-      <dt className="amw-kicker mb-1">Still needed</dt>
-      {rows.map((row) => (
-        <dd
-          key={row.label}
-          className="border-[var(--amw-line)] flex justify-between gap-3 border-t border-dashed py-1.5 text-xs text-zinc-600 dark:text-zinc-400"
-        >
-          <span>{row.label}</span>
-          <span className="amw-mono">{row.note}</span>
-        </dd>
-      ))}
-    </dl>
+      <RailChecklist items={items} className="mt-4">
+        {step >= 2 && inputs.joining !== 'fractional_conversion' && (
+          <p
+            className="amw-wz-need"
+            style={{ justifyContent: 'space-between' }}
+          >
+            <span>Banked work</span>
+            <span className="amw-wz-need-note">n/a (salaried)</span>
+          </p>
+        )}
+      </RailChecklist>
+    </RailCard>
   )
 }
