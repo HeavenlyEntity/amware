@@ -2,14 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import {
-  ArrowDown,
-  ChevronRight,
-  Crown,
-  Database,
-  Mail,
-  Rocket,
-} from 'lucide-react'
+import { ArrowRight, ChevronRight, Database, Mail, Rocket } from 'lucide-react'
 
 import { EmailCapture } from '@/components/commerce/EmailCapture'
 import Dither from '@/components/react-bits/dither'
@@ -129,7 +122,7 @@ function Hero({ anyOnSale, stack, onPick }) {
               <a href="#st-join" className="pj-btn">
                 <span>Join the waitlist</span>
                 <span className="pj-btn-dot">
-                  <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </span>
               </a>
               <Link href="/products" className="pj-ghost">
@@ -208,6 +201,7 @@ function Join({ stack }) {
               subject={kitWaitlistSubject('Standard', label)}
               message={`Notify me when the WareKit Standard edition ${label} kit ships.`}
               cta="Notify me"
+              tone="pill"
               note={`One email when the ${label} kit ships. Nothing else.`}
               successMessage={(address) => (
                 <>
@@ -231,7 +225,18 @@ function NetsuiteCard({ anyOnSale, liteFree }) {
       <Reveal>
         <Link href="/products" className="ns-card">
           <span className="ns-crown" aria-hidden="true">
-            <Crown width={26} height={26} strokeWidth={1.8} />
+            {/* The board's crown, the same mark as the guide covers. */}
+            <svg
+              width="26"
+              height="19"
+              viewBox="0 0 28 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+            >
+              <path d="M2 18h24M3 14 2 3l7 5 5-7 5 7 7-5-1 11z" />
+            </svg>
           </span>
           <span className="oe-main">
             <span className="pj-kicker pj-kicker--accent">

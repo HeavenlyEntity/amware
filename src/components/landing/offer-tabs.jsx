@@ -15,8 +15,19 @@ import { useReducedMotion } from '@/components/AccessibilityProvider'
 
 /* `id` is shared with the panels, which the parent renders; both sides
    derive their element ids from it so aria-controls and aria-labelledby
-   point at real elements. */
-export function OfferTabs({ id, tabs, value, onChange, label }) {
+   point at real elements.
+
+   `variant` is the look only: 'accent' (the default, the homepage's accent
+   fill) or 'solid' (the services board's grey pill on a dark track,
+   `.amw-tabs--solid` in services.css). Both slide and both keep every key. */
+export function OfferTabs({
+  id,
+  tabs,
+  value,
+  onChange,
+  label,
+  variant = 'accent',
+}) {
   const reduce = useReducedMotion()
   const refs = useRef([])
 
@@ -43,7 +54,9 @@ export function OfferTabs({ id, tabs, value, onChange, label }) {
     <div
       role="tablist"
       aria-label={label}
-      className="amw-tabs mx-auto inline-flex"
+      className={`amw-tabs mx-auto inline-flex${
+        variant === 'solid' ? ' amw-tabs--solid' : ''
+      }`}
     >
       {tabs.map((tab, i) => {
         const selected = tab.id === value

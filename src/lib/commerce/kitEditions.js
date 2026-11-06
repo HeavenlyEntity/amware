@@ -28,7 +28,9 @@ import { checkoutRoute } from './checkoutRoute'
  */
 const STACKS = { 'react-netsuite': 'react', 'next-netsuite': 'next' }
 const TIER_SEATS = { lite: 1, pro: 1, team: 5 }
-/* Lite does not track NetSuite accounts, so it has no number to show. */
+/* Lite does not track NetSuite accounts, so it has no number to show.
+   TODO(alec): the fallback of 3 accounts for Team comes from the PR 20
+   licensing model, not the board. Confirm it matches the licence text. */
 const TIER_ACCOUNTS = { lite: null, pro: 1, team: 3 }
 
 const STATUS_LABELS = {

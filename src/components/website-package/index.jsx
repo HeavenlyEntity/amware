@@ -11,14 +11,21 @@ import { Microinteractions } from './microinteractions'
 import { Copywriting } from './copywriting'
 import { Consultation } from './consultation'
 import { GlobeCard } from './globe-card'
-import * as Icons from './icons'
+import { PREMIUM_ICONS } from './premium-icons'
 
 /* Ported from the studio template's Services section: four cards whose
    illustrations play when the card is hovered, a full-width card with a
    3D globe, and a feature list. Rebranded onto the amw tokens and reworded
    to say what a website build with Alec includes. The template's "Trusted
    by 100+ companies", made-up logos and avatar pins are gone; the globe
-   card carries the call to action instead. */
+   card carries the call to action instead.
+
+   Restyled to the services board (Main.dc.html, Build & support): a rounded,
+   hatched panel (.svc-panel), dark cards on it in the dark theme, the cards
+   in an auto-fit grid, and the feature list on the board's premium duotone
+   icons in their 56px tiles (.svc-pi-tile). The classes live in
+   services.css. The illustrations and their hover choreography are
+   unchanged. */
 
 function Card({ children, className = '' }) {
   const reduce = useReducedMotion()
@@ -26,7 +33,7 @@ function Card({ children, className = '' }) {
     <motion.div
       whileHover={reduce ? undefined : 'animate'}
       initial="initial"
-      className={`bg-[var(--amw-muted)] relative rounded-2xl ${className}`}
+      className={`svc-wp-card relative rounded-2xl ${className}`}
     >
       {children}
     </motion.div>
@@ -51,9 +58,9 @@ export function WebsitePackage() {
   return (
     <section
       aria-labelledby="website-package-heading"
-      className="relative mx-auto max-w-[calc(72rem-10px)] overflow-hidden py-4 [--pattern-fg:var(--amw-grid)] md:py-16"
+      className="svc-panel svc-panel--package"
     >
-      <div className="mask-b-from-50% absolute inset-0">
+      <div aria-hidden="true" className="svc-panel-hatch">
         <Pattern />
       </div>
 
@@ -68,8 +75,8 @@ export function WebsitePackage() {
         </span>
       </h2>
 
-      <div className="relative mt-6 px-4 md:mt-12">
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="relative mt-12 px-4">
+        <div className="svc-wp-grid mx-auto max-w-5xl">
           <Card>
             <div className="h-80">
               <DesigningSkeleton />
@@ -94,7 +101,7 @@ export function WebsitePackage() {
             </div>
             <CardText {...cards.consultation} />
           </Card>
-          <Card className="min-h-100 col-span-1 overflow-hidden md:col-span-2">
+          <Card className="min-h-100 svc-wp-wide overflow-hidden">
             <GlobeCard className="size-160 md:size-180 md:-bottom-70 absolute -bottom-96 -right-72 z-10" />
             <div className="relative z-20 mt-6 flex flex-col px-8 pb-8">
               <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
@@ -119,18 +126,14 @@ export function WebsitePackage() {
           </Card>
         </div>
 
-        <ul className="mx-auto mt-8 grid max-w-5xl grid-cols-1 gap-10 px-4 md:mt-24 md:grid-cols-3 md:gap-5 md:px-8">
+        <ul className="svc-pi-list mx-auto max-w-5xl">
           {features.map((feature) => {
-            const Icon = Icons[feature.icon]
+            const Icon = PREMIUM_ICONS[feature.icon]
             return (
-              <li
-                key={feature.title}
-                className="flex flex-row items-center gap-2 md:flex-col md:items-start md:gap-4"
-              >
-                <Icon
-                  className="size-6 text-zinc-600 dark:text-zinc-400"
-                  aria-hidden="true"
-                />
+              <li key={feature.title} className="svc-pi-host">
+                <span className="svc-pi-tile" aria-hidden="true">
+                  <Icon />
+                </span>
                 <h3 className="text-base font-medium text-zinc-900 dark:text-zinc-100">
                   {feature.title}
                 </h3>

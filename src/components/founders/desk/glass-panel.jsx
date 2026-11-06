@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { useInView } from 'motion/react'
 
 import { useDeskWebGL } from '@/components/founders/desk/use-desk-webgl'
 import '@/styles/founders-desk.css'
@@ -24,9 +25,12 @@ import '@/styles/founders-desk.css'
  * is passed to FluidGlass as is (see src/components/react-bits/fluid-glass).
  * The text colour follows the theme's ink unless `lens.textColor` is set.
  *
- * Props: { children, className, label, lens } where `label` names the panel
- * for assistive tech when it is decorative-plus-figure. Without `label` the
- * panel is decorative and hidden from assistive tech.
+ * Props: { children, className, label, lens, lazy } where `label` names the
+ * panel for assistive tech when it is decorative-plus-figure. Without `label`
+ * the panel is decorative and hidden from assistive tech. `lazy` (default
+ * false) holds the lens back until the panel is within 200px of the
+ * viewport, for a panel far down a page that should not open a WebGL context
+ * while the visitor is still reading the top of it.
  */
 
 const FluidGlass = dynamic(
@@ -39,10 +43,18 @@ const FluidGlass = dynamic(
 
 const LENS_FONT = 'Layer, sans-serif'
 
-export function GlassPanel({ children, className = '', label, lens }) {
+export function GlassPanel({
+  children,
+  className = '',
+  label,
+  lens,
+  lazy = false,
+}) {
+  const ref = useRef(null)
   const webgl = useDeskWebGL()
+  const near = useInView(ref, { once: true, margin: '200px' })
   const [fontReady, setFontReady] = useState(false)
-  const wantsLens = Boolean(lens?.text) && webgl
+  const wantsLens = Boolean(lens?.text) && webgl && (!lazy || near)
 
   useEffect(() => {
     if (!wantsLens || fontReady) return undefined
@@ -63,6 +75,7 @@ export function GlassPanel({ children, className = '', label, lens }) {
 
   return (
     <div
+      ref={ref}
       role={label ? 'group' : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}

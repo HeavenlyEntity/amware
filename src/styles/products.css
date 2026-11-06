@@ -1228,6 +1228,10 @@
 .st-title {
   max-width: 14ch;
 }
+/* The board's intro is a touch narrower than the shared 32rem. */
+.st-grid .pj-intro {
+  max-width: 30rem;
+}
 .ed-card {
   position: relative;
   isolation: isolate;

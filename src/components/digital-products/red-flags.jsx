@@ -83,6 +83,8 @@ export function RedFlags() {
           <h2 id="gd-rf-title" className="pj-h2">
             Score your dev-shop contract before you sign it.
           </h2>
+          {/* TODO(alec): "about twenty minutes" is the board's figure, with no
+              source in the repo. Confirm it against a timed read. */}
           <p className="pj-lead">
             Seven clauses, checked in order, about twenty minutes. Mark each one
             as it reads in your contract.
@@ -115,6 +117,9 @@ export function RedFlags() {
             <p className="gd-get-d">
               Two pages with the green-flag fix for each clause, free.
             </p>
+            {/* TODO(alec): "No newsletter unless you ask" is a promise about
+                mail handling. Confirm the contact flow never subscribes the
+                address. */}
             <EmailCapture
               subject={RED_FLAGS_SUBJECT}
               message="Send me the Dev Shop Contract Red Flags checklist."

@@ -80,6 +80,8 @@ export const projects = [
           b: 'In active development ahead of a Phoenix-metro launch, with motorcycle support on the way and a walkie-talkie channel being tested state by state.',
         },
       ],
+      /* TODO(alec): "2019 · Building since" has no source beyond the story,
+         and the project's own date is 2026. Confirm it. */
       results: [
         {
           v: '2019',
@@ -154,6 +156,7 @@ export const projects = [
       team: {
         size: 0,
         label: 'CTO-led',
+        /* TODO(alec): "CTO since 2024" isn't in about.js. Confirm it. */
         note: 'Alec has been CTO at EdenKode since 2024. The guiding decision: AI drafts, humans decide.',
       },
       stack: ['AI scoring', 'Data room', 'NDA signing', 'Billing'],
@@ -251,6 +254,9 @@ export const projects = [
           b: 'Live and delivering AI-powered solutions for growing brands and teams.',
         },
       ],
+      /* TODO(alec): "100+ projects shipped", "4.9★ client rating" and the
+         "1–2 wk" blueprint have no source in the repo. Confirm and cite them
+         (kingdomkode.com?), here and in the Payload record. */
       results: [
         {
           v: '100+',
@@ -314,6 +320,7 @@ export const projects = [
           v: '3',
           l: 'Developers on the team',
         },
+        /* TODO(alec): "Largest" is a superlative with no named source. */
         {
           v: 'Largest',
           l: 'GSC companies partnered',
@@ -433,6 +440,8 @@ export const projects = [
           b: 'Early-development SaaS with customer-market fit and growing, associated with the OneDay Program.',
         },
       ],
+      /* TODO(alec): "2020 · Founded", but the entry's date is 08/15/24, so the
+         timeline puts MiPi in 2024. Confirm which, here and in Payload. */
       results: [
         {
           v: '2020',
@@ -671,6 +680,8 @@ export const projects = [
           v: '1',
           l: 'Command to cut a release',
         },
+        /* TODO(alec): the 10% figure has no source in this repo (probably
+           the chamoji repo's benchmark). Cite it. */
         {
           v: '10%',
           l: 'Median unsorted, 6 public repos, no AI',

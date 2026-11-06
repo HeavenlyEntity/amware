@@ -155,6 +155,8 @@ export const REFUND_NOTE =
 export const UPGRADE_NOTE = 'Already on Pro? Pay only the difference.'
 export const UPGRADE_HREF = '/access/resend?intent=upgrade'
 export const ENTERPRISE_CTA = 'Talk to me about Enterprise'
+/* TODO(alec): "quoted per deal, with the limits set to fit you" is a licence
+   term the board doesn't carry. Confirm it against the licence text. */
 export const ENTERPRISE_NOTE =
   'More than five developers is past Team. Enterprise is quoted per deal, with the limits set to fit you.'
 
@@ -261,6 +263,8 @@ export const QUESTIONS = [
 /* A row of `cells: 'price'`, `'status'`, `'developers'` or `'accounts'` is
    filled from Payload, so no limit is typed twice. `note` sits under the
    row's label. `rec` is the recommended column. */
+/* TODO(alec): sandboxes and Release Preview not counting is a licence term
+   the board doesn't carry. Confirm it against the licence text. */
 export const ACCOUNTS_NOTE =
   "Yours or a client's. Sandboxes and Release Preview don't count."
 const ACCOUNTS_ROW = {
@@ -436,6 +440,8 @@ export const STANDARD_STEPS = [
   },
   {
     icon: 'rocket',
+    /* TODO(alec): a promise about build order, from the board. Confirm the
+       waitlist counts really set it. */
     title: 'The top pick ships first',
     copy: 'Waitlist signups per data layer set the order the kits get built.',
   },

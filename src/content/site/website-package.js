@@ -1,7 +1,9 @@
 /* What a website build includes, as the /services "Build & support" tab
    shows it. The owner confirms or strikes each line before merge
    (docs/superpowers/specs/2026-09-25-services-template-port-design.md).
-   Every line must be something the build actually delivers. */
+   Every line must be something the build actually delivers. Each feature's
+   `icon` names one of the board's premium icons
+   (components/website-package/premium-icons.jsx). */
 
 export const WEBSITE_PACKAGE = {
   heading: {
@@ -37,14 +39,14 @@ export const WEBSITE_PACKAGE = {
   },
   features: [
     {
-      icon: 'WebsiteDevelopment',
+      icon: 'ProgrammerIcon',
       title: 'Design and development by one engineer',
     },
-    { icon: 'MobileResponsive', title: 'Responsive on every screen' },
-    { icon: 'DarkAndLightMode', title: 'Dark and light mode' },
-    { icon: 'TechStack', title: 'Modern stack (Next.js, React, Tailwind)' },
-    { icon: 'Communication', title: 'Regular check-ins' },
-    { icon: 'FutureUpdates', title: 'Built to change after launch' },
+    { icon: 'ResponsiveIcon', title: 'Responsive on every screen' },
+    { icon: 'CustomizeIcon', title: 'Dark and light mode' },
+    { icon: 'CodeIcon', title: 'Modern stack (Next.js, React, Tailwind)' },
+    { icon: 'TasksIcon', title: 'Regular check-ins' },
+    { icon: 'RocketIcon', title: 'Built to change after launch' },
   ],
   cta: { label: 'Start a website build', href: '/contact' },
 }

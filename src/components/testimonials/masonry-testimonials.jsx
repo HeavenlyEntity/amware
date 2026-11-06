@@ -5,14 +5,15 @@ import { masonryGridColsClass } from './masonry-grid'
    testimonial not already in the bento, as a wall of quote cards whose
    column count never strands one card alone on the last row. It renders
    nothing when nothing is left over. In production it holds the
-   employment references, which stay out of the bento. */
+   employment references, which stay out of the bento. Spaced like the bento
+   above it: 16px between cards and below it. */
 
 export function MasonryTestimonials({ items }) {
   if (!items?.length) return null
   return (
-    <section aria-label="More testimonials" className="w-full pb-1 pt-1">
-      <div className="mx-auto max-w-6xl px-1.5">
-        <div className={`grid gap-1 ${masonryGridColsClass(items.length)}`}>
+    <section aria-label="More testimonials" className="mt-4 w-full">
+      <div className="mx-auto max-w-[calc(72rem-10px)]">
+        <div className={`grid gap-4 ${masonryGridColsClass(items.length)}`}>
           {items.map((t) => (
             <figure
               key={t.id}

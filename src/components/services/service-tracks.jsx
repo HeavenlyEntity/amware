@@ -11,7 +11,10 @@ import { SERVICE_TRACKS, trackFromHash } from '@/lib/services/tracks'
 
    The selected tab is the URL hash, read as an external store: a link to
    #build-support opens that tab, and clicking a tab rewrites the hash with
-   replaceState (no history entry, no scroll jump) and tells the store. */
+   replaceState (no history entry, no scroll jump) and tells the store.
+
+   `variant` is passed to OfferTabs: /services uses the board's 'solid'
+   pill. */
 
 const TRACK_EVENT = 'amw:service-track'
 
@@ -27,7 +30,7 @@ function subscribe(onChange) {
 const readHash = () => window.location.hash
 const serverHash = () => ''
 
-export function ServiceTracks({ panels }) {
+export function ServiceTracks({ panels, variant = 'accent' }) {
   const id = useId()
   const hash = useSyncExternalStore(subscribe, readHash, serverHash)
   const hashTrack = trackFromHash(hash)
@@ -42,7 +45,7 @@ export function ServiceTracks({ panels }) {
   }
 
   return (
-    <div className="mt-10 sm:mt-12">
+    <div className="mt-10">
       <div className="text-center">
         <OfferTabs
           id={id}
@@ -50,6 +53,7 @@ export function ServiceTracks({ panels }) {
           value={tab}
           onChange={choose}
           label="Choose a track"
+          variant={variant}
         />
       </div>
       {SERVICE_TRACKS.map((track) => (
@@ -62,7 +66,7 @@ export function ServiceTracks({ panels }) {
           role="tabpanel"
           hidden={tab !== track.id}
           tabIndex={0}
-          className="mt-10 sm:mt-12"
+          className="mt-10"
         >
           {panels[track.id]}
         </div>

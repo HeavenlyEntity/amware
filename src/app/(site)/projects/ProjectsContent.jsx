@@ -110,6 +110,9 @@ export default function ProjectsContent({ projects, benchCount, currentYear }) {
           <h2 id="pj-bench-title" className="pj-h2">
             What I&apos;m building now.
           </h2>
+          {/* TODO(alec): the bench is now the admin's onBench ticks (up to
+              three), not necessarily the newest. Reword, or derive it from
+              the bench count. */}
           <p className="pj-lead">
             The three newest builds. Founder products first, then the client
             work that keeps the playbook sharp.
