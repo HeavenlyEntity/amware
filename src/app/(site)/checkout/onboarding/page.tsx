@@ -21,6 +21,16 @@ import { licenseLimits } from '@/lib/commerce/license'
 import { currentKey, licenseFromClaims } from '@/lib/commerce/licenseRecord'
 import { verifyOnboardingLink } from '@/lib/commerce/onboardingLink'
 import type { Purchase } from '@/payload-types'
+import {
+  SetupEyebrow,
+  SetupProgress,
+  SetupStepper,
+  UntilSent,
+} from '@/components/commerce/SetupProgress'
+import { ChevronCta, RingLink } from '@/components/site/ChevronCta'
+import { HighlightedText } from '@/components/warekit/kit-story'
+import { NextStepsStrip } from '@/components/warekit/next-steps-strip'
+import { storyFor } from '@/content/site/warekit'
 
 export const dynamic = 'force-dynamic'
 export const metadata = {
@@ -78,28 +88,116 @@ export const metadata = {
  * buyer sees, ending on the license page.
  */
 
+/* Where the buyer is in setup, for a paid kit. The page knows whether the
+   account is on file; the form reports when it is accepted. */
+type Progress = { accountDone: boolean; asking?: boolean }
+
 function Shell({
   title,
+  progress,
+  after,
   children,
 }: {
   title: string
+  /** A paid kit: the stepper, and `step N of 3` in place of `// setup`. */
+  progress?: Progress
+  /** Below the column, at the wider measure: the "what happens next" strip
+      and the keep-this-link line. */
+  after?: React.ReactNode
   children: React.ReactNode
 }) {
-  return (
-    <Container className="mt-16 sm:mt-32">
-      <div className="amw mx-auto max-w-2xl">
-        <p className="amw-eyebrow">{'// setup'}</p>
-        <h1 className="mt-5 text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-5xl">
+  const page = (
+    <div className="amw mx-auto max-w-[60rem]">
+      <div className="mx-auto max-w-[40rem]">
+        {progress && <SetupStepper />}
+        <div
+          className={`amw-kit-rise ${progress ? 'mt-14' : ''}`}
+          style={{ '--i': 1 } as React.CSSProperties}
+        >
+          {progress ? (
+            <SetupEyebrow />
+          ) : (
+            <p className="amw-eyebrow">{'// setup'}</p>
+          )}
+        </div>
+        <h1
+          className="amw-kit-blur mt-5 text-4xl font-bold leading-[1.04] tracking-[-0.035em] text-zinc-900 dark:text-zinc-50 sm:text-5xl lg:text-[3.5rem]"
+          style={{ '--i': 2 } as React.CSSProperties}
+        >
           {title}
         </h1>
-        {children}
+        <div
+          className="amw-kit-rise"
+          style={{ '--i': 3 } as React.CSSProperties}
+        >
+          {children}
+        </div>
       </div>
+      {after}
+    </div>
+  )
+  return (
+    <Container className="mt-16 sm:mt-28">
+      {progress ? (
+        <SetupProgress
+          accountDone={progress.accountDone}
+          asking={progress.asking}
+        >
+          {page}
+        </SetupProgress>
+      ) : (
+        page
+      )}
     </Container>
   )
 }
 
+/* The subline under the title: the copy as it always was, with the home
+   hero's highlight on its last phrase. */
+const LEAD =
+  'mt-5 text-lg leading-[1.7] tracking-[-0.01em] text-[var(--amw-mut)] sm:text-xl'
+const BODY = 'mt-6 text-base leading-relaxed text-[var(--amw-mut)]'
+const SMALL = 'mt-4 text-sm leading-relaxed text-[var(--amw-mut)]'
+
+function KitLead({ delivered }: { delivered: boolean }) {
+  const lead = (
+    <p className={LEAD}>
+      {delivered ? (
+        <HighlightedText
+          text="Payment received. Here is everything you need."
+          phrases={['everything you need']}
+        />
+      ) : (
+        <HighlightedText
+          text="One more step and the repository is in your hands."
+          phrases={['in your hands']}
+          startPill
+        />
+      )}
+    </p>
+  )
+  /* Once the form on the page succeeds, "one more step" is no longer true;
+     the success panel says what is. */
+  return delivered ? lead : <UntilSent>{lead}</UntilSent>
+}
+
+/* A muted panel for a state that is only words: the pending, manual and
+   by-hand states. */
+function Note({ children }: { children: React.ReactNode }) {
+  return <div className="amw-kit-panel mt-9 px-6 py-6">{children}</div>
+}
+
+function KeepLink() {
+  return (
+    <p className="text-[var(--amw-mut)] mx-auto mt-12 max-w-[40rem] text-sm leading-relaxed">
+      Keep the link to this page. It is in your purchase email, and it is how
+      you get back here.
+    </p>
+  )
+}
+
 const linkClass =
-  'text-teal-700 underline underline-offset-4 dark:text-teal-300'
+  'text-[var(--amw-accent-ink)] underline underline-offset-4 hover:text-[var(--amw-ink)] transition-colors'
 
 /* The manual route, for a link that can never show a purchase by waiting:
  * no ref or payment id at all (Whop gave none, or the ref on the URL was
@@ -128,12 +226,12 @@ function refreshHref(
 function ManualState() {
   return (
     <Shell title="Check your email">
-      <p className="mt-6 text-zinc-600 dark:text-zinc-400">
+      <p className={LEAD}>
         This page has no purchase to show for this link. If you have just paid,
         your payment is safe and you do not need to pay again — the email
         confirming your purchase has the details.
       </p>
-      <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className={SMALL}>
         Something missing? Reply to that email and I will sort it by hand, or{' '}
         <Link href="/contact" className={linkClass}>
           get in touch
@@ -151,21 +249,18 @@ function ManualState() {
 function PaymentFailed() {
   return (
     <Shell title="That payment did not go through">
-      <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
+      <p className={LEAD}>
         Nothing was charged. You can try again from the pricing page, or get in
         touch and we will sort it out by hand.
       </p>
-      <p className="mt-8 flex flex-wrap items-center gap-4">
-        <Link href="/pricing" className="amw-cta inline-flex max-w-xs">
+      <div className="mt-9 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+        <ChevronCta href="/pricing" className="sm:min-w-56">
           Try again
-        </Link>
-        <Link
-          href="/contact"
-          className="hover:text-[var(--amw-accent-ink)] min-h-11 inline-flex items-center text-sm font-medium text-zinc-700 no-underline transition-colors dark:text-zinc-300"
-        >
-          Get in touch →
-        </Link>
-      </p>
+        </ChevronCta>
+        <RingLink href="/contact" className="sm:w-auto">
+          Get in touch
+        </RingLink>
+      </div>
     </Shell>
   )
 }
@@ -246,11 +341,11 @@ export default async function OnboardingPage({
   if (loadError) {
     return (
       <Shell title="Something went wrong">
-        <p className="mt-6 text-zinc-600 dark:text-zinc-400">
+        <p className={LEAD}>
           This page could not load just now. If your payment went through, you
           do not need to pay again — it can take a minute to show here.
         </p>
-        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className={SMALL}>
           If your bank or card step did not finish, nothing was taken.{' '}
           <Link href={refreshHref(ref, paymentId, link)} className={linkClass}>
             Refresh the page
@@ -288,15 +383,21 @@ export default async function OnboardingPage({
 
     return (
       <Shell title="Confirming your payment">
-        <p className="mt-6 text-zinc-600 dark:text-zinc-400">
+        <p className={LEAD}>
           If your payment went through, you do not need to pay again — it can
           take a minute to show here.
         </p>
         {attempt < MAX_ATTEMPTS ? (
           <>
-            <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-              This checks again automatically every few seconds.
-            </p>
+            <Note>
+              <p className="text-[var(--amw-mut)] flex items-center gap-3 text-sm">
+                <span
+                  aria-hidden="true"
+                  className="amw-kit-pulse bg-[var(--amw-accent)] h-2 w-2 shrink-0 rounded-full"
+                />
+                This checks again automatically every few seconds.
+              </p>
+            </Note>
             <PendingRefresh
               checkoutRef={ref}
               paymentId={paymentId}
@@ -305,7 +406,7 @@ export default async function OnboardingPage({
             />
           </>
         ) : (
-          <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className={SMALL}>
             If your bank or card step did not finish, nothing was taken.{' '}
             <Link href="/pricing" className={linkClass}>
               Try again
@@ -337,6 +438,7 @@ export default async function OnboardingPage({
     name?: string | null
     title?: string | null
     slug?: string | null
+    stack?: string | null
     githubRepo?: string | null
     seats?: number | null
     id?: number | string
@@ -352,7 +454,7 @@ export default async function OnboardingPage({
     const name = itemDoc?.name || itemDoc?.title
     return (
       <Shell title="Thanks — your purchase is confirmed">
-        <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <p className={LEAD}>
           {name
             ? `Delivery details for ${name} are on their way.`
             : 'Delivery details are on their way.'}
@@ -365,16 +467,26 @@ export default async function OnboardingPage({
   const itemName = itemDoc?.name || 'Your kit'
   const repo = purchase.githubRepo || itemDoc?.githubRepo || null
   const delivered = purchase.fulfillmentStatus === 'sent'
+  /* The kit's "what happens next" cards, from content/site/warekit.js. Left
+     out where the delivered steps already walk through the same three
+     things, and for a kit with no story. */
+  const story = storyFor(itemDoc?.stack, tier)
+  const strip = (shown: boolean) => (
+    <>
+      {shown && story && <NextStepsStrip story={story} repo={repo} />}
+      <KeepLink />
+    </>
+  )
 
   /* The Whop route is unchanged: the purchase row says everything. */
   if (!link) {
     return (
-      <Shell title={`${itemName} is yours`}>
-        <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-          {delivered
-            ? 'Payment received. Here is everything you need.'
-            : 'One more step and the repository is in your hands.'}
-        </p>
+      <Shell
+        title={`${itemName} is yours`}
+        progress={{ accountDone: Boolean(purchase.githubUsername) }}
+        after={strip(!delivered)}
+      >
+        <KitLead delivered={delivered} />
 
         <OnboardingSteps
           itemName={itemName}
@@ -390,11 +502,6 @@ export default async function OnboardingPage({
           /* The product's own limit, the same one the seat page enforces. */
           seats={seatLimit(itemDoc)}
         />
-
-        <p className="mt-12 text-sm text-zinc-600 dark:text-zinc-400">
-          Keep the link to this page. It is in your purchase email, and it is
-          how you get back here.
-        </p>
       </Shell>
     )
   }
@@ -414,8 +521,12 @@ export default async function OnboardingPage({
      worse than saying so. */
   if (!stored && purchase.fulfillmentStatus === 'failed') {
     return (
-      <Shell title="Your payment is safe">
-        <p className="mt-6 text-zinc-600 dark:text-zinc-400">
+      <Shell
+        title="Your payment is safe"
+        progress={{ accountDone: false }}
+        after={strip(true)}
+      >
+        <p className={LEAD}>
           {`Something went wrong setting up ${itemName} automatically. You do not need to pay again. Reply to your receipt email and I will set up your access by hand, or `}
           <Link href="/contact" className={linkClass}>
             get in touch
@@ -437,42 +548,39 @@ export default async function OnboardingPage({
   const needsAnswer = unanswered && !seatsFull
   const canRetry = retry && !seatsFull
 
+  /* The delivered steps say everything the strip would; every other state
+     gets it, including a form that is about to succeed. */
+  const showsSteps =
+    !((unanswered || retry) && seatsFull) && !needsAnswer && !canRetry
+
   return (
-    <Shell title={`${itemName} is yours`}>
-      <p className="mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-        {delivered
-          ? 'Payment received. Here is everything you need.'
-          : 'One more step and the repository is in your hands.'}
-      </p>
+    <Shell
+      title={`${itemName} is yours`}
+      progress={{ accountDone: Boolean(stored), asking: needsAnswer }}
+      after={strip(!(showsSteps && delivered))}
+    >
+      <KitLead delivered={delivered} />
 
       {(unanswered || retry) && seatsFull ? (
-        <p className="mt-12 text-sm text-zinc-700 dark:text-zinc-300">
+        <p className="amw-kit-panel text-[var(--amw-ink)] mt-9 px-6 py-6 text-[15px] leading-relaxed">
           {`This license covers ${setup.seats} ${
             setup.seats === 1 ? 'developer' : 'developers'
           } and all of them are in use, so I have not sent a repository invitation. Open the license link in your receipt email to see the options.`}
         </p>
       ) : needsAnswer ? (
-        <>
-          <h2 className="mt-12 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            Which GitHub account should get the repository?
-          </h2>
-          <OnboardingGithubForm
-            requestId={link.r}
-            signature={link.s}
-            initialUsername={setup.liteUsername}
-          />
-        </>
+        <OnboardingGithubForm
+          requestId={link.r}
+          signature={link.s}
+          initialUsername={setup.liteUsername}
+          title="Which GitHub account should get the repository?"
+        />
       ) : canRetry ? (
-        <>
-          <h2 className="mt-12 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            The invitation did not go through
-          </h2>
-          <OnboardingGithubForm
-            requestId={link.r}
-            signature={link.s}
-            retryUsername={stored}
-          />
-        </>
+        <OnboardingGithubForm
+          requestId={link.r}
+          signature={link.s}
+          retryUsername={stored}
+          title="The invitation did not go through"
+        />
       ) : (
         <OnboardingSteps
           itemName={itemName}
@@ -490,11 +598,6 @@ export default async function OnboardingPage({
           licenseExpired={setup.licenseExpired}
         />
       )}
-
-      <p className="mt-12 text-sm text-zinc-600 dark:text-zinc-400">
-        Keep the link to this page. It is in your purchase email, and it is how
-        you get back here.
-      </p>
     </Shell>
   )
 }

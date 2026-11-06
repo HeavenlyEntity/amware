@@ -1,8 +1,9 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { startCreemCheckout } from '@/lib/commerce/creemCheckout'
 import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
+import { ChevronCta } from '@/components/site/ChevronCta'
 
 /* Checkout for kits and digital products, on Creem's hosted page. BuyButton
  * and Whop keep the products that still sell there, and the product page
@@ -12,6 +13,13 @@ import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
  * only ever sees the failure state. begin_checkout fires on submit, with the
  * same fields BuyButton sends: Whop sends with keepalive, so the request
  * outlives the redirect.
+ *
+ * The knob says where it is: a spinner while the action runs, and a check
+ * once the browser has actually started leaving for Creem. That moment has
+ * no callback, so it is read off `beforeunload`, listened for only while the
+ * action is pending. A page restored from the back-forward cache comes back
+ * with the action pending forever, so `pageshow` reloads it into a button
+ * that works.
  */
 
 export function CreemBuyButton({
@@ -25,6 +33,23 @@ export function CreemBuyButton({
   const [state, formAction, isPending] = useActionState(startCreemCheckout, {
     error: null,
   })
+  const [leaving, setLeaving] = useState(false)
+
+  useEffect(() => {
+    if (!isPending) return undefined
+    const onLeave = () => setLeaving(true)
+    const onShow = (event) => {
+      if (event.persisted) window.location.reload()
+    }
+    window.addEventListener('beforeunload', onLeave)
+    window.addEventListener('pageshow', onShow)
+    return () => {
+      window.removeEventListener('beforeunload', onLeave)
+      window.removeEventListener('pageshow', onShow)
+    }
+  }, [isPending])
+
+  const redirecting = isPending && leaving
 
   const track = () =>
     whopTrack(WHOP_EVENT.beginCheckout, {
@@ -43,9 +68,27 @@ export function CreemBuyButton({
           {state.error.message}
         </p>
       )}
-      <button type="submit" className="amw-cta" disabled={isPending}>
-        {isPending ? 'Opening checkout…' : children}
-      </button>
+      <ChevronCta
+        type="submit"
+        full
+        disabled={isPending}
+        aria-busy={isPending || undefined}
+        state={redirecting ? 'done' : isPending ? 'pending' : 'idle'}
+      >
+        {redirecting
+          ? 'Taking you to Creem'
+          : isPending
+          ? 'Opening checkout…'
+          : children}
+      </ChevronCta>
+      {/* The label changes on a disabled button, which is not announced. */}
+      <span className="sr-only" role="status">
+        {redirecting
+          ? 'Taking you to Creem'
+          : isPending
+          ? 'Opening checkout'
+          : ''}
+      </span>
     </form>
   )
 }
