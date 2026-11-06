@@ -1,0 +1,12 @@
+{
+  "name": "Amware Portfolio",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "ports": [
+    {
+      "name": "Next.js",
+      "port": 3000
+    }
+  ]
+}
