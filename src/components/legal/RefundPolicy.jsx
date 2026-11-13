@@ -80,16 +80,27 @@ function WareKitRefunds() {
 function ServicesRefunds() {
   return (
     <>
-      <Section id="deposits" title="Reservation deposits">
+      <Section id="deposits" title="Deposits">
         <p>
-          <strong>Full refund if we don’t work together.</strong> The deposit
-          holds your start. After the intro call, it is either credited in full
-          to month one or returned before work begins. It is a start date, not
-          an extra cost.{' '}
+          <strong>The calls are free.</strong> The 15-minute intro call and the
+          45-minute strategy call cost nothing, so there is nothing to refund.
+        </p>
+        <p>
+          <strong>Codebase Diagnostic.</strong> Its deposit is fully refunded if
+          we can’t help.{' '}
           <Todo>
-            confirm who decides “we don’t work together” and by when (for
-            example, within a set number of days of the intro call), and what
-            happens if the intro call is never booked.
+            confirm who decides “can’t help” and by when (for example, within a
+            set number of days of the deposit), and whether any of the deposit
+            is kept once the diagnostic work has started.
+          </Todo>
+        </p>
+        <p>
+          <strong>Reserving a start.</strong> Where a service is reserved with a
+          deposit instead, the deposit is credited in full to month one, or
+          returned before work begins.{' '}
+          <Todo>
+            confirm when a reservation deposit is returned rather than credited,
+            and what happens if the start is never scheduled.
           </Todo>
         </p>
       </Section>

@@ -83,16 +83,18 @@ function ServicesEngagementTerms({ set }) {
   return (
     <Section id="engagements" title="Engagements, deposits and intro calls">
       <p>
-        <strong>Reservations.</strong> Some services can be reserved with a
-        deposit. A deposit reserves your start and is credited in full against
-        your first month. Deposits are taken through Whop, or through the
-        payment step of the Cal.com booking widget where a service uses one, and
-        that provider’s terms apply to the payment.
+        <strong>Deposits.</strong> The Codebase Diagnostic takes a deposit after
+        the strategy call. Some services without a booking link can also be
+        reserved with a deposit, which holds your start and is credited in full
+        against your first month. Deposits are taken through Whop, or through
+        the payment step of the Cal.com booking widget where a service uses one,
+        and that provider’s terms apply to the payment.
       </p>
       <p>
-        <strong>Intro calls.</strong> Intro calls are scheduled through Cal.com
-        and last 60 minutes. You leave a call knowing your highest-priority
-        technical risk and the next move we recommend.
+        <strong>Free calls.</strong> Engagements start with two free calls
+        scheduled through Cal.com: a 15-minute intro call, then a 45-minute
+        strategy call. You leave knowing your highest-priority technical risk
+        and the next move we recommend. Scope is agreed before any work starts.
       </p>
       <p>
         <strong>Fixed-price packages and quotes.</strong> Some fixed-price

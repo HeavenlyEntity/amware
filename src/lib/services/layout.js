@@ -1,12 +1,22 @@
+import { trackOf } from './tracks.js'
+
 /* How /services lays out one track, after the studio template's pricing
-   section: priced services sit side by side as pricing cards, and anything
-   without a price (a "Custom work" ask) runs as a wide strip underneath. */
+   section: the packages sit side by side as cards, and the open-ended ask
+   (a "Custom work" strip) runs wide underneath. No service shows a figure
+   in public (owner decision 2026-11-12); the stored price only marks a row
+   as a package. An advisory retainer is a card whether or not its row
+   still holds a price, so clearing the figure in Payload must not turn the
+   three retainers into strips. */
 
 export function splitByPrice(services = []) {
   const priced = []
   const unpriced = []
   for (const service of services ?? []) {
-    if (typeof service?.startingPrice === 'number') priced.push(service)
+    if (
+      typeof service?.startingPrice === 'number' ||
+      (service && trackOf(service) === 'consulting')
+    )
+      priced.push(service)
     else unpriced.push(service)
   }
   return { priced, unpriced }

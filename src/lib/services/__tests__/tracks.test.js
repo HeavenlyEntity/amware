@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { SERVICE_TRACKS, groupServices, trackFromHash } from '../tracks.js'
+import {
+  SERVICE_TRACKS,
+  groupServices,
+  trackOf,
+  trackFromHash,
+} from '../tracks.js'
 
 describe('groupServices', () => {
   it('splits services by category and keeps their order', () => {
@@ -39,5 +44,11 @@ describe('tracks', () => {
     expect(trackFromHash('consulting')).toBe('consulting')
     expect(trackFromHash('#nope')).toBeNull()
     expect(trackFromHash('')).toBeNull()
+  })
+
+  it('reads a service track, defaulting to consulting', () => {
+    expect(trackOf({ category: 'technical' })).toBe('technical')
+    expect(trackOf({})).toBe('consulting')
+    expect(trackOf(null)).toBe('consulting')
   })
 })

@@ -48,5 +48,6 @@ export const WEBSITE_PACKAGE = {
     { icon: 'TasksIcon', title: 'Regular check-ins' },
     { icon: 'RocketIcon', title: 'Built to change after launch' },
   ],
-  cta: { label: 'Start a website build', href: '/contact' },
+  // TODO(alec): confirm the quote is free, as the CTA now promises.
+  cta: { label: 'Get your free website quote', href: '/contact' },
 }

@@ -1,17 +1,10 @@
 import { serializeLexical } from './serialize.js'
 
 export const publicFields = {
-  /* priceLabel carries "per month". Without it services.md published the
-     $3,000 retainer as a flat USD 3000.00, a very different offer. */
-  services: [
-    'name',
-    'slug',
-    'summary',
-    'description',
-    'startingPrice',
-    'priceLabel',
-    'commitment',
-  ],
+  /* No service publishes a price (owner decision 2026-11-12): each is
+     quoted on a call or from the contact form, so the stored figure and its
+     period never leave Payload. */
+  services: ['name', 'slug', 'summary', 'description', 'commitment'],
   products: [
     'name',
     'slug',
@@ -93,9 +86,10 @@ export async function readCatalog(payload, collection, page = 1) {
         author: doc.author,
         published: doc.publishedDate,
         modified: doc.updatedAt,
-        price: doc.price ?? doc.startingPrice,
+        /* Services never carry a price here, even if select is ignored. */
+        price: collection === 'services' ? undefined : doc.price,
         currency: doc.currency ?? 'USD',
-        priceLabel: doc.priceLabel,
+        priceLabel: collection === 'services' ? undefined : doc.priceLabel,
         features: doc.features?.map((item) => item.feature),
         technologies: doc.techStack?.map((item) => item.tech),
         level: doc.level,

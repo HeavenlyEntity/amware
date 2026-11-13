@@ -126,33 +126,38 @@ describe('catalog cards', () => {
     expect(screen.getByText('intermediate')).toBeInTheDocument()
   })
 
-  it('service card shows the from-price, the description slot, and the quote link without a product id', () => {
-    render(
-      <ul>
-        <ServiceCard
-          service={{ slug: 'cto', name: 'Fractional CTO', startingPrice: 3500 }}
-          index={0}
-          description={<p>Weekly shipping.</p>}
-        />
-      </ul>
-    )
-    /* Was '$3500.00'. A retainer is thousands a month, and that rendering
-       had no separator and two cents nobody charges. */
-    expect(screen.getByText('$3,500')).toBeInTheDocument()
-    expect(screen.getByText('Weekly shipping.')).toBeInTheDocument()
-    // No booking link on this one, so it still falls back to the quote form.
-    expect(
-      screen.getByRole('link', { name: /request a quote/i })
-    ).toHaveAttribute('href', '/contact')
-  })
-
-  it('service card says what the price is per, when the tier says so', () => {
+  it('a build card offers a free quote in place of its price, with the description slot and the quote link', () => {
     render(
       <ul>
         <ServiceCard
           service={{
             slug: 'cto',
             name: 'Fractional CTO',
+            category: 'technical',
+            startingPrice: 3500,
+          }}
+          index={0}
+          description={<p>Weekly shipping.</p>}
+        />
+      </ul>
+    )
+    expect(screen.getByText('Free quote for your project')).toBeInTheDocument()
+    expect(screen.queryByText(/\$/)).toBeNull()
+    expect(screen.getByText('Weekly shipping.')).toBeInTheDocument()
+    // No booking link on this one, so it falls back to the quote form.
+    expect(
+      screen.getByRole('link', { name: 'Get your free quote' })
+    ).toHaveAttribute('href', '/contact')
+  })
+
+  it('a build card names no figure or period, even with both stored', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{
+            slug: 'cto',
+            name: 'Fractional CTO',
+            category: 'technical',
             startingPrice: 7500,
             priceLabel: 'per month',
             commitment: 'about 20 to 25 hrs a month',
@@ -160,21 +165,22 @@ describe('catalog cards', () => {
         />
       </ul>
     )
-    // $7,500 and $7,500 per month are very different offers.
-    expect(screen.getByText('$7,500')).toBeInTheDocument()
-    expect(screen.getByText('per month')).toBeInTheDocument()
+    expect(screen.queryByText(/\$/)).toBeNull()
+    expect(screen.queryByText('per month')).toBeNull()
+    expect(screen.queryByText(/starts at/i)).toBeNull()
     expect(screen.getByText(/20 to 25 hrs/)).toBeInTheDocument()
   })
 
-  it('service card opens Cal.com before any standalone deposit checkout', () => {
+  it('service card books the free intro call before any standalone deposit checkout', () => {
     render(
       <ul>
         <ServiceCard
           service={{
             slug: 'cto',
             name: 'Fractional CTO',
+            category: 'technical',
             startingPrice: 7500,
-            bookingUrl: 'https://cal.com/amware/on-demand-outcome',
+            bookingUrl: 'https://cal.com/amware/intro-call',
             whopPlanId: 'plan_live',
             depositAmount: 1500,
             depositNote: 'Old CMS copy that must not override the guarantee.',
@@ -182,77 +188,98 @@ describe('catalog cards', () => {
         />
       </ul>
     )
-    // Cal.com collects payment as part of the booking, even with a legacy plan.
-    expect(
-      screen.getByRole('button', {
-        name: 'Book your strategy call · $1,500',
-      })
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: /book an intro call/i })
-    ).toBeNull()
-    expect(
-      screen.queryByRole('link', { name: /book an intro call/i })
-    ).toBeNull()
-    const guarantee = screen.getByRole('note', {
-      name: /first call value and refund terms/i,
-    })
-    expect(guarantee).toHaveTextContent('Know what to fix next in 60 minutes.')
-    expect(guarantee).toHaveTextContent(
-      'You leave knowing your highest-priority technical risk and the next move to make.'
-    )
-    expect(guarantee).toHaveTextContent(
+    // A Cal.com link is the free intro call, even with a legacy plan.
+    const book = screen.getByRole('button', { name: 'Book a free intro call' })
+    expect(screen.queryByRole('button', { name: /reserve/i })).toBeNull()
+    const terms = screen.getByRole('note', { name: 'What the intro call is' })
+    expect(terms).toHaveTextContent('Start with a free 15-minute call.')
+    expect(terms).toHaveTextContent(
       'Free tool included: CTO Systems Audit Prompt'
     )
-    const reserve = screen.getByRole('button')
-    expect(reserve).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
-    expect(reserve).toHaveAttribute(
-      'data-cal-namespace',
-      'on-demand-outcome-cto'
-    )
-    expect(JSON.parse(reserve.getAttribute('data-cal-config')).notes).toBe(
+    expect(book).toHaveAttribute('data-cal-link', 'amware/intro-call')
+    expect(book).toHaveAttribute('data-cal-namespace', 'intro-call-cto')
+    expect(JSON.parse(book.getAttribute('data-cal-config')).notes).toBe(
       'Engagement: Fractional CTO'
     )
-    fireEvent.click(reserve)
+    fireEvent.click(book)
     expect(screen.queryByRole('dialog')).toBeNull()
-    const refund = screen.getByText('Full refund if we don’t work together.')
-    expect(guarantee.compareDocumentPosition(reserve)).toBe(
+    const fine = screen.getByText('Intro call · 15 min · free')
+    expect(terms.compareDocumentPosition(book)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )
-    expect(reserve.compareDocumentPosition(refund)).toBe(
+    expect(book.compareDocumentPosition(fine)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )
-    expect(screen.queryByText(/move forward/i)).toBeNull()
+    expect(screen.queryByText(/full refund/i)).toBeNull()
     expect(screen.queryByText(/old cms copy/i)).toBeNull()
   })
 
-  it('service card asks for the call when the tier has a booking link but no deposit plan', () => {
+  it('service card books the intro call when the tier has a booking link but no deposit plan', () => {
     render(
       <ul>
         <ServiceCard
           service={{
             slug: 'cto',
             name: 'Fractional CTO',
+            category: 'technical',
             startingPrice: 7500,
-            bookingUrl: 'https://cal.com/amware/on-demand-outcome',
+            bookingUrl: 'https://cal.com/amware/intro-call',
             depositNote: 'A $1,500 deposit, credited against month one.',
           }}
         />
       </ul>
     )
-    // A retainer starts with a conversation, not a quote request -- and a
-    // Cal.com link books it here, in the embed, rather than sending the
+    // A Cal.com link books it here, in the embed, rather than sending the
     // visitor away to a page that cannot report back.
-    const button = screen.getByRole('button', { name: /book an intro call/i })
-    expect(button).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
-    expect(button).toHaveAttribute(
-      'data-cal-namespace',
-      'on-demand-outcome-cto'
+    const button = screen.getByRole('button', {
+      name: 'Book a free intro call',
+    })
+    expect(button).toHaveAttribute('data-cal-link', 'amware/intro-call')
+    expect(button).toHaveAttribute('data-cal-namespace', 'intro-call-cto')
+    expect(screen.queryByRole('link', { name: /intro call/i })).toBeNull()
+    // The CMS deposit note quotes the deposit, so no card shows it.
+    expect(screen.queryByText(/\$1,500 deposit/)).toBeNull()
+  })
+
+  it('an advisory card names no figure: no price, no deposit amount, no deposit note', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{
+            slug: 'cto',
+            name: 'Fractional CTO',
+            category: 'consulting',
+            startingPrice: 7500,
+            priceLabel: 'per month',
+            commitment: 'about 20 to 25 hrs a month',
+            bookingUrl: 'https://cal.com/amware/intro-call',
+            depositAmount: 1500,
+            depositNote: 'A $1,500 deposit, credited against month one.',
+          }}
+        />
+      </ul>
     )
     expect(
-      screen.queryByRole('link', { name: /book an intro call/i })
-    ).toBeNull()
-    expect(screen.getByText(/\$1,500 deposit/)).toBeInTheDocument()
+      screen.getByRole('button', { name: 'Book a free intro call' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Scoped and priced on the call')
+    ).toBeInTheDocument()
+    expect(screen.getByText(/20 to 25 hrs/)).toBeInTheDocument()
+    expect(screen.queryByText(/\$/)).toBeNull()
+    expect(screen.queryByText('per month')).toBeNull()
+    expect(screen.queryByText(/starts at/i)).toBeNull()
+  })
+
+  it('a card without a category is advisory too, as every older row is', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{ slug: 'advisor', name: 'Advisor', startingPrice: 3000 }}
+        />
+      </ul>
+    )
+    expect(screen.queryByText('$3,000')).toBeNull()
   })
 
   it('service card links out when the booking link is not Cal.com', () => {
@@ -272,17 +299,6 @@ describe('catalog cards', () => {
     expect(link).toHaveAttribute('target', '_blank')
   })
 
-  it('keeps cents when a price actually has them', () => {
-    render(
-      <ul>
-        <ServiceCard
-          service={{ slug: 'a', name: 'A', startingPrice: 1250.5 }}
-        />
-      </ul>
-    )
-    expect(screen.getByText('$1,250.5')).toBeInTheDocument()
-  })
-
   it('tags a service the CMS marks popular', () => {
     render(
       <ul>
@@ -290,6 +306,7 @@ describe('catalog cards', () => {
           service={{
             slug: 'company-site',
             name: 'Company Site',
+            category: 'technical',
             startingPrice: 4500,
             popular: true,
           }}
@@ -306,6 +323,7 @@ describe('catalog cards', () => {
           service={{
             slug: 'one-pager',
             name: 'One Pager',
+            category: 'technical',
             startingPrice: 2500,
           }}
         />
@@ -314,16 +332,17 @@ describe('catalog cards', () => {
     expect(screen.queryByText('Most popular')).toBeNull()
   })
 
-  it('keeps the deposit terms around the button on a popular card', () => {
+  it('keeps the intro call terms around the button on a popular card', () => {
     render(
       <ul>
         <ServiceCard
           service={{
             slug: 'cto',
             name: 'Fractional CTO',
+            category: 'technical',
             startingPrice: 7500,
             popular: true,
-            bookingUrl: 'https://cal.com/amware/on-demand-outcome',
+            bookingUrl: 'https://cal.com/amware/intro-call',
             whopPlanId: 'plan_live',
             depositAmount: 1500,
           }}
@@ -331,22 +350,46 @@ describe('catalog cards', () => {
       </ul>
     )
     expect(screen.getByText('Most popular')).toBeInTheDocument()
-    const note = screen.getByRole('note', {
-      name: /first call value and refund terms/i,
-    })
+    const note = screen.getByRole('note', { name: 'What the intro call is' })
     const button = screen.getByRole('button', {
-      name: 'Book your strategy call · $1,500',
+      name: 'Book a free intro call',
     })
-    const refund = screen.getByText('Full refund if we don’t work together.')
+    const fine = screen.getByText('Intro call · 15 min · free')
     expect(note.compareDocumentPosition(button)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )
-    expect(button.compareDocumentPosition(refund)).toBe(
+    expect(button.compareDocumentPosition(fine)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )
   })
 
-  it('lays an unpriced service out as a strip with its summary and the quote link', () => {
+  it('keeps the deposit terms around a standalone deposit checkout', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{
+            slug: 'cto',
+            name: 'Fractional CTO',
+            category: 'technical',
+            whopPlanId: 'plan_live',
+            depositAmount: 1500,
+          }}
+        />
+      </ul>
+    )
+    const note = screen.getByRole('note', { name: 'Deposit terms' })
+    const button = screen.getByRole('button', { name: /reserve your start/i })
+    expect(note.compareDocumentPosition(button)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(
+      screen.getByText(
+        'Credited in full to month one, or returned before work begins.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('lays an open-ended service out as a strip with its summary and the quote link', () => {
     render(
       <ul>
         <ServiceStrip
@@ -363,7 +406,7 @@ describe('catalog cards', () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/specific requirements/)).toBeInTheDocument()
     expect(
-      screen.getByRole('link', { name: /request a quote/i })
+      screen.getByRole('link', { name: 'Get your free quote' })
     ).toHaveAttribute('href', '/contact')
   })
 
@@ -374,6 +417,7 @@ describe('catalog cards', () => {
           service={{
             slug: 'audit',
             name: 'Audit',
+            category: 'technical',
             startingPrice: 900,
             creemProductId: 'p',
           }}

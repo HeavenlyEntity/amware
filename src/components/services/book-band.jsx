@@ -1,6 +1,5 @@
-import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
+import { IntroCallTerms } from '@/components/commerce/IntroCallTerms'
 import { GlassPanel } from '@/components/founders/desk/glass-panel'
-import { usd } from '@/lib/commerce/money'
 import { SERVICES_PAGE } from '@/content/site/services-page'
 import { StrategyCallCta } from './strategy-call-cta'
 
@@ -9,10 +8,9 @@ import { StrategyCallCta } from './strategy-call-cta'
  * bottom without picking a track. Copy and the strategy-call action on the
  * left, the FluidGlass lens on the right.
  *
- * The action sits inside DepositRiskReversal (F15), so the first-call value
- * and the refund line read here exactly as they do on every card that takes
- * the same deposit. Without a booking link it is the contact form, with no
- * deposit terms around it.
+ * The action sits inside IntroCallTerms, so the free-call line reads here
+ * exactly as it does on every card that books the same intro call. Without
+ * a booking link it is the contact form, with no call terms around it.
  *
  * The lens is the desk's GlassPanel: a static "Scope first." poster on the
  * server, on phones, touch screens and under reduced motion, and the WebGL
@@ -37,15 +35,11 @@ export const BOOK_LENS = {
   position: [0.5, 0.5],
 }
 
-export function BookBand({ price, booking }) {
+export function BookBand({ booking }) {
   const { eyebrow, title, copy, glass, hint } = SERVICES_PAGE.band
-  const { priceLabel } = SERVICES_PAGE.hero
   const row = (
     <div className="svc-book-row">
       <StrategyCallCta booking={booking} />
-      <p className="svc-price">
-        {priceLabel} · {usd(price)}
-      </p>
     </div>
   )
 
@@ -66,9 +60,7 @@ export function BookBand({ price, booking }) {
           </h2>
           <p className="svc-book-lede">{copy}</p>
           {booking ? (
-            <DepositRiskReversal className="svc-book-terms">
-              {row}
-            </DepositRiskReversal>
+            <IntroCallTerms className="svc-book-terms">{row}</IntroCallTerms>
           ) : (
             <div className="svc-book-terms">{row}</div>
           )}

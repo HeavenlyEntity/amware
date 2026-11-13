@@ -41,18 +41,35 @@ describe('site JSON-LD', () => {
     expect(schema.mainEntity[0].acceptedAnswer.text).toBe(faqs[0].answer)
   })
 
-  it('prices monthly services per month and one-offs flat', () => {
+  it('publishes no price for any service, even with one stored', () => {
     const { itemListElement } = servicesSchema([
       {
-        name: 'Advisor',
-        slug: 'advisor',
+        name: 'Retainer',
+        slug: 'retainer',
+        category: 'technical',
         startingPrice: 3000,
         priceLabel: 'per month',
       },
-      { name: 'Audit', slug: 'audit', startingPrice: 1500 },
+      {
+        name: 'Audit',
+        slug: 'audit',
+        category: 'technical',
+        startingPrice: 1500,
+      },
+      {
+        name: 'Fractional CTO',
+        slug: 'fractional-cto',
+        category: 'consulting',
+        startingPrice: 7500,
+      },
     ])
-    expect(itemListElement[0].priceSpecification.unitCode).toBe('MON')
-    expect(itemListElement[1].priceSpecification.unitCode).toBeUndefined()
+    for (const offer of itemListElement)
+      expect(offer).not.toHaveProperty('priceSpecification')
+    expect(itemListElement.map((o) => o.itemOffered.name)).toEqual([
+      'Retainer',
+      'Audit',
+      'Fractional CTO',
+    ])
   })
 })
 

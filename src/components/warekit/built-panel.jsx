@@ -18,13 +18,14 @@ export function BuiltPanel() {
         </p>
         <div className="pr-built-acts">
           <Link href="/services" className="pj-btn pj-btn--across">
-            <span>Book a strategy call</span>
+            <span>See how it starts</span>
             <span className="pj-btn-dot">
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </span>
           </Link>
-          {/* TODO(alec): confirm the strategy call amount. */}
-          <span className="pj-kicker">Strategy call · $1,500.00</span>
+          {/* No figure: the free intro call is the advisory side's way in
+              (owner decision 2026-11-13). */}
+          <span className="pj-kicker">Intro call · 15 min · free</span>
         </div>
       </div>
       <ol className="pr-process" aria-label="How a build engagement runs">
