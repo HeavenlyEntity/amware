@@ -11,8 +11,8 @@ import { ServicesHero } from '../services-hero'
 import { SERVICES_PAGE } from '@/content/site/services-page'
 
 /* The /services hero as a buyer meets it: the approved words, one click to
-   the strategy-call popup, the price that popup charges, and a quiet way
-   down to the tracks. */
+   the strategy-call popup, no figure (the advisory side quotes none), and a
+   quiet way down to the tracks. */
 
 const booking = {
   link: 'amware/on-demand-outcome',
@@ -21,7 +21,7 @@ const booking = {
 
 describe('ServicesHero', () => {
   it('says the approved words, once, under one h1', () => {
-    render(<ServicesHero price={1500} booking={booking} />)
+    render(<ServicesHero booking={booking} />)
     const hero = screen.getByRole('region', {
       name: SERVICES_PAGE.hero.title,
     })
@@ -37,7 +37,7 @@ describe('ServicesHero', () => {
   })
 
   it('opens the strategy-call popup on its own page namespace', () => {
-    render(<ServicesHero price={1500} booking={booking} />)
+    render(<ServicesHero booking={booking} />)
     const cta = screen.getByRole('button', { name: /book a strategy call/i })
     expect(cta).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
     expect(cta).toHaveAttribute(
@@ -52,31 +52,36 @@ describe('ServicesHero', () => {
   })
 
   it('falls back to the contact form without a Cal.com link', () => {
-    render(<ServicesHero price={1500} booking={null} />)
+    render(<ServicesHero booking={null} />)
     expect(screen.queryByRole('button', { name: /strategy call/i })).toBeNull()
     expect(
       screen.getByRole('link', { name: /book a strategy call/i })
     ).toHaveAttribute('href', '/contact')
   })
 
-  it('prices the call from the data it is given', () => {
-    const { rerender } = render(<ServicesHero price={1500} booking={booking} />)
-    expect(screen.getByText('Strategy call · $1,500')).toBeInTheDocument()
-    rerender(<ServicesHero price={2000} booking={booking} />)
-    expect(screen.getByText('Strategy call · $2,000')).toBeInTheDocument()
+  it('names the call and its refund term without a price', () => {
+    const { container } = render(<ServicesHero booking={booking} />)
+    expect(
+      screen.getByText('60 minutes · full refund if we don’t work together')
+    ).toBeInTheDocument()
+    expect(container).not.toHaveTextContent('$')
+  })
+
+  it('promises no refund when the call is the contact form', () => {
+    const { container } = render(<ServicesHero booking={null} />)
+    expect(screen.getByText('Strategy call · 60 minutes')).toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/refund/i)
   })
 
   it('scrolls to the tracks with the quiet link', () => {
-    render(<ServicesHero price={1500} booking={booking} />)
+    render(<ServicesHero booking={booking} />)
     expect(
       screen.getByRole('link', { name: /compare engagements/i })
     ).toHaveAttribute('href', '#engagements')
   })
 
   it('draws both backdrops as static posters, out of the accessibility tree', () => {
-    const { container } = render(
-      <ServicesHero price={1500} booking={booking} />
-    )
+    const { container } = render(<ServicesHero booking={booking} />)
     const wall = container.querySelector('.svc-wall')
     const field = container.querySelector('.svc-ascii')
     expect(wall).toHaveAttribute('aria-hidden', 'true')

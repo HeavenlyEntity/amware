@@ -128,7 +128,8 @@ const projectText = (project) =>
       ? ' | ' + link('Project website', project.link.href)
       : ''
   }`
-const capability = `## Capabilities\n\n### Fractional CTO and technical leadership\n\nFor founders and growing companies that need senior ownership of architecture, technical direction, hiring and engineering decisions, without a full-time CTO. Three published engagements, from monthly advising to near full-time embedded leadership.\n\n${link(
+// TODO(alec): confirm the security ownership this promises for the retainers.
+const capability = `## Capabilities\n\n### Fractional CTO and technical leadership\n\nFor founders whose app has slipped out of their control: a vibe-coded product nobody can safely change, or a vendor who stopped answering while bugs, churn and security gaps pile up. Senior ownership of architecture, security, technical direction and the people doing the work, without a full-time CTO. Three engagements, from monthly advising to near full-time embedded leadership, each scoped on a strategy call.\n\n${link(
   'Engagements',
   siteOrigin + '/ai/services'
 )} | ${link(

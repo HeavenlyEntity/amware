@@ -23,7 +23,7 @@ const booking = {
 
 describe('BookBand', () => {
   it('is the #book region, named by its heading', () => {
-    render(<BookBand price={1500} booking={booking} />)
+    render(<BookBand booking={booking} />)
     const band = screen.getByRole('region', {
       name: SERVICES_PAGE.band.title,
     })
@@ -32,7 +32,7 @@ describe('BookBand', () => {
   })
 
   it('wraps the strategy call in the deposit terms: value, button, refund', () => {
-    render(<BookBand price={1500} booking={booking} />)
+    render(<BookBand booking={booking} />)
     const note = screen.getByRole('note', {
       name: 'First call value and refund terms',
     })
@@ -48,11 +48,12 @@ describe('BookBand', () => {
     expect(
       button.compareDocumentPosition(refund) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(screen.getByText('Strategy call · $1,500')).toBeInTheDocument()
+    // No figure: the popup shows the deposit before it is charged.
+    expect(document.getElementById('book')).not.toHaveTextContent('$')
   })
 
   it('sends the visitor to the contact form, with no deposit terms, without a Cal.com link', () => {
-    render(<BookBand price={1500} booking={null} />)
+    render(<BookBand booking={null} />)
     expect(
       screen.getByRole('link', { name: /book a strategy call/i })
     ).toHaveAttribute('href', '/contact')
@@ -60,7 +61,7 @@ describe('BookBand', () => {
   })
 
   it('shows the glass as a static poster', () => {
-    const { container } = render(<BookBand price={1500} booking={booking} />)
+    const { container } = render(<BookBand booking={booking} />)
     const glass = container.querySelector('.amw-glass')
     expect(glass).toHaveAttribute('data-lens', 'poster')
     expect(glass).toHaveAttribute('aria-hidden', 'true')

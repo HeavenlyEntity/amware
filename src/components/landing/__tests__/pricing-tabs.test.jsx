@@ -92,7 +92,9 @@ describe('Pricing tabs', () => {
     expect(within(p).getByText('Advisor')).toBeInTheDocument()
     expect(within(p).getByText('Fractional CTO')).toBeInTheDocument()
     expect(within(p).getByText('Embedded CTO')).toBeInTheDocument()
-    expect(within(p).getByText('$7,500')).toBeInTheDocument()
+    // The retainers quote no figure; the scope is set on the call.
+    expect(p).not.toHaveTextContent('$')
+    expect(within(p).getByText('about 20-25 hrs a month')).toBeInTheDocument()
     expect(
       within(p).getByRole('link', { name: /compare engagements/i })
     ).toHaveAttribute('href', '/services')
@@ -142,8 +144,9 @@ describe('Pricing retainers and the deposit', () => {
       name: /book your strategy call/i,
     })
     expect(buttons).toHaveLength(1)
-    // The amount says enough; "deposit" only widened the button.
-    expect(buttons[0]).toHaveAccessibleName('Book your strategy call · $1,500')
+    // No amount: the advisory side names no figure, and the popup shows
+    // the deposit before it is charged.
+    expect(buttons[0]).toHaveAccessibleName('Book your strategy call')
     // It sits inside the Fractional CTO card, not beside another tier.
     const card = buttons[0].closest('li')
     expect(card).toHaveTextContent('Fractional CTO')

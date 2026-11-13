@@ -12,6 +12,7 @@ import { calLinkFromUrl } from '@/lib/commerce/calLink'
 import { depositPlanId, planId } from '@/lib/commerce/whopEnv'
 import { checkoutRoute } from '@/lib/commerce/checkoutRoute'
 import { usd } from '@/lib/commerce/money'
+import { trackOf } from '@/lib/services/tracks'
 import { cn } from '@/lib/utils'
 import { typeMeta } from '@/components/commerce/catalog-meta'
 import { Pattern } from '@/components/ui/pattern'
@@ -25,9 +26,10 @@ import { Pattern } from '@/components/ui/pattern'
    Product: the template's split feature card, copy left and cover right.
    Course: the step card, cover on top and the title pinned to the bottom.
    Service: the studio template's pricing card (components/pricing.tsx),
-   "Starts at" over a big price, a check-list body and a full-width button;
+   with the big price swapped for how the engagement is quoted (no service
+   names a figure in public), a check-list body and a full-width button;
    the CMS's Popular flag turns it into the template's featured card. An
-   unpriced service runs as the template's wide "Custom work" strip. */
+   open-ended ask runs as the template's wide "Custom work" strip. */
 
 const easeOut = [0.16, 1, 0.3, 1]
 
@@ -255,6 +257,8 @@ function CtaLabel({ children, tone }) {
    sold that way today, so a popular one would need it taught first. */
 function ServiceAction({ service, tone = 'default', fullWidth = false }) {
   const hasPrice = typeof service.startingPrice === 'number'
+  /* No service names a figure here, not even the deposit's: the amount is
+     shown in the checkout itself, before anything is charged. */
   const booking = calLinkFromUrl(service.bookingUrl)
   const depositPlan = depositPlanId(service)
   const deposit =
@@ -284,9 +288,7 @@ function ServiceAction({ service, tone = 'default', fullWidth = false }) {
             notes={`Engagement: ${service.name}`}
             className={className}
           >
-            <CtaLabel tone={tone}>
-              Book your strategy call · {usd(deposit)}
-            </CtaLabel>
+            <CtaLabel tone={tone}>Book your strategy call</CtaLabel>
           </BookCallButton>
         </DepositRiskReversal>
       ) : depositPlan ? (
@@ -298,7 +300,7 @@ function ServiceAction({ service, tone = 'default', fullWidth = false }) {
             bookingUrl={service.bookingUrl || null}
             className={className}
           >
-            <CtaLabel tone={tone}>Reserve your start · {usd(deposit)}</CtaLabel>
+            <CtaLabel tone={tone}>Reserve your start</CtaLabel>
           </DepositCheckout>
         </DepositRiskReversal>
       ) : booking ? (
@@ -322,22 +324,12 @@ function ServiceAction({ service, tone = 'default', fullWidth = false }) {
           className={className}
         >
           <CtaLabel tone={tone}>
-            {service.bookingUrl ? 'Book an intro call' : 'Request a quote'}
+            {service.bookingUrl ? 'Book an intro call' : 'Get your free quote'}
           </CtaLabel>
         </Link>
       )}
-      {!depositPlan && service.depositNote && (
-        <p
-          className={cn(
-            'mt-4 text-xs leading-relaxed',
-            tone === 'popular'
-              ? 'text-white/90'
-              : 'text-zinc-600 dark:text-zinc-400'
-          )}
-        >
-          {service.depositNote}
-        </p>
-      )}
+      {/* Payload's depositNote is not shown: it quotes the deposit, and
+          the checkout names the amount before anything is charged. */}
     </>
   )
 }
@@ -382,6 +374,12 @@ export function ServiceGrid({ className, children }) {
   )
 }
 
+/* TODO(alec): confirm "Free quote for your project" for the build track. */
+const QUOTE_LINE = {
+  consulting: 'Scoped and priced on the call',
+  technical: 'Free quote for your project',
+}
+
 /**
  * @param {object} props
  * @param {any} props.service
@@ -393,7 +391,6 @@ export function ServiceCard({ service, description = null }) {
   const tone = service.popular ? 'popular' : 'default'
   const t = CARD_TONE[tone]
   const icon = mediaUrl(service.icon)
-  const hasPrice = typeof service.startingPrice === 'number'
   return (
     <li
       id={service.slug}
@@ -426,35 +423,13 @@ export function ServiceCard({ service, description = null }) {
           </p>
         )}
 
-        {/* A retainer is a monthly number, so the period has to sit with it --
-            "$3,000" and "$3,000 per month" are very different offers, and
-            toFixed(2) was rendering the first as "$3000.00" with no separator
-            either. Cents only appear when there are any. */}
+        {/* Where the price used to sit: how this engagement gets its
+            number. A retainer is scoped on the strategy call; a build is
+            quoted from the contact form. */}
         <div className="mt-6">
-          {hasPrice ? (
-            <>
-              <span className={cn('block text-sm', t.soft)}>Starts at</span>
-              <div className="mt-1 flex flex-wrap items-baseline gap-1.5">
-                <span
-                  className={cn(
-                    'amw-price text-4xl font-medium tracking-tight md:text-5xl',
-                    t.strong
-                  )}
-                >
-                  {usd(service.startingPrice)}
-                </span>
-                <span className={cn('text-sm', t.soft)}>
-                  {service.priceLabel || 'USD'}
-                </span>
-              </div>
-            </>
-          ) : (
-            <span
-              className={cn('text-2xl font-medium tracking-tight', t.strong)}
-            >
-              Scoped per engagement
-            </span>
-          )}
+          <p className={cn('text-2xl font-medium tracking-tight', t.strong)}>
+            {QUOTE_LINE[trackOf(service)]}
+          </p>
           {service.commitment && (
             <p className="amw-kicker mt-2">{service.commitment}</p>
           )}

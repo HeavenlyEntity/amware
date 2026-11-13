@@ -10,7 +10,6 @@ import { BookCallButton } from '@/components/commerce/BookCallButton'
 import { calLinkFromUrl } from '@/lib/commerce/calLink'
 import { DepositCheckout } from '@/components/commerce/DepositCheckout'
 import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
-import { usd } from '@/lib/commerce/money'
 import { depositPlanId } from '@/lib/commerce/whopEnv'
 import { OfferTabs, offerPanelProps } from './offer-tabs'
 import {
@@ -38,8 +37,14 @@ import {
    something to sell.
 
    The retainer tiers are the real ones as of 2026-09-09, confirmed by Alec.
-   Anything quoted here is also what Creem is told during merchant
-   verification, so those two must not drift apart -- update both together. */
+   Since 2026-11-12 they quote no price anywhere in public (owner decision):
+   the scope and the figure are settled on the strategy call, and the
+   deposit shows in the checkout before it is charged. The Payload rows
+   still hold the prices for the checkout and Creem's records.
+
+   Who they speak to: founders who vibe-coded an app and lost control of it,
+   and founders whose vendor stopped answering while the app breaks, users
+   leave and security gaps open up. */
 
 const easeOut = [0.16, 1, 0.3, 1]
 
@@ -48,50 +53,46 @@ export const OFFER_TABS = [
   { id: 'anti-slop-alec', label: 'Anti-Slop Alec' },
 ]
 
+// TODO(alec): confirm the security and handover lines describe work each
+// tier includes; they reframe the original features for the new audience.
 const retainers = [
   {
     slug: 'advisor',
     name: 'Advisor',
-    tagline: 'Best for pre-seed',
-    price: '$3,000',
-    period: 'month',
-    note: 'about 10 hrs',
+    tagline: 'Best when you built it yourself',
+    note: 'about 10 hrs a month',
     features: [
       'Two strategy calls a month',
-      'Async Slack and email support',
-      'Architecture reviews',
-      'Technology roadmap input',
+      'A senior read of the code your AI tools wrote',
+      'What to fix first, and what can wait',
+      'Async Slack and email between calls',
     ],
   },
   {
     slug: 'fractional-cto',
     name: 'Fractional CTO',
-    tagline: 'Best for seed to Series A',
-    price: '$7,500',
-    period: 'month',
-    note: 'about 20-25 hrs',
+    tagline: 'Best when the app is live and slipping',
+    note: 'about 20-25 hrs a month',
     highlighted: true,
     features: [
       'Weekly strategy calls',
-      'Team mentoring and code review',
-      'Hiring support and interviews',
-      'Vendor negotiations',
-      'AI integration planning',
+      'Bug and stability triage',
+      'Security review, fixes in priority order',
+      'Oversight of your vendor or developers',
+      'Code review and a release process',
     ],
   },
   {
     slug: 'embedded-cto',
     name: 'Embedded CTO',
-    tagline: 'Best for Series A+ or M&A prep',
-    price: '$12,000',
-    period: 'month',
-    note: 'about 35-40 hrs',
+    tagline: 'Best when the vendor is gone',
+    note: 'about 35-40 hrs a month',
     features: [
       'Near full-time commitment',
+      'Ownership of the codebase and the handover',
       'Direct engineering leadership',
+      'Security hardening across the stack',
       'Board and investor reporting',
-      'Technical due diligence',
-      'Fundraising support',
     ],
   },
 ]
@@ -139,11 +140,11 @@ function Features({ items }) {
   )
 }
 
-/* Price on its own line, terms under it. Baseline-inline only worked while
-   every price was four characters: "/ month" wrapped under $12,000 but not
-   under $499, so the cards disagreed with each other. $12,000 at text-5xl is
-   also about 230px inside a 222px content box, hence the step down at xl --
-   the card width drives this, not the viewport. */
+/* A kit's price on its own line, terms under it. Baseline-inline only
+   worked while every price was the same length, so the cards disagreed with
+   each other; a five-figure price at text-5xl also overflows the card's
+   content box at xl, hence the step down there -- the card width drives
+   this, not the viewport. */
 function Price({ value, under }) {
   return (
     <div className="mb-8">
@@ -177,7 +178,7 @@ function ReserveStart({ plan, service }) {
           notes={`Engagement: ${plan.name}`}
           className={reserveClass}
         >
-          Book your strategy call · {usd(amount)}
+          Book your strategy call
         </BookCallButton>
       ) : (
         <DepositCheckout
@@ -187,7 +188,7 @@ function ReserveStart({ plan, service }) {
           bookingUrl={service.bookingUrl || null}
           className={reserveClass}
         >
-          Reserve your start · {usd(amount)}
+          Reserve your start
         </DepositCheckout>
       )}
     </DepositRiskReversal>
@@ -206,10 +207,10 @@ function RetainerCard({ plan, service }) {
         </h3>
         <p className="amw-kicker mt-1">{plan.tagline}</p>
       </div>
-      <Price
-        value={plan.price}
-        under={`/ ${plan.period}${plan.note ? ` · ${plan.note}` : ''}`}
-      />
+      {/* No figure: the advisory retainers are scoped on the call. */}
+      <p className="mb-8 text-sm text-zinc-600 dark:text-zinc-400">
+        {plan.note}
+      </p>
       <Features items={plan.features} />
       <ReserveStart plan={plan} service={service} />
     </motion.li>

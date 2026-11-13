@@ -18,6 +18,7 @@ import { Services } from './collections/Services'
 import { ContactSubmissions } from './collections/ContactSubmissions'
 import { Purchases } from './collections/Purchases'
 import { Licenses } from './collections/Licenses'
+import { Leads } from './collections/Leads'
 import { PricingPage } from './globals/PricingPage'
 import { creemPriceEndpoint } from './lib/commerce/creemPriceEndpoint'
 
@@ -59,6 +60,7 @@ export default buildConfig({
     ContactSubmissions,
     Purchases,
     Licenses,
+    Leads,
   ],
   globals: [PricingPage],
   editor: lexicalEditor(),

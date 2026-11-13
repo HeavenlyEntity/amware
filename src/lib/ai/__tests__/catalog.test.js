@@ -32,6 +32,39 @@ describe('public catalog boundary', () => {
       'downloadUrl'
     )
   })
+  it('publishes no price for any service, advisory or build', async () => {
+    const payload = {
+      find: vi.fn().mockResolvedValue({
+        docs: [
+          {
+            name: 'Advisor',
+            slug: 'advisor',
+            status: 'published',
+            category: 'consulting',
+            startingPrice: 3000,
+            priceLabel: 'per month',
+          },
+          {
+            name: 'One Pager',
+            slug: 'one-pager',
+            status: 'published',
+            category: 'technical',
+            startingPrice: 2500,
+            priceLabel: 'one-time payment',
+          },
+        ],
+        hasNextPage: false,
+      }),
+    }
+    const { docs } = await readCatalog(payload, 'services')
+    for (const doc of docs) {
+      expect(doc.price).toBeUndefined()
+      expect(doc.priceLabel).toBeUndefined()
+    }
+    expect(payload.find.mock.calls[0][0].select).not.toHaveProperty(
+      'startingPrice'
+    )
+  })
   it('does not duplicate CMS records backed by MDX', async () => {
     const payload = {
       find: vi.fn().mockResolvedValue({

@@ -15,6 +15,12 @@ import { DeskMotionSync } from '@/components/founders/desk/motion-flag'
 import { ServicesHero } from '@/components/services/services-hero'
 import { Engagements } from '@/components/services/engagements'
 import { BookBand } from '@/components/services/book-band'
+import {
+  FitCheck,
+  PainPoints,
+  RiskReversal,
+  ServicesFaq,
+} from '@/components/services/conversion'
 import { ServiceBody } from '@/components/services/service-body'
 import { EngagementsLoadError } from '@/components/services/load-error'
 import { BigTestimonial } from '@/components/testimonials/big-testimonial'
@@ -22,28 +28,32 @@ import { MasonryTestimonials } from '@/components/testimonials/masonry-testimoni
 import { servicesTestimonials } from '@/lib/testimonials/services-testimonials'
 import { WebsitePackage } from '@/components/website-package'
 import { JsonLd } from '@/components/seo/JsonLd'
-import { servicesSchema } from '@/lib/seo/schema'
+import { faqSchema, servicesSchema } from '@/lib/seo/schema'
+import { faqItems } from '@/content/site/services-page'
 import type { Service } from '@/payload-types'
 import '@/styles/services.css'
 
 export const revalidate = 60
 
+// TODO(alec): confirm the description's promises match the engagements.
 export const metadata = withSocialImage(
   {
-    title: { absolute: 'Fractional CTO Services & Pricing | AMWARE' },
+    title: { absolute: 'Fractional CTO for Apps Out of Control | AMWARE' },
     description:
-      'Advisor, Fractional CTO and Embedded CTO engagements for founders, from pre-seed to Series A and M&A prep. Published monthly pricing, remote-first.',
+      'AI-built app breaking with every fix, or a vendor who stopped answering? A fractional CTO to find what is costing you users, close the security holes and steady the product. Scoped on a strategy call, remote-first.',
     alternates: { canonical: '/services' },
   },
   'services'
 )
 
 /* /services, rebuilt to the services board (Main.dc.html and
-   HeroMobile.dc.html): the hero over the work wall, what the people on the
-   other side of the work said, the two engagement tracks, and the book band
-   for anyone still undecided. Everything priced or bookable comes from the
-   Payload `services` rows; the page's own words are in
-   content/site/services-page.js. */
+   HeroMobile.dc.html, with the conversion pass from ServicesConvert.dc.html):
+   the hero over the work wall, the buyer's problems in their own words,
+   what the people on the other side of the work said, the two engagement
+   tracks, the risk reversal, the fit check, the objections, and the book
+   band for anyone still undecided. Everything bookable comes from the Payload
+   `services` rows; no service shows a figure (owner decision 2026-11-12).
+   The page's own words are in content/site/services-page.js. */
 
 async function loadServices(): Promise<{
   docs: Service[]
@@ -70,7 +80,11 @@ async function loadServices(): Promise<{
 export default async function ServicesPage() {
   const { docs, loadError } = await loadServices()
   const { consulting, technical } = groupServices(docs)
-  const { price, booking } = strategyCall(consulting)
+  const { booking } = strategyCall(consulting)
+  /* The hero, band and cards take the deposit only through a Cal.com link;
+     without one the refund promise and its FAQ answer stay off the page. */
+  const hasDeposit = Boolean(booking)
+  const faqs = faqItems(hasDeposit)
   const proof = servicesTestimonials({
     nodeEnv: process.env.NODE_ENV,
     vercelEnv: process.env.VERCEL_ENV,
@@ -118,15 +132,19 @@ export default async function ServicesPage() {
 
   return (
     <div className="amw svc">
-      {/* Built from the same Payload rows as the cards below. */}
+      {/* Built from the same Payload rows as the cards below; the schema
+          leaves every figure out itself. */}
       <JsonLd data={servicesSchema(docs)} />
+      <JsonLd data={faqSchema(faqs)} />
       <TrackView type="services" id="services" name="Services" />
       <DeskMotionSync />
 
-      <ServicesHero price={price} booking={booking} />
+      <ServicesHero booking={booking} />
 
-      {/* Before the tracks, where the price first lands: what the people on
-          the other side of the work said (owner decision F1). */}
+      <PainPoints booking={booking} />
+
+      {/* Before the tracks: what the people on the other side of the work
+          said (owner decision F1). */}
       <div className="svc-wrap svc-proof">
         <BigTestimonial
           featured={proof.featured}
@@ -136,7 +154,7 @@ export default async function ServicesPage() {
       </div>
 
       <Engagements
-        pricedCount={splitByPrice(consulting).priced.length}
+        retainerCount={splitByPrice(consulting).priced.length}
         consulting={
           loadError ? (
             <EngagementsLoadError />
@@ -154,7 +172,11 @@ export default async function ServicesPage() {
         }
       />
 
-      <BookBand price={price} booking={booking} />
+      {hasDeposit && <RiskReversal />}
+      <FitCheck />
+      <ServicesFaq hasDeposit={hasDeposit} />
+
+      <BookBand booking={booking} />
     </div>
   )
 }

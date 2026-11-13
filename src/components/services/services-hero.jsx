@@ -1,4 +1,3 @@
-import { usd } from '@/lib/commerce/money'
 import { SERVICES_PAGE } from '@/content/site/services-page'
 import { AsciiField } from './ascii-field'
 import { StrategyCallCta } from './strategy-call-cta'
@@ -14,14 +13,16 @@ import { WorkWall } from './work-wall'
  * backdrop only starts its own script where it is shown.
  *
  * The filled action opens the strategy-call popup directly (F8); "compare
- * engagements" scrolls to the tracks. The price is the consulting rows'
- * deposit, so it always says what the popup and the cards charge.
+ * engagements" scrolls to the tracks. No figure under the actions: the
+ * advisory side quotes none, and the popup shows the deposit before it is
+ * charged. Under them, the deposit's refund term when the call takes one,
+ * and only the call's length when it is the contact form.
  *
- * Props: { price: number, booking: { link, namespace } | null }.
+ * Props: { booking: { link, namespace } | null }.
  */
 
-export function ServicesHero({ price, booking }) {
-  const { eyebrow, location, title, lede, compare, priceLabel } =
+export function ServicesHero({ booking }) {
+  const { eyebrow, location, title, lede, compare, callNote, refundNote } =
     SERVICES_PAGE.hero
   return (
     <section aria-labelledby="hero-title" className="svc-wrap svc-hero-section">
@@ -61,7 +62,7 @@ export function ServicesHero({ price, booking }) {
             className="svc-price svc-hero-price svc-rise"
             style={{ '--d': '.3s' }}
           >
-            {priceLabel} · {usd(price)}
+            {booking ? refundNote : callNote}
           </p>
         </div>
       </div>

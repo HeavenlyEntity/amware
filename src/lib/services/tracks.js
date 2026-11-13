@@ -12,11 +12,13 @@ const KNOWN = new Set(SERVICE_TRACKS.map((t) => t.id))
 /* Anything without a known category counts as consulting: every service
    that existed before the field did is a consulting retainer. Input order
    is kept, and Payload already sorts by `order`. */
+export function trackOf(doc) {
+  return KNOWN.has(doc?.category) ? doc.category : 'consulting'
+}
+
 export function groupServices(docs = []) {
   const groups = { consulting: [], technical: [] }
-  for (const doc of docs) {
-    groups[KNOWN.has(doc?.category) ? doc.category : 'consulting'].push(doc)
-  }
+  for (const doc of docs) groups[trackOf(doc)].push(doc)
   return groups
 }
 

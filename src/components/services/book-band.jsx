@@ -1,6 +1,5 @@
 import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
 import { GlassPanel } from '@/components/founders/desk/glass-panel'
-import { usd } from '@/lib/commerce/money'
 import { SERVICES_PAGE } from '@/content/site/services-page'
 import { StrategyCallCta } from './strategy-call-cta'
 
@@ -37,15 +36,11 @@ export const BOOK_LENS = {
   position: [0.5, 0.5],
 }
 
-export function BookBand({ price, booking }) {
+export function BookBand({ booking }) {
   const { eyebrow, title, copy, glass, hint } = SERVICES_PAGE.band
-  const { priceLabel } = SERVICES_PAGE.hero
   const row = (
     <div className="svc-book-row">
       <StrategyCallCta booking={booking} />
-      <p className="svc-price">
-        {priceLabel} · {usd(price)}
-      </p>
     </div>
   )
 
