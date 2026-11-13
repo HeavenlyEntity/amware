@@ -34,7 +34,7 @@ describe('WebsitePackage', () => {
   it('asks for the build and makes no borrowed claims', () => {
     render(<WebsitePackage />)
     expect(
-      screen.getByRole('link', { name: /start a website build/i })
+      screen.getByRole('link', { name: /get your free website quote/i })
     ).toHaveAttribute('href', '/contact')
     expect(document.body.textContent).not.toMatch(
       /trusted by|100\+|companies worldwide/i

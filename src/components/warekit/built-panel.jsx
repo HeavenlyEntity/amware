@@ -23,8 +23,10 @@ export function BuiltPanel() {
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </span>
           </Link>
-          {/* TODO(alec): confirm the strategy call amount. */}
-          <span className="pj-kicker">Strategy call · $1,500.00</span>
+          {/* No figure: the strategy call is the advisory side's way in,
+              which quotes none in public. TODO(alec): confirm the call
+              runs 60 minutes. */}
+          <span className="pj-kicker">Strategy call · 60 minutes</span>
         </div>
       </div>
       <ol className="pr-process" aria-label="How a build engagement runs">

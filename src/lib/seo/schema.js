@@ -171,8 +171,10 @@ export function faqSchema(faqs) {
   }
 }
 
-/* One Service + Offer per published Payload service. Price and its period
-   come from the CMS, so the markup follows a price change with no deploy. */
+/* One Service + Offer per published Payload service. No service publishes a
+   price (owner decision 2026-11-12: every engagement is quoted on a call or
+   from the contact form), so no Offer carries a priceSpecification, even
+   when the row still stores one. */
 export function servicesSchema(docs) {
   return {
     '@context': 'https://schema.org',
@@ -180,32 +182,19 @@ export function servicesSchema(docs) {
     '@id': siteOrigin + '/services#catalog',
     name: 'AMWARE engagements',
     url: siteOrigin + '/services',
-    itemListElement: docs.map((doc) => {
-      const monthly = /month/i.test(doc.priceLabel ?? '')
-      return {
-        '@type': 'Offer',
-        url: siteOrigin + '/services#' + doc.slug,
-        itemOffered: {
-          '@type': 'Service',
-          name: doc.name,
-          ...(typeof doc.summary === 'string' && doc.summary
-            ? { description: doc.summary }
-            : {}),
-          serviceType: doc.name,
-          provider: { '@id': ids.organization },
-          areaServed: { '@type': 'Country', name: 'United States' },
-        },
-        ...(typeof doc.startingPrice === 'number'
-          ? {
-              priceSpecification: {
-                '@type': 'UnitPriceSpecification',
-                price: doc.startingPrice,
-                priceCurrency: 'USD',
-                ...(monthly ? { unitCode: 'MON', unitText: 'month' } : {}),
-              },
-            }
+    itemListElement: docs.map((doc) => ({
+      '@type': 'Offer',
+      url: siteOrigin + '/services#' + doc.slug,
+      itemOffered: {
+        '@type': 'Service',
+        name: doc.name,
+        ...(typeof doc.summary === 'string' && doc.summary
+          ? { description: doc.summary }
           : {}),
-      }
-    }),
+        serviceType: doc.name,
+        provider: { '@id': ids.organization },
+        areaServed: { '@type': 'Country', name: 'United States' },
+      },
+    })),
   }
 }

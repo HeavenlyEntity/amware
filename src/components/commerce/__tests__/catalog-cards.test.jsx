@@ -126,33 +126,38 @@ describe('catalog cards', () => {
     expect(screen.getByText('intermediate')).toBeInTheDocument()
   })
 
-  it('service card shows the from-price, the description slot, and the quote link without a product id', () => {
-    render(
-      <ul>
-        <ServiceCard
-          service={{ slug: 'cto', name: 'Fractional CTO', startingPrice: 3500 }}
-          index={0}
-          description={<p>Weekly shipping.</p>}
-        />
-      </ul>
-    )
-    /* Was '$3500.00'. A retainer is thousands a month, and that rendering
-       had no separator and two cents nobody charges. */
-    expect(screen.getByText('$3,500')).toBeInTheDocument()
-    expect(screen.getByText('Weekly shipping.')).toBeInTheDocument()
-    // No booking link on this one, so it still falls back to the quote form.
-    expect(
-      screen.getByRole('link', { name: /request a quote/i })
-    ).toHaveAttribute('href', '/contact')
-  })
-
-  it('service card says what the price is per, when the tier says so', () => {
+  it('a build card offers a free quote in place of its price, with the description slot and the quote link', () => {
     render(
       <ul>
         <ServiceCard
           service={{
             slug: 'cto',
             name: 'Fractional CTO',
+            category: 'technical',
+            startingPrice: 3500,
+          }}
+          index={0}
+          description={<p>Weekly shipping.</p>}
+        />
+      </ul>
+    )
+    expect(screen.getByText('Free quote for your project')).toBeInTheDocument()
+    expect(screen.queryByText(/\$/)).toBeNull()
+    expect(screen.getByText('Weekly shipping.')).toBeInTheDocument()
+    // No booking link on this one, so it falls back to the quote form.
+    expect(
+      screen.getByRole('link', { name: 'Get your free quote' })
+    ).toHaveAttribute('href', '/contact')
+  })
+
+  it('a build card names no figure or period, even with both stored', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{
+            slug: 'cto',
+            name: 'Fractional CTO',
+            category: 'technical',
             startingPrice: 7500,
             priceLabel: 'per month',
             commitment: 'about 20 to 25 hrs a month',
@@ -160,9 +165,9 @@ describe('catalog cards', () => {
         />
       </ul>
     )
-    // $7,500 and $7,500 per month are very different offers.
-    expect(screen.getByText('$7,500')).toBeInTheDocument()
-    expect(screen.getByText('per month')).toBeInTheDocument()
+    expect(screen.queryByText(/\$/)).toBeNull()
+    expect(screen.queryByText('per month')).toBeNull()
+    expect(screen.queryByText(/starts at/i)).toBeNull()
     expect(screen.getByText(/20 to 25 hrs/)).toBeInTheDocument()
   })
 
@@ -173,6 +178,7 @@ describe('catalog cards', () => {
           service={{
             slug: 'cto',
             name: 'Fractional CTO',
+            category: 'technical',
             startingPrice: 7500,
             bookingUrl: 'https://cal.com/amware/on-demand-outcome',
             whopPlanId: 'plan_live',
@@ -185,7 +191,7 @@ describe('catalog cards', () => {
     // Cal.com collects payment as part of the booking, even with a legacy plan.
     expect(
       screen.getByRole('button', {
-        name: 'Book your strategy call · $1,500',
+        name: 'Book your strategy call',
       })
     ).toBeInTheDocument()
     expect(
@@ -233,6 +239,7 @@ describe('catalog cards', () => {
           service={{
             slug: 'cto',
             name: 'Fractional CTO',
+            category: 'technical',
             startingPrice: 7500,
             bookingUrl: 'https://cal.com/amware/on-demand-outcome',
             depositNote: 'A $1,500 deposit, credited against month one.',
@@ -252,7 +259,49 @@ describe('catalog cards', () => {
     expect(
       screen.queryByRole('link', { name: /book an intro call/i })
     ).toBeNull()
-    expect(screen.getByText(/\$1,500 deposit/)).toBeInTheDocument()
+    // The CMS deposit note quotes the deposit, so no card shows it.
+    expect(screen.queryByText(/\$1,500 deposit/)).toBeNull()
+  })
+
+  it('an advisory card names no figure: no price, no deposit amount, no deposit note', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{
+            slug: 'cto',
+            name: 'Fractional CTO',
+            category: 'consulting',
+            startingPrice: 7500,
+            priceLabel: 'per month',
+            commitment: 'about 20 to 25 hrs a month',
+            bookingUrl: 'https://cal.com/amware/on-demand-outcome',
+            depositAmount: 1500,
+            depositNote: 'A $1,500 deposit, credited against month one.',
+          }}
+        />
+      </ul>
+    )
+    expect(
+      screen.getByRole('button', { name: 'Book your strategy call' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Scoped and priced on the call')
+    ).toBeInTheDocument()
+    expect(screen.getByText(/20 to 25 hrs/)).toBeInTheDocument()
+    expect(screen.queryByText(/\$/)).toBeNull()
+    expect(screen.queryByText('per month')).toBeNull()
+    expect(screen.queryByText(/starts at/i)).toBeNull()
+  })
+
+  it('a card without a category is advisory too, as every older row is', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{ slug: 'advisor', name: 'Advisor', startingPrice: 3000 }}
+        />
+      </ul>
+    )
+    expect(screen.queryByText('$3,000')).toBeNull()
   })
 
   it('service card links out when the booking link is not Cal.com', () => {
@@ -272,17 +321,6 @@ describe('catalog cards', () => {
     expect(link).toHaveAttribute('target', '_blank')
   })
 
-  it('keeps cents when a price actually has them', () => {
-    render(
-      <ul>
-        <ServiceCard
-          service={{ slug: 'a', name: 'A', startingPrice: 1250.5 }}
-        />
-      </ul>
-    )
-    expect(screen.getByText('$1,250.5')).toBeInTheDocument()
-  })
-
   it('tags a service the CMS marks popular', () => {
     render(
       <ul>
@@ -290,6 +328,7 @@ describe('catalog cards', () => {
           service={{
             slug: 'company-site',
             name: 'Company Site',
+            category: 'technical',
             startingPrice: 4500,
             popular: true,
           }}
@@ -306,6 +345,7 @@ describe('catalog cards', () => {
           service={{
             slug: 'one-pager',
             name: 'One Pager',
+            category: 'technical',
             startingPrice: 2500,
           }}
         />
@@ -321,6 +361,7 @@ describe('catalog cards', () => {
           service={{
             slug: 'cto',
             name: 'Fractional CTO',
+            category: 'technical',
             startingPrice: 7500,
             popular: true,
             bookingUrl: 'https://cal.com/amware/on-demand-outcome',
@@ -335,7 +376,7 @@ describe('catalog cards', () => {
       name: /first call value and refund terms/i,
     })
     const button = screen.getByRole('button', {
-      name: 'Book your strategy call · $1,500',
+      name: 'Book your strategy call',
     })
     const refund = screen.getByText('Full refund if we don’t work together.')
     expect(note.compareDocumentPosition(button)).toBe(
@@ -346,7 +387,7 @@ describe('catalog cards', () => {
     )
   })
 
-  it('lays an unpriced service out as a strip with its summary and the quote link', () => {
+  it('lays an open-ended service out as a strip with its summary and the quote link', () => {
     render(
       <ul>
         <ServiceStrip
@@ -363,7 +404,7 @@ describe('catalog cards', () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/specific requirements/)).toBeInTheDocument()
     expect(
-      screen.getByRole('link', { name: /request a quote/i })
+      screen.getByRole('link', { name: 'Get your free quote' })
     ).toHaveAttribute('href', '/contact')
   })
 
@@ -374,6 +415,7 @@ describe('catalog cards', () => {
           service={{
             slug: 'audit',
             name: 'Audit',
+            category: 'technical',
             startingPrice: 900,
             creemProductId: 'p',
           }}

@@ -1,7 +1,10 @@
 import { calLinkFromUrl } from '../commerce/calLink'
 
-/* The strategy call the /services hero and book band sell, read from the
-   consulting rows rather than typed into the page: the price is the first
+/* The strategy call the /services hero and book band book, read from the
+   consulting rows rather than typed into the page. The page uses only the
+   booking link now: the advisory side shows no figure (owner decision,
+   2026-11-12), and each card's checkout reads its own row's deposit. The
+   price is kept for the tests and any caller that charges it: the first
    numeric deposit (the same number every card's button and the Whop pixel
    are given, and the collection's own default), and the booking link is the
    first Cal.com URL, both from one row where a row has both. A zero deposit means "no deposit", not a free call, so

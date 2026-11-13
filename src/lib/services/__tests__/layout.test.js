@@ -5,7 +5,11 @@ import { pricedGridClass, splitByPrice } from '../layout.js'
    does: priced services side by side as pricing cards, unpriced ones (a
    "Custom work" ask) as a wide strip underneath. */
 
-const svc = (slug, startingPrice) => ({ slug, startingPrice })
+const svc = (slug, startingPrice, category = 'technical') => ({
+  slug,
+  startingPrice,
+  category,
+})
 
 describe('splitByPrice', () => {
   it('separates priced from unpriced services, keeping each in order', () => {
@@ -17,6 +21,15 @@ describe('splitByPrice', () => {
     ])
     expect(priced.map((s) => s.slug)).toEqual(['one-pager', 'company-site'])
     expect(unpriced.map((s) => s.slug)).toEqual(['custom-work', 'scoped'])
+  })
+
+  it('keeps an advisory retainer a card even with no price stored', () => {
+    const { priced, unpriced } = splitByPrice([
+      svc('advisor', null, 'consulting'),
+      svc('fractional-cto', undefined, null),
+    ])
+    expect(priced.map((s) => s.slug)).toEqual(['advisor', 'fractional-cto'])
+    expect(unpriced).toEqual([])
   })
 
   it('treats a price of zero as a price', () => {

@@ -14,9 +14,10 @@ import { ServiceTracks } from './service-tracks'
  * hatched panel; the Build & support panel brings its own (WebsitePackage),
  * after any technical services there are.
  *
- * Props: { consulting, technical, pricedCount } where the first two are
- * nodes and `pricedCount` is the number of priced consulting retainers, for
- * the "3 retainers · published pricing" meta.
+ * Props: { consulting, technical, retainerCount } where the first two are
+ * nodes and `retainerCount` is the number of consulting retainers (the
+ * cards, not the custom asks), for the "3 retainers · scoped on a call"
+ * meta.
  */
 
 export function ConsultingPanel({ children }) {
@@ -30,7 +31,7 @@ export function ConsultingPanel({ children }) {
   )
 }
 
-export function Engagements({ consulting, technical, pricedCount }) {
+export function Engagements({ consulting, technical, retainerCount }) {
   const { index, eyebrow, title, copy } = SERVICES_PAGE.engagements
   return (
     <section
@@ -43,7 +44,7 @@ export function Engagements({ consulting, technical, pricedCount }) {
         id="engagements-title"
         index={index}
         eyebrow={eyebrow}
-        meta={retainerMeta(pricedCount)}
+        meta={retainerMeta(retainerCount)}
         title={title}
         copy={copy}
       />
