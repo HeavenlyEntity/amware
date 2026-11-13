@@ -1,6 +1,8 @@
+import { after } from 'next/server'
 import { APIError, type CollectionConfig } from 'payload'
 
-import { RED_FLAGS_SUBJECT } from '../lib/contact-intents'
+import { RED_FLAGS_SUBJECT, isConsultingEnquiry } from '../lib/contact-intents'
+import { recordContact } from '../lib/leads/record'
 import { sendContactEmails } from '../lib/resend'
 import { verifyContactToken } from '../lib/turnstile'
 
@@ -44,7 +46,7 @@ export const ContactSubmissions: CollectionConfig = {
       },
     ],
     afterChange: [
-      async ({ doc, operation }) => {
+      async ({ doc, operation, req }) => {
         if (operation === 'create') {
           try {
             await sendContactEmails({
@@ -66,6 +68,36 @@ export const ContactSubmissions: CollectionConfig = {
                 true
               )
             }
+          }
+        }
+        const payload = req?.payload
+        if (
+          operation === 'create' &&
+          payload &&
+          isConsultingEnquiry(doc.subject)
+        ) {
+          /* A consulting enquiry joins the Leads list. Last, so a message
+             that failed above never makes a lead, and after the response, by
+             when this row's transaction has committed and its connection is
+             back in the pool: a failed lead write can neither roll the
+             message back nor wait on a second connection. The owner gets the
+             message by email either way. */
+          const record = async () => {
+            try {
+              await recordContact(payload, {
+                name: doc.name,
+                email: doc.email,
+                message: doc.message,
+              })
+            } catch (err) {
+              console.error('Recording the contact as a lead failed:', err)
+            }
+          }
+          try {
+            after(record)
+          } catch {
+            // Outside a request (a script or test): just run it.
+            await record()
           }
         }
         return doc

@@ -14,6 +14,19 @@ export function isKitWaitlist(subject) {
   return typeof subject === 'string' && subject.startsWith(KIT_WAITLIST_PREFIX)
 }
 
+/* A consulting enquiry, the kind that joins the Leads list. Product and
+   course sign-ups (WareKit waitlist or Enterprise, the courses waitlist) and
+   the Red Flags checklist download post here too, but they are buyers of a
+   product, not people in the consulting funnel. */
+export function isConsultingEnquiry(subject) {
+  if (typeof subject !== 'string') return true
+  return !(
+    subject.startsWith('WareKit') ||
+    subject.startsWith('Courses waitlist') ||
+    subject === RED_FLAGS_SUBJECT
+  )
+}
+
 /* The subject on the contact form when a license holder asks about
    Enterprise, so the enquiry arrives already naming the kit and the tier. */
 export function kitEnterpriseSubject(kit, tier) {

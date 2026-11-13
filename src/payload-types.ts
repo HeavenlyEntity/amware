@@ -78,6 +78,7 @@ export interface Config {
     'contact-submissions': ContactSubmission
     purchases: Purchase
     licenses: License
+    leads: Lead
     'payload-kv': PayloadKv
     'payload-locked-documents': PayloadLockedDocument
     'payload-preferences': PayloadPreference
@@ -98,6 +99,7 @@ export interface Config {
       | ContactSubmissionsSelect<true>
     purchases: PurchasesSelect<false> | PurchasesSelect<true>
     licenses: LicensesSelect<false> | LicensesSelect<true>
+    leads: LeadsSelect<false> | LeadsSelect<true>
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>
     'payload-locked-documents':
       | PayloadLockedDocumentsSelect<false>
@@ -857,6 +859,65 @@ export interface License {
   createdAt: string
 }
 /**
+ * People in the consulting funnel. Bookings and contact-form messages add them automatically.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "leads".
+ */
+export interface Lead {
+  id: number
+  name: string
+  email: string
+  phone?: string | null
+  business?: string | null
+  /**
+   * Or where they are online. Blank for referral-only businesses.
+   */
+  website?: string | null
+  basedIn?: string | null
+  yearsInBusiness?: string | null
+  sells?: string | null
+  foundVia?: string | null
+  helpWith?: string | null
+  /**
+   * Before the intro call: pricing and packages, rough size and revenue range, stack, visible problems.
+   */
+  researchNotes?: string | null
+  /**
+   * From the calls: problems, goals, what they asked.
+   */
+  salesNotes?: string | null
+  /**
+   * Filled in from Cal.com.
+   */
+  calls?:
+    | {
+        kind: 'intro' | 'strategy' | 'other'
+        status: 'booked' | 'rescheduled' | 'cancelled' | 'completed'
+        startsAt?: string | null
+        bookingUid?: string | null
+        id?: string | null
+      }[]
+    | null
+  /**
+   * Moves forward on its own up to "Strategy call done". Set the rest by hand.
+   */
+  stage:
+    | 'contacted'
+    | 'intro-booked'
+    | 'intro-done'
+    | 'strategy-booked'
+    | 'strategy-done'
+    | 'proposal-sent'
+    | 'won'
+    | 'lost'
+    | 'not-a-fit'
+  fit?: ('fit' | 'maybe' | 'not-a-fit') | null
+  source: 'calcom' | 'contact-form' | 'manual'
+  updatedAt: string
+  createdAt: string
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -923,6 +984,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'licenses'
         value: number | License
+      } | null)
+    | ({
+        relationTo: 'leads'
+        value: number | Lead
       } | null)
   globalSlug?: string | null
   user: {
@@ -1326,6 +1391,38 @@ export interface LicensesSelect<T extends boolean = true> {
   tierChangedAt?: T
   lastLinkSentAt?: T
   creemEnvironment?: T
+  updatedAt?: T
+  createdAt?: T
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "leads_select".
+ */
+export interface LeadsSelect<T extends boolean = true> {
+  name?: T
+  email?: T
+  phone?: T
+  business?: T
+  website?: T
+  basedIn?: T
+  yearsInBusiness?: T
+  sells?: T
+  foundVia?: T
+  helpWith?: T
+  researchNotes?: T
+  salesNotes?: T
+  calls?:
+    | T
+    | {
+        kind?: T
+        status?: T
+        startsAt?: T
+        bookingUid?: T
+        id?: T
+      }
+  stage?: T
+  fit?: T
+  source?: T
   updatedAt?: T
   createdAt?: T
 }
