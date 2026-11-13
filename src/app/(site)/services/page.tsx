@@ -81,10 +81,9 @@ export default async function ServicesPage() {
   const { docs, loadError } = await loadServices()
   const { consulting, technical } = groupServices(docs)
   const { booking } = strategyCall(consulting)
-  /* The hero, band and cards take the deposit only through a Cal.com link;
-     without one the refund promise and its FAQ answer stay off the page. */
-  const hasDeposit = Boolean(booking)
-  const faqs = faqItems(hasDeposit)
+  /* Both calls are free, so the promise and every FAQ answer hold whether
+     the button opens Cal.com or falls back to the contact form. */
+  const faqs = faqItems()
   const proof = servicesTestimonials({
     nodeEnv: process.env.NODE_ENV,
     vercelEnv: process.env.VERCEL_ENV,
@@ -172,9 +171,9 @@ export default async function ServicesPage() {
         }
       />
 
-      {hasDeposit && <RiskReversal />}
+      <RiskReversal />
       <FitCheck />
-      <ServicesFaq hasDeposit={hasDeposit} />
+      <ServicesFaq />
 
       <BookBand booking={booking} />
     </div>

@@ -1,0 +1,386 @@
+/* The free call path under the home page's Anti-Slop Alec cards
+   (components/landing/call-path.jsx; design: HomePricing.dc.html). Colours
+   come from the storefront tokens, so it follows light and dark mode. */
+
+.cp {
+  position: relative;
+  margin-top: clamp(3rem, 5vw, 4.5rem);
+  overflow: hidden;
+  padding: clamp(1.75rem, 4vw, 3rem);
+  border-radius: 1.5rem;
+  background: radial-gradient(
+      60% 80% at 12% 0%,
+      var(--amw-accent-soft),
+      transparent 70%
+    ),
+    var(--amw-card);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+
+.cp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.cp-eyebrow {
+  margin: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amw-accent-ink);
+}
+.cp-row .amw-kicker {
+  margin: 0;
+}
+.cp-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--amw-line-strong), transparent);
+}
+
+.cp-title {
+  margin: 0;
+  max-width: 34rem;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--amw-ink);
+  text-wrap: balance;
+}
+.cp-sub {
+  margin: 0.75rem 0 0;
+  max-width: 38rem;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--amw-mut);
+}
+
+/* Brackets over the rail: what is free, and what only happens if it fits. */
+.cp-brackets {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: 1rem;
+  margin: clamp(2rem, 4vw, 2.75rem) 0 0.9rem;
+}
+.cp-bracket {
+  position: relative;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--amw-line-strong);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+}
+.cp-bracket::before,
+.cp-bracket::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  width: 1px;
+  height: 9px;
+  background: var(--amw-line-strong);
+}
+.cp-bracket::before {
+  left: 0;
+}
+.cp-bracket::after {
+  right: 0;
+}
+.cp-bracket[data-free='yes'] {
+  border-top-color: var(--amw-accent);
+  color: var(--amw-accent-ink);
+}
+.cp-bracket[data-free='yes']::before,
+.cp-bracket[data-free='yes']::after {
+  background: var(--amw-accent);
+}
+.cp-bracket b {
+  display: inline-block;
+  margin-right: 0.6rem;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--amw-accent);
+  color: #09090b;
+  letter-spacing: 0.08em;
+}
+
+/* The rail and its five stops. */
+.cp-path {
+  position: relative;
+}
+.cp-track {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cp-rail {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 21px;
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--amw-line-strong) 0 6px,
+    transparent 6px 12px
+  );
+}
+.cp-rail-free {
+  position: absolute;
+  left: 22px;
+  top: 20px;
+  height: 4px;
+  width: calc(40% - 22px - 0.6rem);
+  border-radius: 4px;
+  background: var(--amw-accent);
+  box-shadow: 0 0 18px var(--amw-accent-soft);
+}
+.cp-pulse {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ccfbf1;
+  box-shadow: 0 0 0 4px var(--amw-accent-soft), 0 0 16px var(--amw-accent);
+  animation: cp-run 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes cp-run {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: calc(100% - 12px);
+    opacity: 0;
+  }
+}
+
+.cp-step {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.cp-node {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--amw-card-2);
+  box-shadow: inset 0 0 0 1px var(--amw-line-strong);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--amw-mut);
+}
+.cp-step[data-kind='free'] .cp-node {
+  background: var(--amw-accent);
+  box-shadow: 0 0 0 6px var(--amw-accent-soft);
+  color: #09090b;
+}
+.cp-step[data-here='yes'] .cp-node::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--amw-accent);
+  animation: cp-ring 2.4s ease-out infinite;
+}
+@keyframes cp-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+.cp-card {
+  flex: 1;
+  margin-top: 1.1rem;
+  padding: 1.1rem 1.1rem 1.2rem;
+  border-radius: 1rem;
+  background: var(--amw-card-2);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s;
+}
+@media (hover: hover) {
+  .cp-step:hover .cp-card {
+    transform: translateY(-3px);
+    box-shadow: inset 0 0 0 1px var(--amw-accent);
+  }
+}
+.cp-step[data-kind='free'] .cp-card {
+  background: linear-gradient(
+    180deg,
+    var(--amw-accent-soft),
+    var(--amw-card-2) 60%
+  );
+  box-shadow: inset 0 0 0 1px var(--amw-accent);
+}
+.cp-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--amw-line);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amw-ink);
+}
+.cp-tag[data-kind='free'] {
+  background: var(--amw-accent);
+  color: #09090b;
+}
+.cp-tag[data-kind='refund'] {
+  background: var(--amw-accent-soft);
+  color: var(--amw-accent-ink);
+}
+.cp-name {
+  margin: 0.85rem 0 0;
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--amw-ink);
+}
+.cp-time {
+  margin: 0.3rem 0 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+}
+.cp-what {
+  margin: 0.6rem 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--amw-mut);
+}
+
+.cp-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  margin-top: clamp(2rem, 4vw, 2.75rem);
+  padding-top: clamp(1.5rem, 3vw, 2rem);
+  border-top: 1px dashed var(--amw-line-strong);
+}
+.cp-cta .amw-kicker {
+  margin: 0;
+}
+.cp-quiet {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--amw-ink);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.cp-quiet:hover {
+  color: var(--amw-accent-ink);
+}
+
+/* Below xl the five cards get too narrow, so the rail turns vertical. */
+@media (max-width: 1279px) {
+  .cp-brackets {
+    display: none;
+  }
+  .cp-track {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+    padding-left: 58px;
+  }
+  .cp-rail {
+    left: 21px;
+    right: auto;
+    top: 22px;
+    bottom: 22px;
+    width: 2px;
+    height: auto;
+    background: repeating-linear-gradient(
+      180deg,
+      var(--amw-line-strong) 0 6px,
+      transparent 6px 12px
+    );
+  }
+  .cp-rail-free {
+    left: 20px;
+    top: 22px;
+    width: 4px;
+    height: calc(40% - 1rem);
+  }
+  .cp-pulse {
+    left: -4px;
+    top: 0;
+    animation-name: cp-run-y;
+  }
+  .cp-node {
+    position: absolute;
+    left: -58px;
+    top: 0;
+  }
+  .cp-card {
+    margin-top: 0;
+  }
+}
+@keyframes cp-run-y {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    top: calc(100% - 12px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-pulse {
+    display: none;
+  }
+  .cp-step[data-here='yes'] .cp-node::after {
+    animation: none;
+  }
+  .cp-card,
+  .cp-step:hover .cp-card {
+    transition: none;
+    transform: none;
+  }
+}

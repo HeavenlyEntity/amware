@@ -8,6 +8,7 @@ import { BuyButton } from '@/components/commerce/BuyButton'
 import { BookCallButton } from '@/components/commerce/BookCallButton'
 import { DepositCheckout } from '@/components/commerce/DepositCheckout'
 import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
+import { IntroCallTerms } from '@/components/commerce/IntroCallTerms'
 import { calLinkFromUrl } from '@/lib/commerce/calLink'
 import { depositPlanId, planId } from '@/lib/commerce/whopEnv'
 import { checkoutRoute } from '@/lib/commerce/checkoutRoute'
@@ -250,11 +251,12 @@ function CtaLabel({ children, tone }) {
   )
 }
 
-/* What a service asks for, most committed first: a purchase, a paid
-   strategy call, a reserved start, an intro call, or a quote. The deposit
-   asks keep their value and refund terms wrapped around the button. The
-   purchase button keeps its own styling and ignores `tone`: no service is
-   sold that way today, so a popular one would need it taught first. */
+/* What a service asks for, most committed first: a purchase, the free
+   intro call (any Cal.com link, since 2026-11-13), a reserved start, or a
+   quote. The intro call and the deposit each keep their terms wrapped
+   around the button. The purchase button keeps its own styling and ignores
+   `tone`: no service is sold that way today, so a popular one would need it
+   taught first. */
 function ServiceAction({ service, tone = 'default', fullWidth = false }) {
   const hasPrice = typeof service.startingPrice === 'number'
   /* No service names a figure here, not even the deposit's: the amount is
@@ -279,8 +281,8 @@ function ServiceAction({ service, tone = 'default', fullWidth = false }) {
           name={service.name}
           label={'Purchase'}
         />
-      ) : booking && (depositPlan || service.depositAmount > 0) ? (
-        <DepositRiskReversal tone={tone}>
+      ) : booking ? (
+        <IntroCallTerms tone={tone}>
           <BookCallButton
             calLink={booking.link}
             namespace={`${booking.namespace}-${service.slug}`}
@@ -288,9 +290,9 @@ function ServiceAction({ service, tone = 'default', fullWidth = false }) {
             notes={`Engagement: ${service.name}`}
             className={className}
           >
-            <CtaLabel tone={tone}>Book your strategy call</CtaLabel>
+            <CtaLabel tone={tone}>Book a free intro call</CtaLabel>
           </BookCallButton>
-        </DepositRiskReversal>
+        </IntroCallTerms>
       ) : depositPlan ? (
         <DepositRiskReversal tone={tone}>
           <DepositCheckout
@@ -303,16 +305,6 @@ function ServiceAction({ service, tone = 'default', fullWidth = false }) {
             <CtaLabel tone={tone}>Reserve your start</CtaLabel>
           </DepositCheckout>
         </DepositRiskReversal>
-      ) : booking ? (
-        <BookCallButton
-          calLink={booking.link}
-          namespace={`${booking.namespace}-${service.slug}`}
-          serviceName={service.name}
-          notes={`Engagement: ${service.name}`}
-          className={className}
-        >
-          <CtaLabel tone={tone}>Book an intro call</CtaLabel>
-        </BookCallButton>
       ) : (
         /* Any other booking link opens where it points; no link at all
            falls back to the contact form. */

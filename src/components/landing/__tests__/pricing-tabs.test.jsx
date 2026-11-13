@@ -12,6 +12,7 @@ vi.mock('@calcom/embed-react', () => ({
 }))
 
 import { Pricing } from '../pricing'
+import { CALL_PATH } from '../call-path'
 
 /* The homepage offer section as a buyer meets it: two tabs, the right one
    open by default, the kit prices coming from the same rows /pricing reads
@@ -126,63 +127,59 @@ describe('Pricing tabs', () => {
   })
 })
 
-describe('Pricing retainers and the deposit', () => {
+describe('Pricing retainers and the free intro call', () => {
   const services = [
     {
       slug: 'fractional-cto',
       name: 'Fractional CTO',
       whopPlanId: 'plan_dep',
       depositAmount: 1500,
-      bookingUrl: 'https://cal.com/amware/on-demand-outcome',
+      bookingUrl: 'https://cal.com/amware/intro-call',
     },
   ]
+  const cardButton = () => {
+    const card = within(panel()).getByText('Fractional CTO').closest('li')
+    return {
+      card,
+      book: within(card).getByRole('button', {
+        name: 'Book a free intro call',
+      }),
+    }
+  }
 
-  it('opens the matching Cal.com booking on the engagement card', () => {
+  it('books the free intro call on the engagement card, wrapped in its terms', () => {
     render(<Pricing kits={[]} services={services} />)
-    const p = panel()
-    const buttons = within(p).getAllByRole('button', {
-      name: /book your strategy call/i,
+    const { card, book } = cardButton()
+    // Only the tier with a booking link gets a card button.
+    expect(
+      within(panel()).getAllByRole('button', { name: 'Book a free intro call' })
+    ).toHaveLength(2) // the card's and the call path's
+    const terms = within(card).getByRole('note', {
+      name: 'What the intro call is',
     })
-    expect(buttons).toHaveLength(1)
-    // No amount: the advisory side names no figure, and the popup shows
-    // the deposit before it is charged.
-    expect(buttons[0]).toHaveAccessibleName('Book your strategy call')
-    // It sits inside the Fractional CTO card, not beside another tier.
-    const card = buttons[0].closest('li')
-    expect(card).toHaveTextContent('Fractional CTO')
-    const guarantee = within(card).getByRole('note', {
-      name: /first call value and refund terms/i,
-    })
-    expect(guarantee).toHaveTextContent('Know what to fix next in 60 minutes.')
-    expect(guarantee).toHaveTextContent(
-      'You leave knowing your highest-priority technical risk and the next move to make.'
-    )
-    expect(guarantee).toHaveTextContent(
+    expect(terms).toHaveTextContent('Start with a free 15-minute call.')
+    expect(terms).toHaveTextContent(
       'Free tool included: CTO Systems Audit Prompt'
     )
-    expect(guarantee.compareDocumentPosition(buttons[0])).toBe(
+    expect(terms.compareDocumentPosition(book)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )
-    const refund = within(card).getByText(
-      'Full refund if we don’t work together.'
-    )
-    expect(buttons[0].compareDocumentPosition(refund)).toBe(
+    const fine = within(card).getByText('Intro call · 15 min · free')
+    expect(book.compareDocumentPosition(fine)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )
-    expect(p).toHaveTextContent(
-      'The deposit holds your start. After the intro call, it is either credited in full to month one or returned before work begins.'
-    )
+    // Both calls are free: no refund promise and no deposit line remain.
+    expect(panel()).not.toHaveTextContent('Full refund')
+    expect(panel()).not.toHaveTextContent('The deposit holds your start')
   })
 
-  it('bypasses standalone Whop checkout and carries the selected engagement', () => {
+  it('carries the selected engagement into the Cal.com popup', () => {
     render(<Pricing kits={[]} services={services} />)
-    const book = within(panel()).getByRole('button', {
-      name: /book your strategy call/i,
-    })
-    expect(book).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
+    const { book } = cardButton()
+    expect(book).toHaveAttribute('data-cal-link', 'amware/intro-call')
     expect(book).toHaveAttribute(
       'data-cal-namespace',
-      'on-demand-outcome-fractional-cto'
+      'intro-call-fractional-cto'
     )
     expect(JSON.parse(book.getAttribute('data-cal-config')).notes).toBe(
       'Engagement: Fractional CTO'
@@ -192,24 +189,50 @@ describe('Pricing retainers and the deposit', () => {
     expect(screen.queryByTestId('embed')).toBeNull()
   })
 
-  it('allows Cal.com booking without a standalone Whop plan', () => {
+  it('books the intro call without a standalone Whop plan', () => {
     render(
       <Pricing
         kits={[]}
         services={services.map((service) => ({ ...service, whopPlanId: null }))}
       />
     )
-    expect(
-      within(panel()).getByRole('button', { name: /book your strategy call/i })
-    ).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
+    expect(cardButton().book).toHaveAttribute(
+      'data-cal-link',
+      'amware/intro-call'
+    )
   })
 
-  it('shows no deposit button when no service carries a plan', () => {
-    render(<Pricing kits={[]} services={[]} />)
+  it('shows the free call path under the cards, booking the same call', () => {
+    render(<Pricing kits={[]} services={services} />)
+    const path = within(panel()).getByRole('region', {
+      name: 'Find out if I can help before you spend a dollar.',
+    })
+    const steps = within(path).getAllByRole('listitem')
+    expect(steps.map((li) => li.querySelector('.cp-name').textContent)).toEqual(
+      CALL_PATH.map((s) => s.name)
+    )
+    expect(steps[0]).toHaveTextContent('Free')
+    expect(steps[1]).toHaveTextContent('Free')
+    expect(steps[2]).toHaveTextContent('Refundable deposit')
+    const book = within(path).getByRole('button', {
+      name: 'Book a free intro call',
+    })
+    expect(book).toHaveAttribute('data-cal-link', 'amware/intro-call')
+    expect(book).toHaveAttribute('data-cal-namespace', 'intro-call-home')
     expect(
-      within(panel()).queryByRole('button', {
-        name: /book your strategy call/i,
-      })
-    ).toBeNull()
+      within(path).getByRole('link', { name: /compare engagements/i })
+    ).toHaveAttribute('href', '/services')
+  })
+
+  it('falls back to the contact form when no service has a booking link', () => {
+    render(<Pricing kits={[]} services={[]} />)
+    // No card button without a link or a plan.
+    for (const name of ['Advisor', 'Fractional CTO', 'Embedded CTO']) {
+      const card = within(panel()).getByText(name).closest('li')
+      expect(within(card).queryByRole('button')).toBeNull()
+    }
+    expect(
+      within(panel()).getByRole('link', { name: 'Book a free intro call' })
+    ).toHaveAttribute('href', '/contact')
   })
 })

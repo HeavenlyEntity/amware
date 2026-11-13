@@ -256,7 +256,7 @@ describe('the sections', () => {
     expect(screen.getByText('Have it built.')).toBeInTheDocument()
     expect(screen.queryByText('Only the differences that matter.')).toBeNull()
     expect(
-      screen.getByRole('link', { name: /Book a strategy call/ })
+      screen.getByRole('link', { name: /See how it starts/ })
     ).toHaveAttribute('href', '/services')
   })
 

@@ -6,8 +6,8 @@ import { StrategyCallCta } from './strategy-call-cta'
  * 2026-11-12): the sections that turn a reader into a booked call.
  *
  * - PainPoints: "Sound familiar?", the buyer's problems in their own words,
- *   with the strategy call right under them.
- * - RiskReversal: the risk reversal, from the deposit's real terms.
+ *   with the intro call right under them.
+ * - RiskReversal: two free calls, then the Diagnostic's refundable deposit.
  * - FitCheck: who this is for and who it isn't.
  * - ServicesFaq: the objections, answered. Native <details>, so it opens
  *   without JavaScript; the page publishes the same answers as FAQPage data.
@@ -111,7 +111,7 @@ export function FitCheck() {
   )
 }
 
-export function ServicesFaq({ hasDeposit }) {
+export function ServicesFaq() {
   const { eyebrow, title } = SERVICES_PAGE.faq
   return (
     <section aria-labelledby="faq-title" className="svc-wrap svc-cv">
@@ -120,7 +120,7 @@ export function ServicesFaq({ hasDeposit }) {
         {title}
       </h2>
       <div className="svc-faq">
-        {faqItems(hasDeposit).map(({ question, answer }) => (
+        {faqItems().map(({ question, answer }) => (
           <details key={question}>
             <summary>{question}</summary>
             <p>{answer}</p>
