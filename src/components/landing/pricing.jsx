@@ -10,8 +10,10 @@ import { BookCallButton } from '@/components/commerce/BookCallButton'
 import { calLinkFromUrl } from '@/lib/commerce/calLink'
 import { DepositCheckout } from '@/components/commerce/DepositCheckout'
 import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
+import { IntroCallTerms } from '@/components/commerce/IntroCallTerms'
 import { depositPlanId } from '@/lib/commerce/whopEnv'
 import { OfferTabs, offerPanelProps } from './offer-tabs'
+import { CallPath } from './call-path'
 import {
   STACK_LABEL,
   buildPricingTable,
@@ -38,8 +40,9 @@ import {
 
    The retainer tiers are the real ones as of 2026-09-09, confirmed by Alec.
    Since 2026-11-12 they quote no price anywhere in public (owner decision):
-   the scope and the figure are settled on the strategy call, and the
-   deposit shows in the checkout before it is charged. The Payload rows
+   the scope and the figure are settled on the strategy call. Since
+   2026-11-13 both calls are free: each card books the 15-minute intro call,
+   and the call path under the cards shows what follows. The Payload rows
    still hold the prices for the checkout and Creem's records.
 
    Who they speak to: founders who vibe-coded an app and lost control of it,
@@ -156,9 +159,8 @@ function Price({ value, under }) {
   )
 }
 
-/* Booking and payment happen together in Cal.com. Service data supplies
-   the event URL and deposit amount; a standalone deposit remains a fallback
-   only for services that do not have a Cal.com event. */
+/* A Cal.com link books the free intro call. A standalone deposit remains a
+   fallback only for services that do not have a Cal.com event. */
 const reserveClass =
   'border-[var(--amw-line-strong)] hover:border-[var(--amw-accent)] hover:text-[var(--amw-accent-ink)] inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border px-5 py-3 text-sm font-medium text-zinc-800 no-underline transition-colors dark:text-zinc-200'
 
@@ -166,11 +168,9 @@ function ReserveStart({ plan, service }) {
   const planId = depositPlanId(service)
   const booking = calLinkFromUrl(service?.bookingUrl)
   if (!booking && !planId) return null
-  const amount =
-    typeof service?.depositAmount === 'number' ? service.depositAmount : 1500
-  return (
-    <DepositRiskReversal className="mt-auto pt-6">
-      {booking ? (
+  if (booking) {
+    return (
+      <IntroCallTerms className="mt-auto pt-6">
         <BookCallButton
           calLink={booking.link}
           namespace={`${booking.namespace}-${service.slug}`}
@@ -178,19 +178,24 @@ function ReserveStart({ plan, service }) {
           notes={`Engagement: ${plan.name}`}
           className={reserveClass}
         >
-          Book your strategy call
+          Book a free intro call
         </BookCallButton>
-      ) : (
-        <DepositCheckout
-          planId={planId}
-          serviceName={plan.name}
-          amount={amount}
-          bookingUrl={service.bookingUrl || null}
-          className={reserveClass}
-        >
-          Reserve your start
-        </DepositCheckout>
-      )}
+      </IntroCallTerms>
+    )
+  }
+  const amount =
+    typeof service?.depositAmount === 'number' ? service.depositAmount : 1500
+  return (
+    <DepositRiskReversal className="mt-auto pt-6">
+      <DepositCheckout
+        planId={planId}
+        serviceName={plan.name}
+        amount={amount}
+        bookingUrl={service.bookingUrl || null}
+        className={reserveClass}
+      >
+        Reserve your start
+      </DepositCheckout>
     </DepositRiskReversal>
   )
 }
@@ -282,6 +287,11 @@ const panelMotion = (reduce) => ({
 
 export function Pricing({ kits = [], services = [] }) {
   const serviceBySlug = new Map(services.map((s) => [s.slug, s]))
+  /* The call path's own button books the same intro call as the cards. */
+  const introBooking =
+    retainers
+      .map((plan) => calLinkFromUrl(serviceBySlug.get(plan.slug)?.bookingUrl))
+      .find(Boolean) ?? null
   const reduce = useReducedMotion()
   const id = useId()
 
@@ -395,33 +405,12 @@ export function Pricing({ kits = [], services = [] }) {
               </ul>
 
               <motion.div
-                className="mt-12 flex flex-col items-center gap-4 md:mt-16"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
+                viewport={{ once: true, amount: 0.2 }}
                 transition={{ duration: 0.6, delay: 0.2, ease: easeOut }}
               >
-                <Link
-                  href="/services"
-                  className="bg-[var(--amw-accent)] text-zinc-950 group inline-flex w-full items-center justify-center gap-3 rounded-md py-3 pl-5 pr-3 font-medium no-underline transition-all duration-500 ease-out hover:rounded-[50px] hover:shadow-lg sm:w-auto"
-                >
-                  <span>Compare engagements</span>
-                  <span className="text-zinc-950 flex h-10 w-10 items-center justify-center rounded-full bg-white transition-all duration-300 group-hover:scale-110">
-                    <ChevronRight
-                      className="relative left-px h-4 w-4"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </Link>
-                {/* Says the price of starting before the call, not after it.
-                    The deposit is credited, so it is a commitment gate rather
-                    than an extra cost, and saying so is what stops it reading
-                    as a fee. */}
-                <p className="max-w-md text-center text-sm text-zinc-600 dark:text-zinc-400">
-                  The deposit holds your start. After the intro call, it is
-                  either credited in full to month one or returned before work
-                  begins.
-                </p>
+                <CallPath booking={introBooking} />
               </motion.div>
             </motion.div>
           )}

@@ -15,8 +15,8 @@ import { SERVICES_PAGE } from '@/content/site/services-page'
    quiet way down to the tracks. */
 
 const booking = {
-  link: 'amware/on-demand-outcome',
-  namespace: 'on-demand-outcome',
+  link: 'amware/intro-call',
+  namespace: 'intro-call',
 }
 
 describe('ServicesHero', () => {
@@ -36,41 +36,34 @@ describe('ServicesHero', () => {
     expect(prefix.parentElement).toHaveTextContent('// SEC.00 / Services')
   })
 
-  it('opens the strategy-call popup on its own page namespace', () => {
+  it('opens the intro-call popup on its own page namespace', () => {
     render(<ServicesHero booking={booking} />)
-    const cta = screen.getByRole('button', { name: /book a strategy call/i })
-    expect(cta).toHaveAttribute('data-cal-link', 'amware/on-demand-outcome')
-    expect(cta).toHaveAttribute(
-      'data-cal-namespace',
-      'on-demand-outcome-services'
-    )
+    const cta = screen.getByRole('button', { name: /book a free intro call/i })
+    expect(cta).toHaveAttribute('data-cal-link', 'amware/intro-call')
+    expect(cta).toHaveAttribute('data-cal-namespace', 'intro-call-services')
     expect(JSON.parse(cta.getAttribute('data-cal-config'))).toMatchObject({
       notes: 'Engagement: not sure yet (from /services)',
     })
     /* The arrow is decoration; the name is the words. */
-    expect(cta).toHaveAccessibleName('book a strategy call')
+    expect(cta).toHaveAccessibleName('book a free intro call')
   })
 
   it('falls back to the contact form without a Cal.com link', () => {
     render(<ServicesHero booking={null} />)
-    expect(screen.queryByRole('button', { name: /strategy call/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /intro call/i })).toBeNull()
     expect(
-      screen.getByRole('link', { name: /book a strategy call/i })
+      screen.getByRole('link', { name: /book a free intro call/i })
     ).toHaveAttribute('href', '/contact')
   })
 
-  it('names the call and its refund term without a price', () => {
-    const { container } = render(<ServicesHero booking={booking} />)
-    expect(
-      screen.getByText('60 minutes · full refund if we don’t work together')
-    ).toBeInTheDocument()
-    expect(container).not.toHaveTextContent('$')
-  })
-
-  it('promises no refund when the call is the contact form', () => {
-    const { container } = render(<ServicesHero booking={null} />)
-    expect(screen.getByText('Strategy call · 60 minutes')).toBeInTheDocument()
-    expect(container).not.toHaveTextContent(/refund/i)
+  it('names the free call, without a price or a refund term', () => {
+    for (const value of [booking, null]) {
+      const { container, unmount } = render(<ServicesHero booking={value} />)
+      expect(screen.getByText('Intro call · 15 min · free')).toBeInTheDocument()
+      expect(container).not.toHaveTextContent('$')
+      expect(container).not.toHaveTextContent(/refund/i)
+      unmount()
+    }
   })
 
   it('scrolls to the tracks with the quiet link', () => {

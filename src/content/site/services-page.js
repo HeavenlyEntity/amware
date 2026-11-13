@@ -16,8 +16,7 @@
 export const SERVICES_PAGE = {
   /* TODO(alec): confirm the hero and band promises ("find what is costing
      you users, and fix it in that order", "find the riskiest problem
-     first") and the tools the lede names. The 60 minutes and the refund
-     line are the deposit terms' own (DepositRiskReversal). */
+     first") and the tools the lede names. */
   hero: {
     /* "SERVICES", not the board's "ENGAGEMENTS": the section below is
        already // SEC.01 / ENGAGEMENTS, and two eyebrows saying the same
@@ -28,12 +27,11 @@ export const SERVICES_PAGE = {
     location: 'For founders with an AI-built or vendor-built app',
     title: 'Stop losing users to an app you can’t fix.',
     lede: 'Lovable, Cursor or Bolt got you live, then every prompt started breaking something else. Or your developer went quiet while the bugs, churn and security holes piled up. I step in as your CTO, find what is costing you users, and fix it in that order.',
-    cta: 'book a strategy call',
+    /* Both calls are free since 2026-11-13: the button opens the 15-minute
+       intro call, or the contact form when no Cal.com link loaded. */
+    cta: 'book a free intro call',
     compare: 'compare engagements',
-    callNote: 'Strategy call · 60 minutes',
-    /* Under the button only when it takes the deposit: the refund is the
-       deposit's term, so the contact-form fallback never promises it. */
-    refundNote: '60 minutes · full refund if we don’t work together',
+    callNote: 'Intro call · 15 min · free',
   },
   /* "Sound familiar?": the dream buyer's own problems, in their words, so
      they recognise themselves before they see a tier. */
@@ -56,16 +54,16 @@ export const SERVICES_PAGE = {
     title: 'Pick how much you want off your plate.',
     copy: 'Get a CTO’s read and a fix-first plan, or hand the whole mess over and get back an app that is steady, secure and shipping again.',
   },
-  /* The risk reversal, from the deposit's real terms (DepositRiskReversal):
-     the value of the first call, the refund, and scope before work. Shown
-     only when the call takes the deposit.
+  /* The risk reversal (owner decision 2026-11-13): both calls are free,
+     the only deposit is the Codebase Diagnostic's and it is fully refunded
+     if Alec can't help, and scope comes before work.
      TODO(alec): a stronger guarantee on the work itself (e.g. the first
      month) would go here once you decide one. */
   promise: {
     eyebrow: 'The promise',
     kicker: 'Nothing starts until the scope is agreed',
-    title: 'Not a fit? You get your deposit back.',
-    copy: 'Book the 60-minute strategy call. You leave knowing your highest-priority technical risk and the next move to make. If we don’t end up working together, you get the full deposit back. If we do, the scope is agreed before any work starts, so there are no surprise invoices.',
+    title: 'Two free calls before you pay a thing.',
+    copy: 'Start with a free 15-minute intro call, then a free 45-minute strategy call. You leave knowing your highest-priority technical risk and the next move to make. If the Codebase Diagnostic is the right next step, its deposit is fully refunded if I can’t help. Scope is agreed before any work starts, so there are no surprise invoices.',
   },
   /* Qualify as hard as we sell: the right founders lean in, the wrong ones
      leave before the call.
@@ -90,7 +88,6 @@ export const SERVICES_PAGE = {
   },
   /* The objections a founder brings to the booking button. Also published
      as FAQPage structured data, so every answer must stay visible here.
-     `withDeposit` answers only show when the call takes the deposit.
      TODO(alec): confirm "not by default" on the rewrite, and add the NDA
      and code-access answer ("Is my code safe with you?") once the terms
      are set. */
@@ -121,8 +118,7 @@ export const SERVICES_PAGE = {
       {
         question: 'What if the call isn’t worth it?',
         answer:
-          'If we don’t end up working together, you get the full deposit back.',
-        withDeposit: true,
+          'Both calls are free. You pay nothing until you choose the Codebase Diagnostic, and its deposit is fully refunded if I can’t help.',
       },
     ],
   },
@@ -135,10 +131,10 @@ export const SERVICES_PAGE = {
     glass: 'Scope\nfirst.',
     hint: 'Move to look closer · click to reshape',
   },
-  /* What the strategy-call popup records against a booking made from the
+  /* What the intro-call popup records against a booking made from the
      hero or the band, where no tier has been chosen yet. */
   booking: {
-    serviceName: 'Strategy call',
+    serviceName: 'Intro call',
     notes: 'Engagement: not sure yet (from /services)',
     namespaceSuffix: 'services',
   },
@@ -150,10 +146,7 @@ export function retainerMeta(count) {
   return `${count} ${count === 1 ? 'retainer' : 'retainers'} · scoped on a call`
 }
 
-/** The FAQ as shown: deposit-only answers drop out when the call is the
-    contact form, so the page never promises a refund it can't give. */
-export function faqItems(hasDeposit) {
-  return SERVICES_PAGE.faq.items.filter(
-    (item) => hasDeposit || !item.withDeposit
-  )
+/** The FAQ as shown, and as published in the FAQPage structured data. */
+export function faqItems() {
+  return SERVICES_PAGE.faq.items
 }

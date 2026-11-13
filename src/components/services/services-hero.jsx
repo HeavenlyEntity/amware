@@ -12,17 +12,16 @@ import { WorkWall } from './work-wall'
  * breakpoint picks one in CSS, so there is no hydration fork, and each
  * backdrop only starts its own script where it is shown.
  *
- * The filled action opens the strategy-call popup directly (F8); "compare
- * engagements" scrolls to the tracks. No figure under the actions: the
- * advisory side quotes none, and the popup shows the deposit before it is
- * charged. Under them, the deposit's refund term when the call takes one,
- * and only the call's length when it is the contact form.
+ * The filled action opens the free intro-call popup directly (F8), or the
+ * contact form without a Cal.com link; "compare engagements" scrolls to the
+ * tracks. Under them, the call's length and that it is free, never a
+ * figure (the advisory side quotes none).
  *
  * Props: { booking: { link, namespace } | null }.
  */
 
 export function ServicesHero({ booking }) {
-  const { eyebrow, location, title, lede, compare, callNote, refundNote } =
+  const { eyebrow, location, title, lede, compare, callNote } =
     SERVICES_PAGE.hero
   return (
     <section aria-labelledby="hero-title" className="svc-wrap svc-hero-section">
@@ -62,7 +61,7 @@ export function ServicesHero({ booking }) {
             className="svc-price svc-hero-price svc-rise"
             style={{ '--d': '.3s' }}
           >
-            {booking ? refundNote : callNote}
+            {callNote}
           </p>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 /* /services is a public page: if Payload cannot be read it still renders,
-   says so where the cards would be, and the strategy call falls back to the
+   says so where the cards would be, and the intro call falls back to the
    contact form. With the rows, the hero and band read the booking link off
    them, and no service on either track names a figure. */
 
@@ -26,7 +26,7 @@ const tier = (over) => ({
   summary: 'Best for someone',
   startingPrice: 3000,
   priceLabel: 'per month',
-  bookingUrl: 'https://cal.com/amware/on-demand-outcome',
+  bookingUrl: 'https://cal.com/amware/intro-call',
   depositAmount: 1500,
   status: 'published',
   ...over,
@@ -45,14 +45,17 @@ describe('ServicesPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(/couldn’t be loaded/i)
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
-    // No deposit to refund: the promise and its FAQ answer stay off.
-    expect(screen.queryByRole('region', { name: /deposit back/i })).toBeNull()
-    expect(screen.queryByText(/isn’t worth it/i)).toBeNull()
+    // Both calls are free, so the promise and its FAQ answer hold even
+    // when the button falls back to the contact form.
+    expect(
+      screen.getByRole('region', { name: /two free calls/i })
+    ).toBeInTheDocument()
+    expect(screen.getByText(/isn’t worth it/i)).toBeInTheDocument()
     expect(
       screen.getByRole('region', { name: /who this is for/i })
     ).toBeInTheDocument()
     for (const link of screen.getAllByRole('link', {
-      name: /book a strategy call/i,
+      name: /book a free intro call/i,
     })) {
       expect(link).toHaveAttribute('href', '/contact')
     }
@@ -80,9 +83,11 @@ describe('ServicesPage', () => {
     expect(container).not.toHaveTextContent('$')
     expect(container.innerHTML).not.toMatch(/"price"|1,?800|2,?500|3,?000/)
     expect(container).not.toHaveTextContent('one-time payment')
+    // Under the hero button, and again on each card and the band.
     expect(
-      screen.getByText('60 minutes · full refund if we don’t work together')
-    ).toBeInTheDocument()
+      screen.getAllByText('Intro call · 15 min · free').length
+    ).toBeGreaterThan(1)
+    expect(container).not.toHaveTextContent(/60 minutes/i)
     expect(
       screen.getByText('3 retainers · scoped on a call')
     ).toBeInTheDocument()
@@ -107,7 +112,7 @@ describe('ServicesPage', () => {
       /stop losing users/i,
       /holding you back/i,
       /pick how much/i,
-      /deposit back/i,
+      /two free calls/i,
       /who this is for/i,
       /before you book/i,
       /not sure how bad/i,
