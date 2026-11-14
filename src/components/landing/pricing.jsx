@@ -13,7 +13,7 @@ import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
 import { IntroCallTerms } from '@/components/commerce/IntroCallTerms'
 import { depositPlanId } from '@/lib/commerce/whopEnv'
 import { OfferTabs, offerPanelProps } from './offer-tabs'
-import { CallPath } from './call-path'
+import { PixelCard } from '@/components/react-bits/pixel-card'
 import {
   STACK_LABEL,
   buildPricingTable,
@@ -42,7 +42,7 @@ import {
    Since 2026-11-12 they quote no price anywhere in public (owner decision):
    the scope and the figure are settled on the strategy call. Since
    2026-11-13 both calls are free: each card books the 15-minute intro call,
-   and the call path under the cards shows what follows. The Payload rows
+   and the free ebook box above its button shows what booking earns. The Payload rows
    still hold the prices for the checkout and Creem's records.
 
    Who they speak to: founders who vibe-coded an app and lost control of it,
@@ -200,24 +200,39 @@ function ReserveStart({ plan, service }) {
   )
 }
 
+/* The retainer cards rise in like the others but do not lift on hover: the
+   pixel field is their hover state, as on the design canvas's service cards
+   (the design system's Card settings: edge-weighted pixels, no intro). */
+const { whileHover: _lift, ...retainerMotion } = cardMotion
+
 function RetainerCard({ plan, service }) {
   return (
-    <motion.li
-      className={`${cardClass(plan.highlighted)} flex flex-col`}
-      {...cardMotion}
-    >
-      <div className="mb-6">
-        <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
-          {plan.name}
-        </h3>
-        <p className="amw-kicker mt-1">{plan.tagline}</p>
-      </div>
-      {/* No figure: the advisory retainers are scoped on the call. */}
-      <p className="mb-8 text-sm text-zinc-600 dark:text-zinc-400">
-        {plan.note}
-      </p>
-      <Features items={plan.features} />
-      <ReserveStart plan={plan} service={service} />
+    <motion.li className="flex" {...retainerMotion}>
+      <PixelCard
+        className="flex w-full flex-col p-6 md:p-8"
+        featured={plan.highlighted}
+        radius={16}
+        gap={6}
+        fade={0.78}
+        opacity={0.6}
+        glow={0.35}
+        spotlight={0.4}
+        intro={false}
+        noFocus
+      >
+        <div className="mb-6">
+          <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
+            {plan.name}
+          </h3>
+          <p className="amw-kicker mt-1">{plan.tagline}</p>
+        </div>
+        {/* No figure: the advisory retainers are scoped on the call. */}
+        <p className="mb-8 text-sm text-zinc-600 dark:text-zinc-400">
+          {plan.note}
+        </p>
+        <Features items={plan.features} />
+        <ReserveStart plan={plan} service={service} />
+      </PixelCard>
     </motion.li>
   )
 }
@@ -287,11 +302,6 @@ const panelMotion = (reduce) => ({
 
 export function Pricing({ kits = [], services = [] }) {
   const serviceBySlug = new Map(services.map((s) => [s.slug, s]))
-  /* The call path's own button books the same intro call as the cards. */
-  const introBooking =
-    retainers
-      .map((plan) => calLinkFromUrl(serviceBySlug.get(plan.slug)?.bookingUrl))
-      .find(Boolean) ?? null
   const reduce = useReducedMotion()
   const id = useId()
 
@@ -405,12 +415,24 @@ export function Pricing({ kits = [], services = [] }) {
               </ul>
 
               <motion.div
+                className="mt-12 flex flex-col items-center gap-4 md:mt-16"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
+                viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: 0.2, ease: easeOut }}
               >
-                <CallPath booking={introBooking} />
+                <Link
+                  href="/services"
+                  className="bg-[var(--amw-accent)] text-zinc-950 group inline-flex w-full items-center justify-center gap-3 rounded-md py-3 pl-5 pr-3 font-medium no-underline transition-all duration-500 ease-out hover:rounded-[50px] hover:shadow-lg sm:w-auto"
+                >
+                  <span>Compare engagements</span>
+                  <span className="text-zinc-950 flex h-10 w-10 items-center justify-center rounded-full bg-white transition-all duration-300 group-hover:scale-110">
+                    <ChevronRight
+                      className="relative left-px h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Link>
               </motion.div>
             </motion.div>
           )}

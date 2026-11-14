@@ -43,9 +43,6 @@ export function DepositRiskReversal({
         <p className={`mt-2 text-sm leading-relaxed ${t.body}`}>
           The amount shows in the checkout before anything is charged.
         </p>
-        <p className="amw-kicker text-(--amw-accent-ink) mt-3">
-          Free tool included: CTO Systems Audit Prompt
-        </p>
       </div>
       <div className="mt-4">{children}</div>
       <p className={`mt-2.5 text-center text-xs leading-relaxed ${t.fine}`}>
