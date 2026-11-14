@@ -17,6 +17,7 @@ import { trackOf } from '@/lib/services/tracks'
 import { cn } from '@/lib/utils'
 import { typeMeta } from '@/components/commerce/catalog-meta'
 import { Pattern } from '@/components/ui/pattern'
+import { PixelCard } from '@/components/react-bits/pixel-card'
 
 /* Catalog cards in the "minimal" template's grammar (components/features.tsx,
    pricing.tsx, how-it-works.tsx): soft rounded-2xl surfaces without borders,
@@ -333,6 +334,7 @@ function ServiceAction({ service, tone = 'default', fullWidth = false }) {
 const CARD_TONE = {
   default: {
     card: 'bg-[var(--amw-card)]',
+    pixels: {},
     title: 'text-zinc-900 dark:text-zinc-100',
     soft: 'text-zinc-600 dark:text-zinc-400',
     strong: 'text-zinc-900 dark:text-zinc-100',
@@ -340,6 +342,13 @@ const CARD_TONE = {
   },
   popular: {
     card: 'amw-on-teal',
+    /* The design system's popular-card pixels: white and pale teal, so they
+       read on the deep-teal ground. */
+    pixels: {
+      colors: ['#ffffff', '#ccfbf1', '#5eead4'],
+      glowColor: '#ffffff',
+      opacity: 0.5,
+    },
     title: 'text-white',
     soft: 'text-white/90',
     strong: 'text-white',
@@ -391,7 +400,21 @@ export function ServiceCard({ service, description = null }) {
       {tone === 'popular' && (
         <Pattern className="pointer-events-none absolute inset-0 opacity-30" />
       )}
-      <div className="relative flex flex-1 flex-col px-6 py-8 md:px-8 md:py-10">
+      {/* The hover state is the design system's pixel field, as on the
+          design canvas's service cards. The card sits in the grid's seams,
+          so the pixel surface is bare: no fill or frame of its own. */}
+      <PixelCard
+        className="amw-pixel-card--bare flex flex-1 flex-col px-6 py-8 md:px-8 md:py-10"
+        radius={0}
+        gap={6}
+        fade={0.78}
+        opacity={0.6}
+        glow={0.35}
+        spotlight={0.4}
+        intro={false}
+        noFocus
+        {...t.pixels}
+      >
         <div className="flex items-start justify-between gap-3">
           <h2 className={cn('text-xl font-medium', t.title)}>{service.name}</h2>
           {tone === 'popular' ? (
@@ -436,7 +459,7 @@ export function ServiceCard({ service, description = null }) {
         <div className="mt-auto pt-8">
           <ServiceAction service={service} tone={tone} fullWidth />
         </div>
-      </div>
+      </PixelCard>
     </li>
   )
 }

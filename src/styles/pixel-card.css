@@ -10,7 +10,17 @@
   outline: none;
   -webkit-tap-highlight-color: transparent;
   border-radius: var(--pixel-card-radius, 24px);
-  background: var(--amw-card);
+  background-color: var(--amw-card);
+}
+
+/* Bare: the parent draws the fill and the frame (the /services grid's
+   seams, or a popular card's teal), so only the pixels and the armed rim
+   are drawn here. */
+.amw-pixel-card--bare {
+  background-color: transparent;
+}
+.amw-pixel-card--bare .amw-pixel-card__rim {
+  box-shadow: none;
 }
 .amw-pixel-card > :not(canvas):not([data-rim]) {
   position: relative;
@@ -60,4 +70,7 @@
    frame its small text instead of crossing it. */
 .amw-pixel-card .fe {
   background-color: var(--amw-card);
+}
+.amw-on-teal .amw-pixel-card .fe {
+  background-color: rgb(6 78 72 / 0.85);
 }

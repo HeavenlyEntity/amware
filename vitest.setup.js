@@ -78,3 +78,10 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@vercel/analytics', () => ({ track: vi.fn() }))
+
+/* jsdom has no canvas: getContext already returns null, but logs "Not
+   implemented" first. Components that draw (PixelCard) bail out on null,
+   so return it quietly. */
+if (typeof HTMLCanvasElement !== 'undefined') {
+  HTMLCanvasElement.prototype.getContext = () => null
+}

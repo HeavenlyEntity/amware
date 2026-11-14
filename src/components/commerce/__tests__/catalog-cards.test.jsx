@@ -321,6 +321,26 @@ describe('catalog cards', () => {
     expect(screen.getByText('Most popular')).toBeInTheDocument()
   })
 
+  it('lights a bare pixel field on hover instead of a frame of its own', () => {
+    render(
+      <ul>
+        <ServiceCard
+          service={{ slug: 'advisor', name: 'Advisor', category: 'consulting' }}
+        />
+      </ul>
+    )
+    const card = document.getElementById('advisor')
+    const surface = card.querySelector('.amw-pixel-card')
+    expect(surface).toHaveClass('amw-pixel-card--bare')
+    expect(surface.querySelector('canvas')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
+    expect(
+      within(surface).getByRole('heading', { name: 'Advisor' })
+    ).toBeInTheDocument()
+  })
+
   it('leaves the tag off a service the CMS does not mark popular', () => {
     render(
       <ul>
