@@ -913,6 +913,10 @@ export interface Lead {
     | 'lost'
     | 'not-a-fit'
   fit?: ('fit' | 'maybe' | 'not-a-fit') | null
+  /**
+   * Which side they came in through: the consulting intro call, or the Build & support call and checklist. A sign-up sets it; the first booking decides it.
+   */
+  track?: ('consulting' | 'build') | null
   source: 'calcom' | 'contact-form' | 'manual'
   updatedAt: string
   createdAt: string
@@ -1422,6 +1426,7 @@ export interface LeadsSelect<T extends boolean = true> {
       }
   stage?: T
   fit?: T
+  track?: T
   source?: T
   updatedAt?: T
   createdAt?: T

@@ -13,6 +13,11 @@ export const AI_SEARCH_CHECKLIST_SUBJECT = 'AI search checklist'
    booking_url points at (Cal.com, set up 2026-11-13). */
 export const INTRO_CALL_URL = 'https://cal.com/amware/intro-call'
 
+/* The Build & support side's own free intro call (Cal.com, set up
+   2026-11-13): its own questions, kept apart from the consulting call, and
+   the link the Build & support rows' booking_url points at. */
+export const BUILD_INTRO_CALL_URL = 'https://cal.com/amware/build-intro-call'
+
 /* A sign-up whose whole point is the PDF in its email: if that mail fails,
    the visitor must see an error rather than a promise. */
 export function isChecklistDownload(subject) {

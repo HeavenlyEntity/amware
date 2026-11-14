@@ -2,6 +2,7 @@ import { after } from 'next/server'
 import { APIError, type CollectionConfig } from 'payload'
 
 import {
+  AI_SEARCH_CHECKLIST_SUBJECT,
   isChecklistDownload,
   isConsultingEnquiry,
 } from '../lib/contact-intents'
@@ -91,6 +92,10 @@ export const ContactSubmissions: CollectionConfig = {
                 name: doc.name,
                 email: doc.email,
                 message: doc.message,
+                track:
+                  doc.subject === AI_SEARCH_CHECKLIST_SUBJECT
+                    ? 'build'
+                    : 'consulting',
               })
             } catch (err) {
               console.error('Recording the contact as a lead failed:', err)

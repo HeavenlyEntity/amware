@@ -10,7 +10,7 @@ vi.mock('resend', () => ({
 import { ContactSubmissions } from '../../collections/ContactSubmissions'
 import {
   AI_SEARCH_CHECKLIST_SUBJECT,
-  INTRO_CALL_URL,
+  BUILD_INTRO_CALL_URL,
   RED_FLAGS_SUBJECT,
   isChecklistDownload,
   isConsultingEnquiry,
@@ -107,7 +107,9 @@ describe('sendContactEmails routing', () => {
     expect(visitor.text).toContain(
       'https://www.amware.dev/downloads/amware-does-ai-name-your-business.pdf'
     )
-    expect(visitor.text).toContain(INTRO_CALL_URL)
+    // The Build & support call, never the consulting one.
+    expect(visitor.text).toContain(BUILD_INTRO_CALL_URL)
+    expect(visitor.text).not.toContain('amware/intro-call')
     expect(visitor.text).not.toContain('Thanks for reaching out')
   })
 

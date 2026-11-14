@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { BookCallButton } from '@/components/commerce/BookCallButton'
 import { ChevronRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
@@ -26,6 +27,41 @@ import { PREMIUM_ICONS } from './premium-icons'
    icons in their 56px tiles (.svc-pi-tile). The classes live in
    services.css. The illustrations and their hover choreography are
    unchanged. */
+
+const CTA_CLASS =
+  'bg-[var(--amw-accent)] text-zinc-950 group mt-8 inline-flex w-fit items-center gap-3 rounded-md py-2.5 pl-5 pr-2.5 font-medium no-underline transition-all duration-500 hover:rounded-[50px]'
+
+/* The globe card's action. With a booking link it opens the Build & support
+   intro call in place (Cal.com popup); without one it falls back to the
+   contact form and the free-quote wording. */
+function PackageCta({ booking, cta }) {
+  const label = (
+    <>
+      <span>{booking ? cta.label : cta.fallbackLabel}</span>
+      <span className="text-zinc-950 flex h-8 w-8 items-center justify-center rounded-full bg-white transition-transform duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100">
+        <ChevronRight className="relative left-px h-4 w-4" aria-hidden="true" />
+      </span>
+    </>
+  )
+  if (!booking) {
+    return (
+      <Link href={cta.href} className={CTA_CLASS}>
+        {label}
+      </Link>
+    )
+  }
+  return (
+    <BookCallButton
+      calLink={booking.link}
+      namespace={`${booking.namespace}-package`}
+      serviceName={cta.serviceName}
+      notes={cta.notes}
+      className={CTA_CLASS}
+    >
+      {label}
+    </BookCallButton>
+  )
+}
 
 function Card({ children, className = '' }) {
   const reduce = useReducedMotion()
@@ -53,7 +89,12 @@ function CardText({ title, description }) {
   )
 }
 
-export function WebsitePackage() {
+/**
+ * @param {object} props
+ * @param {{ link: string, namespace: string } | null} [props.booking] the
+ *   Build & support intro call; without it the action is the contact form.
+ */
+export function WebsitePackage({ booking = null } = {}) {
   const { heading, cards, features, cta } = WEBSITE_PACKAGE
   return (
     <section
@@ -110,18 +151,7 @@ export function WebsitePackage() {
               <p className="text-balance max-w-md text-base text-zinc-700 dark:text-zinc-300">
                 {cards.launch.description}
               </p>
-              <Link
-                href={cta.href}
-                className="bg-[var(--amw-accent)] text-zinc-950 group mt-8 inline-flex w-fit items-center gap-3 rounded-md py-2.5 pl-5 pr-2.5 font-medium no-underline transition-all duration-500 hover:rounded-[50px]"
-              >
-                <span>{cta.label}</span>
-                <span className="text-zinc-950 flex h-8 w-8 items-center justify-center rounded-full bg-white transition-transform duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100">
-                  <ChevronRight
-                    className="relative left-px h-4 w-4"
-                    aria-hidden="true"
-                  />
-                </span>
-              </Link>
+              <PackageCta booking={booking} cta={cta} />
             </div>
           </Card>
         </div>

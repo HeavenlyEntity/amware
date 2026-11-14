@@ -12,9 +12,9 @@ export const Leads: CollectionConfig = {
   slug: 'leads',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'business', 'stage', 'fit', 'updatedAt'],
+    defaultColumns: ['name', 'business', 'track', 'stage', 'fit', 'updatedAt'],
     description:
-      'People in the consulting funnel. Bookings and contact-form messages add them automatically.',
+      'People coming in through either side, consulting or Build & support (see Track). Bookings, contact-form messages and checklist sign-ups add them automatically.',
   },
   access: {
     create: ({ req }) => Boolean(req.user),
@@ -138,6 +138,19 @@ export const Leads: CollectionConfig = {
         { label: 'Not a fit', value: 'not-a-fit' },
       ],
       admin: { position: 'sidebar' },
+    },
+    {
+      name: 'track',
+      type: 'select',
+      options: [
+        { label: 'Consulting', value: 'consulting' },
+        { label: 'Build & support', value: 'build' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description:
+          'Which side they came in through: the consulting intro call, or the Build & support call and checklist. A sign-up sets it; the first booking decides it.',
+      },
     },
     {
       name: 'source',

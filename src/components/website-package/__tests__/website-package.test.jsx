@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 
+vi.mock('@calcom/embed-react', () => ({
+  getCalApi: vi.fn(async () => vi.fn()),
+}))
 vi.mock('../globe-card', () => ({
   GlobeCard: () => <div data-testid="globe" />,
 }))
@@ -39,5 +42,19 @@ describe('WebsitePackage', () => {
     expect(document.body.textContent).not.toMatch(
       /trusted by|100\+|companies worldwide/i
     )
+  })
+
+  it('books the Build & support intro call when there is a link', () => {
+    render(
+      <WebsitePackage
+        booking={{ link: 'amware/build-intro-call', namespace: 'build' }}
+      />
+    )
+    const cta = screen.getByRole('button', { name: /book a free intro call/i })
+    expect(cta).toHaveAttribute('data-cal-link', 'amware/build-intro-call')
+    expect(cta).toHaveAttribute('data-cal-namespace', 'build-package')
+    expect(
+      screen.queryByRole('link', { name: /free website quote/i })
+    ).toBeNull()
   })
 })

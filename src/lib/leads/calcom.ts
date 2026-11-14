@@ -26,6 +26,21 @@ export function verifyCalSignature(
 
 export type CallKind = 'intro' | 'strategy' | 'other'
 
+/** Which side of the business a lead came in through. */
+export type LeadTrack = 'consulting' | 'build'
+
+/* The Build & support side's events by exact slug. Its booking questions
+   reuse the identifiers below (business_name, online_at, help_with), so a
+   build booking fills the same profile fields. */
+const BUILD_EVENT_SLUGS = new Set(['build-intro-call'])
+
+/** Build for the Build & support call; every other event is the
+    consulting side's. */
+export function trackOfEvent(slug: unknown): LeadTrack {
+  const s = typeof slug === 'string' ? slug.trim().toLowerCase() : ''
+  return BUILD_EVENT_SLUGS.has(s) ? 'build' : 'consulting'
+}
+
 /* The booking-question identifiers to use in Cal.com for both calls. They
    are listed in docs/design/2026-11-12-services-advisory/intro-call-form.md;
    a question with any other identifier is ignored. */
@@ -50,6 +65,7 @@ export type CalEvent =
       name: string
       phone: string | null
       answers: LeadAnswers
+      track: LeadTrack
       call: {
         kind: CallKind
         bookingUid: string
@@ -130,6 +146,7 @@ export function parseCalEvent(body: any): CalEvent {
       text(attendee.phoneNumber) ||
       null,
     answers,
+    track: trackOfEvent(p.type),
     call: {
       kind: callKind(p.type, p.length),
       bookingUid,

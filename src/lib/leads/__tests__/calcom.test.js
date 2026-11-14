@@ -5,6 +5,7 @@ import {
   callKind,
   parseCalEvent,
   stageFor,
+  trackOfEvent,
   verifyCalSignature,
 } from '../calcom'
 import { advanceStage } from '../stages'
@@ -82,6 +83,7 @@ describe('parseCalEvent', () => {
         foundVia: 'Referrals or word of mouth',
         helpWith: 'Bookings keep failing.',
       },
+      track: 'consulting',
       call: {
         kind: 'intro',
         bookingUid: 'bk_1',
@@ -89,6 +91,17 @@ describe('parseCalEvent', () => {
         startsAt: '2026-11-20T17:00:00Z',
       },
     })
+  })
+
+  it('files the Build & support call under build, as an intro call', () => {
+    const event = parseCalEvent(
+      booking('BOOKING_CREATED', { type: 'build-intro-call' })
+    )
+    expect(event.track).toBe('build')
+    expect(event.call.kind).toBe('intro')
+    expect(trackOfEvent('intro-call')).toBe('consulting')
+    expect(trackOfEvent('strategy-call')).toBe('consulting')
+    expect(trackOfEvent(undefined)).toBe('consulting')
   })
 
   it('keeps the old uid on a reschedule so the same call moves', () => {

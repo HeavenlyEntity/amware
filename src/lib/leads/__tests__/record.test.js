@@ -168,6 +168,38 @@ describe('recordCalEvent', () => {
     expect(payload.update.mock.calls[0][0].data.name).toBe('Dana Reyes')
   })
 
+  it('lets the first booking decide the track, then keeps it', async () => {
+    const fresh = fakePayload()
+    await recordCalEvent(fresh, booked({ track: 'build' }))
+    expect(fresh.create.mock.calls[0][0].data.track).toBe('build')
+
+    // A checklist sign-up who books the consulting call is consulting.
+    const signUp = fakePayload({
+      id: 3,
+      name: 'dana@example.com',
+      email: 'dana@example.com',
+      stage: 'contacted',
+      track: 'build',
+      calls: [],
+    })
+    await recordCalEvent(signUp, booked({ track: 'consulting' }))
+    expect(signUp.update.mock.calls[0][0].data.track).toBe('consulting')
+
+    // A lead with a booking already keeps its track on a second call.
+    const booked1 = fakePayload({
+      id: 4,
+      name: 'Dana Reyes',
+      email: 'dana@example.com',
+      stage: 'intro-done',
+      track: 'consulting',
+      calls: [
+        { id: 'c1', kind: 'intro', status: 'completed', bookingUid: 'bk_0' },
+      ],
+    })
+    await recordCalEvent(booked1, booked({ track: 'build' }))
+    expect(booked1.update.mock.calls[0][0].data).not.toHaveProperty('track')
+  })
+
   it('keeps a name the lead already has', async () => {
     const lead = {
       id: 3,
@@ -203,8 +235,19 @@ describe('recordContact', () => {
       name: 'Sam',
       source: 'contact-form',
       stage: 'contacted',
+      track: 'consulting',
       helpWith: 'Our app is down.',
     })
+  })
+
+  it('files a checklist sign-up under Build & support', async () => {
+    const payload = fakePayload()
+    await recordContact(payload, {
+      name: 'sam@example.com',
+      email: 'sam@example.com',
+      track: 'build',
+    })
+    expect(payload.create.mock.calls[0][0].data.track).toBe('build')
   })
 
   it('leaves an existing lead as it is', async () => {

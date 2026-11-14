@@ -26,12 +26,13 @@ export const AI_SEARCH_CHECKLIST = {
   },
   next: {
     title: 'Next: bring it to a free 15-minute intro call.',
-    copy: 'We look at your site together and see whether a One Pager, a Company Site or custom work fits.',
+    copy: 'With a site or starting from scratch, we go over what you need and whether a One Pager, a Company Site or custom work fits.',
     cta: 'Book a free intro call',
   },
-  /* What the intro-call popup records against a booking made from here. */
+  /* What the Build & support intro-call popup records against a booking
+     made from here. */
   booking: {
-    serviceName: 'Intro call',
+    serviceName: 'Build & support intro call',
     notes: 'From the AI search checklist (Build & support, /services)',
     namespaceSuffix: 'checklist',
   },

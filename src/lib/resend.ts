@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 import {
   AI_SEARCH_CHECKLIST_SUBJECT,
-  INTRO_CALL_URL,
+  BUILD_INTRO_CALL_URL,
   RED_FLAGS_SUBJECT,
   isKitWaitlist,
 } from './contact-intents'
@@ -52,7 +52,7 @@ export async function sendContactEmails(
       from,
       to: submission.email,
       subject: 'Your "Does AI Name Your Business?" checklist',
-      text: `Here is the checklist you asked for:\n\n${site}/downloads/amware-does-ai-name-your-business.pdf\n\nThree pages, five steps: get your baseline, open the door to the crawlers, rewrite the page they read, earn the mentions and links, and run the monthly loop.\n\nWhen you want a second pair of eyes on your site, book a free 15-minute intro call:\n${INTRO_CALL_URL}\n\n— Alec`,
+      text: `Here is the checklist you asked for:\n\n${site}/downloads/amware-does-ai-name-your-business.pdf\n\nThree pages, five steps: get your baseline, open the door to the crawlers, rewrite the page they read, earn the mentions and links, and run the monthly loop.\n\nWhether you have a site today or are starting from scratch, book a free 15-minute intro call and we'll go over what you need:\n${BUILD_INTRO_CALL_URL}\n\n— Alec`,
     })
     if (error) {
       throw new Error(`AI search checklist mail rejected: ${error.message}`)
