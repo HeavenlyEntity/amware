@@ -12,7 +12,6 @@ vi.mock('@calcom/embed-react', () => ({
 }))
 
 import { Pricing } from '../pricing'
-import { CALL_PATH } from '../call-path'
 
 /* The homepage offer section as a buyer meets it: two tabs, the right one
    open by default, the kit prices coming from the same rows /pricing reads
@@ -153,13 +152,15 @@ describe('Pricing retainers and the free intro call', () => {
     // Only the tier with a booking link gets a card button.
     expect(
       within(panel()).getAllByRole('button', { name: 'Book a free intro call' })
-    ).toHaveLength(2) // the card's and the call path's
+    ).toHaveLength(1)
     const terms = within(card).getByRole('note', {
       name: 'What the intro call is',
     })
     expect(terms).toHaveTextContent('Start with a free 15-minute call.')
-    expect(terms).toHaveTextContent(
-      'Free tool included: CTO Systems Audit Prompt'
+    expect(terms).toHaveTextContent('Free ebook included')
+    expect(terms).toHaveTextContent('Turn Website Visitors Into Buyers')
+    expect(within(terms).getByRole('list')).toHaveAccessibleName(
+      'How you get the ebook'
     )
     expect(terms.compareDocumentPosition(book)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
@@ -202,29 +203,33 @@ describe('Pricing retainers and the free intro call', () => {
     )
   })
 
-  it('shows the free call path under the cards, booking the same call', () => {
-    render(<Pricing kits={[]} services={services} />)
-    const path = within(panel()).getByRole('region', {
-      name: 'Find out if I can help before you spend a dollar.',
-    })
-    const steps = within(path).getAllByRole('listitem')
-    expect(steps.map((li) => li.querySelector('.cp-name').textContent)).toEqual(
-      CALL_PATH.map((s) => s.name)
+  it('takes a deposit on a retainer with a Whop plan and no booking link', () => {
+    render(
+      <Pricing
+        kits={[]}
+        services={services.map((service) => ({ ...service, bookingUrl: null }))}
+      />
     )
-    expect(steps[0]).toHaveTextContent('Free')
-    expect(steps[1]).toHaveTextContent('Free')
-    expect(steps[2]).toHaveTextContent('Refundable deposit')
-    const book = within(path).getByRole('button', {
-      name: 'Book a free intro call',
-    })
-    expect(book).toHaveAttribute('data-cal-link', 'amware/intro-call')
-    expect(book).toHaveAttribute('data-cal-namespace', 'intro-call-home')
+    const card = within(panel()).getByText('Fractional CTO').closest('li')
+    const terms = within(card).getByRole('note', { name: 'Deposit terms' })
+    expect(terms).not.toHaveTextContent(/ebook/i)
     expect(
-      within(path).getByRole('link', { name: /compare engagements/i })
-    ).toHaveAttribute('href', '/services')
+      within(card).getByRole('button', { name: /reserve your start/i })
+    ).toBeInTheDocument()
+    expect(
+      within(card).queryByRole('button', { name: 'Book a free intro call' })
+    ).toBeNull()
   })
 
-  it('falls back to the contact form when no service has a booking link', () => {
+  it('links to /services under the cards, with no call path', () => {
+    render(<Pricing kits={[]} services={services} />)
+    expect(
+      within(panel()).getByRole('link', { name: /compare engagements/i })
+    ).toHaveAttribute('href', '/services')
+    expect(within(panel()).queryByText(/how it starts/i)).toBeNull()
+  })
+
+  it('shows no booking button when no service has a booking link', () => {
     render(<Pricing kits={[]} services={[]} />)
     // No card button without a link or a plan.
     for (const name of ['Advisor', 'Fractional CTO', 'Embedded CTO']) {
@@ -232,7 +237,10 @@ describe('Pricing retainers and the free intro call', () => {
       expect(within(card).queryByRole('button')).toBeNull()
     }
     expect(
-      within(panel()).getByRole('link', { name: 'Book a free intro call' })
-    ).toHaveAttribute('href', '/contact')
+      within(panel()).queryByRole('link', { name: 'Book a free intro call' })
+    ).toBeNull()
+    expect(
+      within(panel()).getByRole('link', { name: /compare engagements/i })
+    ).toHaveAttribute('href', '/services')
   })
 })

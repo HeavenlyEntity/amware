@@ -63,7 +63,7 @@ export const Services: CollectionConfig = {
         description:
           'Fallback money line for services without a Whop deposit plan. ' +
           'Reservable services show the standardized call outcome, included ' +
-          'audit prompt, and refund terms from the storefront so the promise ' +
+          'free ebook, and refund terms from the storefront so the promise ' +
           'cannot drift by tier.',
       },
     },
@@ -82,7 +82,7 @@ export const Services: CollectionConfig = {
         description:
           'Whop plan_… id of the deposit plan. Present ⇒ the card offers ' +
           '"Reserve your start" as its primary action and shows the call ' +
-          'outcome, included audit prompt, and refund terms. Created and ' +
+          'outcome, included free ebook, and refund terms. Created and ' +
           'filled in ' +
           'by `pnpm sim` (6-whop-engagements); paste one here only to point ' +
           'at a plan made in the Whop dashboard.',

@@ -13,7 +13,6 @@ import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
 import { IntroCallTerms } from '@/components/commerce/IntroCallTerms'
 import { depositPlanId } from '@/lib/commerce/whopEnv'
 import { OfferTabs, offerPanelProps } from './offer-tabs'
-import { CallPath } from './call-path'
 import {
   STACK_LABEL,
   buildPricingTable,
@@ -42,7 +41,7 @@ import {
    Since 2026-11-12 they quote no price anywhere in public (owner decision):
    the scope and the figure are settled on the strategy call. Since
    2026-11-13 both calls are free: each card books the 15-minute intro call,
-   and the call path under the cards shows what follows. The Payload rows
+   and the free ebook box above its button shows what booking earns. The Payload rows
    still hold the prices for the checkout and Creem's records.
 
    Who they speak to: founders who vibe-coded an app and lost control of it,
@@ -287,11 +286,6 @@ const panelMotion = (reduce) => ({
 
 export function Pricing({ kits = [], services = [] }) {
   const serviceBySlug = new Map(services.map((s) => [s.slug, s]))
-  /* The call path's own button books the same intro call as the cards. */
-  const introBooking =
-    retainers
-      .map((plan) => calLinkFromUrl(serviceBySlug.get(plan.slug)?.bookingUrl))
-      .find(Boolean) ?? null
   const reduce = useReducedMotion()
   const id = useId()
 
@@ -405,12 +399,24 @@ export function Pricing({ kits = [], services = [] }) {
               </ul>
 
               <motion.div
+                className="mt-12 flex flex-col items-center gap-4 md:mt-16"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
+                viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: 0.2, ease: easeOut }}
               >
-                <CallPath booking={introBooking} />
+                <Link
+                  href="/services"
+                  className="bg-[var(--amw-accent)] text-zinc-950 group inline-flex w-full items-center justify-center gap-3 rounded-md py-3 pl-5 pr-3 font-medium no-underline transition-all duration-500 ease-out hover:rounded-[50px] hover:shadow-lg sm:w-auto"
+                >
+                  <span>Compare engagements</span>
+                  <span className="text-zinc-950 flex h-10 w-10 items-center justify-center rounded-full bg-white transition-all duration-300 group-hover:scale-110">
+                    <ChevronRight
+                      className="relative left-px h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Link>
               </motion.div>
             </motion.div>
           )}

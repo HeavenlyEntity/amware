@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 vi.mock('@/components/commerce/BuyButton', () => ({
   BuyButton: ({ label }) => <button type="button">{label}</button>,
@@ -193,8 +193,13 @@ describe('catalog cards', () => {
     expect(screen.queryByRole('button', { name: /reserve/i })).toBeNull()
     const terms = screen.getByRole('note', { name: 'What the intro call is' })
     expect(terms).toHaveTextContent('Start with a free 15-minute call.')
-    expect(terms).toHaveTextContent(
-      'Free tool included: CTO Systems Audit Prompt'
+    expect(terms).toHaveTextContent('Free ebook included')
+    expect(terms).toHaveTextContent('Turn Website Visitors Into Buyers')
+    expect(terms).not.toHaveTextContent(/audit prompt/i)
+    const steps = within(terms).getAllByRole('listitem')
+    expect(steps).toHaveLength(3)
+    ;['Book the call', 'Get the ebook', 'Win more buyers'].forEach((label, i) =>
+      expect(within(steps[i]).getByText(label)).toBeInTheDocument()
     )
     expect(book).toHaveAttribute('data-cal-link', 'amware/intro-call')
     expect(book).toHaveAttribute('data-cal-namespace', 'intro-call-cto')
@@ -387,6 +392,9 @@ describe('catalog cards', () => {
         'Credited in full to month one, or returned before work begins.'
       )
     ).toBeInTheDocument()
+    // The ebook goes out with the intro call's confirmation; no call is
+    // booked here, so these terms promise none.
+    expect(note).not.toHaveTextContent(/ebook/i)
   })
 
   it('lays an open-ended service out as a strip with its summary and the quote link', () => {
