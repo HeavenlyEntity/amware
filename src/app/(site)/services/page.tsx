@@ -15,6 +15,7 @@ import { DeskMotionSync } from '@/components/founders/desk/motion-flag'
 import { ServicesHero } from '@/components/services/services-hero'
 import { Engagements } from '@/components/services/engagements'
 import { BookBand } from '@/components/services/book-band'
+import { AiSearchChecklist } from '@/components/services/ai-search-checklist'
 import {
   FitCheck,
   PainPoints,
@@ -165,6 +166,9 @@ export default async function ServicesPage() {
         }
         technical={
           <>
+            {/* The free checklist first: an email for the PDF, then the
+                intro call (owner decision 2026-11-13). */}
+            <AiSearchChecklist booking={booking} />
             {technical.length > 0 && cards(technical)}
             <WebsitePackage />
           </>

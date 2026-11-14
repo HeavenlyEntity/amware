@@ -14,7 +14,8 @@ class ServerMessage extends Error {}
    contact-submissions with the subject that routes its mail (see
    src/lib/contact-intents.js). The address stands in for the name, which the
    collection requires. The success state only shows after the request
-   succeeds. `successMessage` is a string or a function of the address.
+   succeeds. `successMessage` is a string or a function of the address;
+   `onSuccess` gets the address and the created row.
    `tone` picks the button: 'teal' (the default) is the guides' pill with a
    bare chevron; 'pill' is the storefront's `.pr-cta` (styles/products.css),
    white with a dark knob, as on the Standard board. */
@@ -72,9 +73,10 @@ export function EmailCapture({
         const body = await res.json().catch(() => null)
         throw new ServerMessage(body?.errors?.[0]?.message || '')
       }
+      const created = await res.json().catch(() => null)
       setSentTo(address)
       setStatus('sent')
-      onSuccess?.(address)
+      onSuccess?.(address, created?.doc)
     } catch (err) {
       /* Turnstile tokens are single-use, even when a later step fails. */
       setCaptchaToken('')

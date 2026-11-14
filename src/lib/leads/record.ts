@@ -138,10 +138,15 @@ async function applyCalEvent(
     return 'created'
   }
 
+  /* An email sign-up (the AI search checklist) has only the address to
+     name the lead with; the booking's real name replaces it. A name typed
+     by hand or from an earlier booking stays. */
+  const unnamed = !lead.name || normalizeEmail(lead.name) === lead.email
   await payload.update({
     collection: COLLECTION,
     id: lead.id,
     data: {
+      ...(unnamed && event.name ? { name: event.name } : {}),
       ...profile,
       calls,
       ...(next ? { stage: advanceStage(lead.stage, next) } : {}),

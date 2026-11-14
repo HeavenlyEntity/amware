@@ -9,7 +9,11 @@ vi.mock('resend', () => ({
 
 import { ContactSubmissions } from '../../collections/ContactSubmissions'
 import {
+  AI_SEARCH_CHECKLIST_SUBJECT,
+  INTRO_CALL_URL,
   RED_FLAGS_SUBJECT,
+  isChecklistDownload,
+  isConsultingEnquiry,
   isKitWaitlist,
   kitEnterpriseSubject,
   kitWaitlistSubject,
@@ -65,6 +69,16 @@ describe('contact intents', () => {
   it('names the Red Flags subject', () => {
     expect(RED_FLAGS_SUBJECT).toBe('Red Flags checklist')
   })
+
+  it('treats both checklists as downloads, but only the AI search one as a lead', () => {
+    expect(isChecklistDownload(RED_FLAGS_SUBJECT)).toBe(true)
+    expect(isChecklistDownload(AI_SEARCH_CHECKLIST_SUBJECT)).toBe(true)
+    expect(isChecklistDownload('Hello')).toBe(false)
+    expect(isChecklistDownload(undefined)).toBe(false)
+    // The AI search checklist is a step toward the intro call.
+    expect(isConsultingEnquiry(AI_SEARCH_CHECKLIST_SUBJECT)).toBe(true)
+    expect(isConsultingEnquiry(RED_FLAGS_SUBJECT)).toBe(false)
+  })
 })
 
 describe('sendContactEmails routing', () => {
@@ -83,6 +97,18 @@ describe('sendContactEmails routing', () => {
     expect(visitor.text).toContain(`https://www.amware.dev${PDF_PATH}`)
     expect(visitor.text).not.toContain('Thanks for reaching out')
     expect(visitor.subject).not.toBe('Thanks for reaching out')
+  })
+
+  it('mails the AI search checklist PDF with the intro-call link', async () => {
+    await sendContactEmails(submission(AI_SEARCH_CHECKLIST_SUBJECT))
+    expect(recipients()).toEqual(['owner@amware.dev', 'ada@example.com'])
+    const visitor = send.mock.calls[1][0]
+    expect(visitor.subject).toBe('Your "Does AI Name Your Business?" checklist')
+    expect(visitor.text).toContain(
+      'https://www.amware.dev/downloads/amware-does-ai-name-your-business.pdf'
+    )
+    expect(visitor.text).toContain(INTRO_CALL_URL)
+    expect(visitor.text).not.toContain('Thanks for reaching out')
   })
 
   it('keeps a trailing slash on the site URL out of the PDF link', async () => {
@@ -139,6 +165,14 @@ describe('ContactSubmissions afterChange', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     send.mockResolvedValue({ data: null, error: { message: 'bad domain' } })
     await expect(run(RED_FLAGS_SUBJECT)).rejects.toMatchObject({
+      status: 502,
+    })
+  })
+
+  it('fails the request when the AI search checklist mail does not leave', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    send.mockResolvedValue({ data: null, error: { message: 'bad domain' } })
+    await expect(run(AI_SEARCH_CHECKLIST_SUBJECT)).rejects.toMatchObject({
       status: 502,
     })
   })

@@ -155,6 +155,32 @@ describe('recordCalEvent', () => {
     expect(data.calls[0].status).toBe('completed')
   })
 
+  it('names a lead that a checklist sign-up created under its email', async () => {
+    const lead = {
+      id: 3,
+      name: 'dana@example.com',
+      email: 'dana@example.com',
+      stage: 'contacted',
+      calls: [],
+    }
+    const payload = fakePayload(lead)
+    expect(await recordCalEvent(payload, booked())).toBe('updated')
+    expect(payload.update.mock.calls[0][0].data.name).toBe('Dana Reyes')
+  })
+
+  it('keeps a name the lead already has', async () => {
+    const lead = {
+      id: 3,
+      name: 'Dana R. (referral)',
+      email: 'dana@example.com',
+      stage: 'contacted',
+      calls: [],
+    }
+    const payload = fakePayload(lead)
+    await recordCalEvent(payload, booked())
+    expect(payload.update.mock.calls[0][0].data).not.toHaveProperty('name')
+  })
+
   it('never moves a lead past a stage set by hand', async () => {
     const payload = fakePayload({ id: 7, stage: 'won', calls: [] })
     await recordCalEvent(payload, booked())
