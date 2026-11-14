@@ -11,6 +11,14 @@ vi.mock('@calcom/embed-react', () => ({
   getCalApi: vi.fn(async () => vi.fn()),
 }))
 
+/* jsdom has no canvas; the pixel hover is decoration, so the retainer cards
+   render through a plain wrapper that keeps their markup. */
+vi.mock('@/components/react-bits/pixel-card', () => ({
+  PixelCard: ({ children, className }) => (
+    <div className={className}>{children}</div>
+  ),
+}))
+
 import { Pricing } from '../pricing'
 
 /* The homepage offer section as a buyer meets it: two tabs, the right one

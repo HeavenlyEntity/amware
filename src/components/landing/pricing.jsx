@@ -13,6 +13,7 @@ import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
 import { IntroCallTerms } from '@/components/commerce/IntroCallTerms'
 import { depositPlanId } from '@/lib/commerce/whopEnv'
 import { OfferTabs, offerPanelProps } from './offer-tabs'
+import { PixelCard } from '@/components/react-bits/pixel-card'
 import {
   STACK_LABEL,
   buildPricingTable,
@@ -199,24 +200,39 @@ function ReserveStart({ plan, service }) {
   )
 }
 
+/* The retainer cards rise in like the others but do not lift on hover: the
+   pixel field is their hover state, as on the design canvas's service cards
+   (the design system's Card settings: edge-weighted pixels, no intro). */
+const { whileHover: _lift, ...retainerMotion } = cardMotion
+
 function RetainerCard({ plan, service }) {
   return (
-    <motion.li
-      className={`${cardClass(plan.highlighted)} flex flex-col`}
-      {...cardMotion}
-    >
-      <div className="mb-6">
-        <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
-          {plan.name}
-        </h3>
-        <p className="amw-kicker mt-1">{plan.tagline}</p>
-      </div>
-      {/* No figure: the advisory retainers are scoped on the call. */}
-      <p className="mb-8 text-sm text-zinc-600 dark:text-zinc-400">
-        {plan.note}
-      </p>
-      <Features items={plan.features} />
-      <ReserveStart plan={plan} service={service} />
+    <motion.li className="flex" {...retainerMotion}>
+      <PixelCard
+        className="flex w-full flex-col p-6 md:p-8"
+        featured={plan.highlighted}
+        radius={16}
+        gap={6}
+        fade={0.78}
+        opacity={0.6}
+        glow={0.35}
+        spotlight={0.4}
+        intro={false}
+        noFocus
+      >
+        <div className="mb-6">
+          <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
+            {plan.name}
+          </h3>
+          <p className="amw-kicker mt-1">{plan.tagline}</p>
+        </div>
+        {/* No figure: the advisory retainers are scoped on the call. */}
+        <p className="mb-8 text-sm text-zinc-600 dark:text-zinc-400">
+          {plan.note}
+        </p>
+        <Features items={plan.features} />
+        <ReserveStart plan={plan} service={service} />
+      </PixelCard>
     </motion.li>
   )
 }
