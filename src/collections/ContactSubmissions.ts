@@ -1,7 +1,11 @@
 import { after } from 'next/server'
 import { APIError, type CollectionConfig } from 'payload'
 
-import { RED_FLAGS_SUBJECT, isConsultingEnquiry } from '../lib/contact-intents'
+import {
+  AI_SEARCH_CHECKLIST_SUBJECT,
+  isChecklistDownload,
+  isConsultingEnquiry,
+} from '../lib/contact-intents'
 import { recordContact } from '../lib/leads/record'
 import { sendContactEmails } from '../lib/resend'
 import { verifyContactToken } from '../lib/turnstile'
@@ -57,10 +61,10 @@ export const ContactSubmissions: CollectionConfig = {
             })
           } catch (err) {
             console.error('Resend contact emails failed:', err)
-            /* The checklist email is the whole point of that sign-up. Failing
+            /* A checklist email is the whole point of that sign-up. Failing
                the request rolls the row back with it, so the visitor sees an
                error instead of a promise, and a retry is not blocked. */
-            if (doc.subject === RED_FLAGS_SUBJECT) {
+            if (isChecklistDownload(doc.subject)) {
               throw new APIError(
                 'We could not send the checklist. Try again in a moment.',
                 502,
@@ -88,6 +92,10 @@ export const ContactSubmissions: CollectionConfig = {
                 name: doc.name,
                 email: doc.email,
                 message: doc.message,
+                track:
+                  doc.subject === AI_SEARCH_CHECKLIST_SUBJECT
+                    ? 'build'
+                    : 'consulting',
               })
             } catch (err) {
               console.error('Recording the contact as a lead failed:', err)

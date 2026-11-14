@@ -48,6 +48,14 @@ export const WEBSITE_PACKAGE = {
     { icon: 'TasksIcon', title: 'Regular check-ins' },
     { icon: 'RocketIcon', title: 'Built to change after launch' },
   ],
-  // TODO(alec): confirm the quote is free, as the CTA now promises.
-  cta: { label: 'Get your free website quote', href: '/contact' },
+  /* The globe card's action: the Build & support intro call when there is
+     a booking link, the contact form when there is not.
+     TODO(alec): confirm the quote is free, as the fallback promises. */
+  cta: {
+    label: 'Book a free intro call',
+    fallbackLabel: 'Get your free website quote',
+    href: '/contact',
+    serviceName: 'Build & support intro call',
+    notes: 'From the website package (Build & support, /services)',
+  },
 }

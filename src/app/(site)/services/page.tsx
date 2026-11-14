@@ -15,8 +15,10 @@ import { DeskMotionSync } from '@/components/founders/desk/motion-flag'
 import { ServicesHero } from '@/components/services/services-hero'
 import { Engagements } from '@/components/services/engagements'
 import { BookBand } from '@/components/services/book-band'
+import { AiSearchChecklist } from '@/components/services/ai-search-checklist'
 import { IntroCallStrip } from '@/components/services/intro-call-strip'
 import { calLinkFromUrl } from '@/lib/commerce/calLink'
+import { BUILD_INTRO_CALL_URL } from '@/lib/contact-intents'
 import {
   FitCheck,
   PainPoints,
@@ -83,6 +85,10 @@ export default async function ServicesPage() {
   const { docs, loadError } = await loadServices()
   const { consulting, technical } = groupServices(docs)
   const { booking } = strategyCall(consulting)
+  /* The Build & support side books its own intro call (other questions,
+     kept apart from the consulting one). The checklist and the website
+     package book that event directly; the cards use their own rows' links. */
+  const buildBooking = calLinkFromUrl(BUILD_INTRO_CALL_URL)
   /* Both calls are free, so the promise and every FAQ answer hold whether
      the button opens Cal.com or falls back to the contact form. */
   const faqs = faqItems()
@@ -178,8 +184,11 @@ export default async function ServicesPage() {
         }
         technical={
           <>
+            {/* The free checklist first: an email for the PDF, then the
+                intro call (owner decision 2026-11-13). */}
+            <AiSearchChecklist booking={buildBooking} />
             {technical.length > 0 && cards(technical)}
-            <WebsitePackage />
+            <WebsitePackage booking={buildBooking} />
           </>
         }
       />

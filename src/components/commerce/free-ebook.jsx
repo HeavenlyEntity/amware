@@ -1,5 +1,7 @@
-import { BookOpen, CalendarCheck, Mail, TrendingUp } from 'lucide-react'
+import Image from 'next/image'
+import { CalendarCheck, Mail, TrendingUp } from 'lucide-react'
 import { FREE_EBOOK } from '@/content/site/free-ebook'
+import cover from '@/images/ebooks/visitors-into-buyers-cover.jpg'
 import '@/styles/free-ebook.css'
 
 const ICON = { call: CalendarCheck, mail: Mail, grow: TrendingUp }
@@ -7,7 +9,9 @@ const ICON = { call: CalendarCheck, mail: Mail, grow: TrendingUp }
 /**
  * The free ebook that comes with booking the intro call, as a small box
  * inside IntroCallTerms (design: HomePricing.dc.html, 2026-11-13): the
- * ebook's name, then Book the call → Get the ebook → Win more buyers on a
+ * ebook's cover and name (the cover rebuilt in AMWARE teal from the
+ * Entrepedia original; source in docs/design/2026-11-13-ai-search-checklist/
+ * ebook-cover), then Book the call → Get the ebook → Win more buyers on a
  * rail that fills in turn. The rail and the steps' pulse are decoration:
  * they run three times and then rest on a full rail, and under reduced
  * motion they never run. The list itself carries the meaning.
@@ -23,9 +27,8 @@ export function FreeEbook({ tone, className = '' }) {
   return (
     <div className={className ? `fe ${className}` : 'fe'}>
       <div className="fe-head">
-        <span className="fe-badge" aria-hidden="true">
-          <BookOpen className="h-[15px] w-[15px]" strokeWidth={2.2} />
-        </span>
+        {/* The title beside it names the book, so the cover is decoration. */}
+        <Image src={cover} alt="" sizes="48px" className="fe-cover" />
         <div>
           <p className="amw-kicker fe-kick text-(--amw-accent-ink)">{kicker}</p>
           <p className={`fe-name ${tone.lead}`}>{title}</p>

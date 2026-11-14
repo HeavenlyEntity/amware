@@ -1,6 +1,11 @@
 import { Resend } from 'resend'
 
-import { RED_FLAGS_SUBJECT, isKitWaitlist } from './contact-intents'
+import {
+  AI_SEARCH_CHECKLIST_SUBJECT,
+  BUILD_INTRO_CALL_URL,
+  RED_FLAGS_SUBJECT,
+  isKitWaitlist,
+} from './contact-intents'
 
 let resend: Resend | null = null
 
@@ -38,10 +43,24 @@ export async function sendContactEmails(
      visitor hears nothing now. The owner notification above is the record. */
   if (isKitWaitlist(submission.subject)) return
 
+  const site = (
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://www.amware.dev'
+  ).replace(/\/+$/, '')
+
+  if (submission.subject === AI_SEARCH_CHECKLIST_SUBJECT) {
+    const { error } = await getResend().emails.send({
+      from,
+      to: submission.email,
+      subject: 'Your "Does AI Name Your Business?" checklist',
+      text: `Here is the checklist you asked for:\n\n${site}/downloads/amware-does-ai-name-your-business.pdf\n\nThree pages, five steps: get your baseline, open the door to the crawlers, rewrite the page they read, earn the mentions and links, and run the monthly loop.\n\nWhether you have a site today or are starting from scratch, book a free 15-minute intro call and we'll go over what you need:\n${BUILD_INTRO_CALL_URL}\n\n— Alec`,
+    })
+    if (error) {
+      throw new Error(`AI search checklist mail rejected: ${error.message}`)
+    }
+    return
+  }
+
   if (submission.subject === RED_FLAGS_SUBJECT) {
-    const site = (
-      process.env.NEXT_PUBLIC_SITE_URL || 'https://www.amware.dev'
-    ).replace(/\/+$/, '')
     const { error } = await getResend().emails.send({
       from,
       to: submission.email,

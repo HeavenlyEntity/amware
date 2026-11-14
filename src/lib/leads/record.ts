@@ -1,4 +1,5 @@
 import type { CalEvent } from './calcom'
+import type { LeadTrack } from './calcom'
 import { normalizeEmail, stageFor } from './calcom'
 import { withLeadLock } from './lock'
 import { advanceStage } from './stages'
@@ -129,6 +130,7 @@ async function applyCalEvent(
         email: event.email,
         name: event.name,
         source: 'calcom',
+        track: event.track,
         stage: next ?? 'contacted',
         ...profile,
         calls,
@@ -138,10 +140,21 @@ async function applyCalEvent(
     return 'created'
   }
 
+  /* An email sign-up (the AI search checklist) has only the address to
+     name the lead with; the booking's real name replaces it. A name typed
+     by hand or from an earlier booking stays. */
+  const unnamed = !lead.name || normalizeEmail(lead.name) === lead.email
+  /* The first booking decides the track: it is a stronger signal than a
+     download or a contact-form message. After that it stays, so a
+     consulting lead who later books the build call stays consulting unless
+     it is changed by hand. */
+  const firstBooking = callsOf(lead).length === 0
   await payload.update({
     collection: COLLECTION,
     id: lead.id,
     data: {
+      ...(unnamed && event.name ? { name: event.name } : {}),
+      ...(!lead.track || firstBooking ? { track: event.track } : {}),
       ...profile,
       calls,
       ...(next ? { stage: advanceStage(lead.stage, next) } : {}),
@@ -155,7 +168,12 @@ async function applyCalEvent(
     already there for that email as it is. */
 export async function recordContact(
   payload: PayloadLike,
-  { name, email, message }: { name: string; email: string; message?: string }
+  {
+    name,
+    email,
+    message,
+    track = 'consulting',
+  }: { name: string; email: string; message?: string; track?: LeadTrack }
 ): Promise<'created' | 'unchanged'> {
   const address = normalizeEmail(email)
   if (!address) return 'unchanged'
@@ -168,6 +186,7 @@ export async function recordContact(
         name: name || address,
         source: 'contact-form',
         stage: 'contacted',
+        track,
         ...(message ? { helpWith: message } : {}),
       },
       ...onTx(tx),

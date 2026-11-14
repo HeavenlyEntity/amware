@@ -58,7 +58,10 @@ describe('EmailCapture', () => {
   })
 
   it('posts the contact body shape with the Turnstile token', async () => {
-    fetch.mockResolvedValue({ ok: true, json: async () => ({}) })
+    fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ doc: { id: 9 } }),
+    })
     const onSuccess = vi.fn()
     render(<EmailCapture {...props} onSuccess={onSuccess} />)
     fill(' ada@example.com ')
@@ -74,7 +77,8 @@ describe('EmailCapture', () => {
       subject: 'Red Flags checklist',
       message: 'Red Flags checklist request.',
     })
-    expect(onSuccess).toHaveBeenCalledWith('ada@example.com')
+    // The created row comes along, for an analytics event id.
+    expect(onSuccess).toHaveBeenCalledWith('ada@example.com', { id: 9 })
   })
 
   it('shows the success message on success', async () => {
