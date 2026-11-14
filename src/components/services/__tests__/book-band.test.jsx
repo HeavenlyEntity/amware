@@ -9,7 +9,7 @@ vi.mock('@/components/react-bits/fluid-glass', () => {
   throw new Error('FluidGlass loaded outside its gate')
 })
 
-import { BookBand } from '../book-band'
+import { BOOK_LENS, BookBand } from '../book-band'
 import { SERVICES_PAGE } from '@/content/site/services-page'
 
 const booking = {
@@ -65,5 +65,9 @@ describe('BookBand', () => {
     expect(glass).toHaveAttribute('aria-hidden', 'true')
     expect(glass).toHaveTextContent('Scope first.')
     expect(container.querySelector('canvas')).toBeNull()
+  })
+
+  it('reshapes through the crown, as on the boards', () => {
+    expect(BOOK_LENS.shapes).toEqual(['diamond', 'crown', 'torus', 'prism'])
   })
 })
