@@ -43,20 +43,28 @@ const callsOf = (lead: any): any[] =>
 
 type Result = 'created' | 'updated' | 'unchanged' | 'ignored'
 
+/** Filled in by recordCalEvent: whether this booking gave the lead its
+    first intro call, the one that earns the free downloads. A retried,
+    late or out-of-order BOOKING_CREATED, or a re-booking after a cancel,
+    finds an intro call already there and earns nothing twice. */
+export type RecordMeta = { firstIntro?: boolean }
+
 export async function recordCalEvent(
   payload: PayloadLike,
-  event: CalEvent
+  event: CalEvent,
+  meta: RecordMeta = {}
 ): Promise<Result> {
   if (event.action === 'ignored') return 'ignored'
   return withLeadLock(payload, event.email, (tx) =>
-    applyCalEvent(payload, event, tx)
+    applyCalEvent(payload, event, tx, meta)
   )
 }
 
 async function applyCalEvent(
   payload: PayloadLike,
   event: Exclude<CalEvent, { action: 'ignored' }>,
-  tx: { req?: any }
+  tx: { req?: any },
+  meta: RecordMeta = {}
 ): Promise<Result> {
   const lead = await findLead(payload, event.email, tx)
 
@@ -104,6 +112,10 @@ async function applyCalEvent(
 
   // Booked or rescheduled. A retried BOOKING_CREATED changes nothing.
   if (event.action === 'booked' && existing) return 'unchanged'
+  meta.firstIntro =
+    event.action === 'booked' &&
+    call.kind === 'intro' &&
+    !calls.some((c) => c.kind === 'intro')
   if (existing) {
     existing.bookingUid = call.bookingUid
     existing.startsAt = call.startsAt

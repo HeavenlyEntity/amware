@@ -15,6 +15,7 @@ import '@/styles/storefront.css'
 import 'focus-visible'
 import '@/styles/accessibility.css'
 import { AccessibilityProvider } from '@/components/AccessibilityProvider'
+import { BookingReward } from '@/components/commerce/booking-reward'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { siteGraph } from '@/lib/seo/schema'
 
@@ -119,6 +120,9 @@ export default function SiteLayout({
               <Footer />
             </div>
           </div>
+          {/* The free downloads an intro-call booking earns, shown the
+              moment Cal.com confirms it. */}
+          <BookingReward />
         </AccessibilityProvider>
         {/* Organization, Person and WebSite: who runs this site, on every page. */}
         <JsonLd data={siteGraph()} />

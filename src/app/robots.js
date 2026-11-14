@@ -11,6 +11,8 @@ export default function robots() {
           '/access/',
           '/checkout/',
           '/machine-export/',
+          // The free downloads a booking earns: unlisted, never indexed.
+          '/downloads/',
         ],
       },
     ],

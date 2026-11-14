@@ -1,6 +1,9 @@
+import { after } from 'next/server'
+
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { parseCalEvent, verifyCalSignature } from '@/lib/leads/calcom'
-import { recordCalEvent } from '@/lib/leads/record'
+import { recordCalEvent, type RecordMeta } from '@/lib/leads/record'
+import { sendBookingGifts } from '@/lib/resend'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +36,28 @@ export async function POST(req: Request) {
 
   try {
     const payload = await getPayloadClient()
-    const result = await recordCalEvent(payload as any, event)
+    const meta: RecordMeta = {}
+    const result = await recordCalEvent(payload as any, event, meta)
+    /* A lead's first intro call earns its free downloads by email. Sent
+       after the response, so Cal.com is not kept waiting; a failed mail is
+       logged, never retried through Cal.com (the lead is recorded, and the
+       page showed the downloads). */
+    if (meta.firstIntro && event.action === 'booked') {
+      const { email, name, track } = event
+      const mail = async () => {
+        try {
+          await sendBookingGifts({ email, name, track })
+        } catch (err) {
+          console.error('Booking gift mail failed:', err)
+        }
+      }
+      try {
+        after(mail)
+      } catch {
+        // Outside a request (a test): just run it.
+        await mail()
+      }
+    }
     return Response.json({ ok: true, result })
   } catch (err) {
     console.error('Cal.com lead webhook failed:', err)

@@ -914,7 +914,7 @@ export interface Lead {
     | 'not-a-fit'
   fit?: ('fit' | 'maybe' | 'not-a-fit') | null
   /**
-   * Which side they came in through: the consulting intro call, or the Build & support call and checklist. A sign-up sets it; the first booking decides it.
+   * Which side they came in through: the consulting intro call, or the Build & support call and checklist. The first booking decides it; a contact-form message starts as Consulting.
    */
   track?: ('consulting' | 'build') | null
   source: 'calcom' | 'contact-form' | 'manual'

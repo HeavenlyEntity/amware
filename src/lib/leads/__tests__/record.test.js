@@ -213,6 +213,45 @@ describe('recordCalEvent', () => {
     expect(payload.update.mock.calls[0][0].data).not.toHaveProperty('name')
   })
 
+  it("flags only a lead's first intro call as earning the downloads", async () => {
+    const fresh = {}
+    await recordCalEvent(fakePayload(), booked(), fresh)
+    expect(fresh.firstIntro).toBe(true)
+
+    // Re-booking after a cancel, or a late CREATED after a reschedule,
+    // finds an intro call already there.
+    const again = {}
+    await recordCalEvent(
+      fakePayload({
+        id: 3,
+        email: 'dana@example.com',
+        stage: 'intro-booked',
+        calls: [
+          { id: 'c1', kind: 'intro', status: 'cancelled', bookingUid: 'bk_0' },
+        ],
+      }),
+      booked(),
+      again
+    )
+    expect(again.firstIntro).toBe(false)
+
+    // A strategy call never earns them.
+    const strategy = {}
+    await recordCalEvent(
+      fakePayload(),
+      booked({
+        call: {
+          kind: 'strategy',
+          bookingUid: 'bk_5',
+          previousUid: null,
+          startsAt: null,
+        },
+      }),
+      strategy
+    )
+    expect(strategy.firstIntro).toBe(false)
+  })
+
   it('never moves a lead past a stage set by hand', async () => {
     const payload = fakePayload({ id: 7, stage: 'won', calls: [] })
     await recordCalEvent(payload, booked())

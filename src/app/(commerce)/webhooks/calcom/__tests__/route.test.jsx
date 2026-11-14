@@ -2,8 +2,10 @@ import crypto from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
+vi.mock('@/lib/resend', () => ({ sendBookingGifts: vi.fn() }))
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
+import { sendBookingGifts } from '@/lib/resend'
 import { POST } from '../route'
 
 const SECRET = 'whsec_test'
@@ -54,6 +56,84 @@ describe('POST /webhooks/calcom', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, result: 'created' })
     expect(payload.create).toHaveBeenCalledOnce()
+  })
+
+  it('mails the free downloads for a new intro-call booking, once', async () => {
+    await POST(request(created))
+    expect(sendBookingGifts).toHaveBeenCalledWith({
+      email: 'dana@example.com',
+      name: 'Dana',
+      track: 'consulting',
+    })
+
+    // A retried BOOKING_CREATED finds the call already there.
+    payload.find.mockResolvedValue({
+      docs: [
+        {
+          id: 1,
+          email: 'dana@example.com',
+          stage: 'intro-booked',
+          calls: [{ kind: 'intro', status: 'booked', bookingUid: 'bk_1' }],
+        },
+      ],
+    })
+    sendBookingGifts.mockClear()
+    const res = await POST(request(created))
+    expect(await res.json()).toEqual({ ok: true, result: 'unchanged' })
+    expect(sendBookingGifts).not.toHaveBeenCalled()
+  })
+
+  it('mails the Build & support gifts for the build call', async () => {
+    await POST(
+      request({
+        ...created,
+        payload: { ...created.payload, type: 'build-intro-call' },
+      })
+    )
+    expect(sendBookingGifts).toHaveBeenCalledWith(
+      expect.objectContaining({ track: 'build' })
+    )
+  })
+
+  it('mails nothing for a strategy call or a cancellation', async () => {
+    await POST(
+      request({
+        ...created,
+        payload: {
+          ...created.payload,
+          type: 'strategy-call',
+          length: 45,
+          uid: 'bk_9',
+        },
+      })
+    )
+    await POST(request({ ...created, triggerEvent: 'BOOKING_CANCELLED' }))
+    expect(sendBookingGifts).not.toHaveBeenCalled()
+  })
+
+  it('mails nothing when the lead already had an intro call', async () => {
+    payload.find.mockResolvedValue({
+      docs: [
+        {
+          id: 1,
+          email: 'dana@example.com',
+          stage: 'intro-booked',
+          calls: [{ kind: 'intro', status: 'cancelled', bookingUid: 'bk_0' }],
+        },
+      ],
+    })
+    const res = await POST(request(created))
+    expect(await res.json()).toEqual({ ok: true, result: 'updated' })
+    expect(sendBookingGifts).not.toHaveBeenCalled()
+  })
+
+  it('still answers 200 when the gift mail fails', async () => {
+    sendBookingGifts.mockRejectedValue(new Error('resend down'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = await POST(request(created))
+    expect(res.status).toBe(200)
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
   })
 
   it('refuses a body that is not signed with the secret', async () => {

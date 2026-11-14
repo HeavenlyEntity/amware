@@ -9,16 +9,12 @@ vi.mock('resend', () => ({
 
 import { ContactSubmissions } from '../../collections/ContactSubmissions'
 import {
-  AI_SEARCH_CHECKLIST_SUBJECT,
-  BUILD_INTRO_CALL_URL,
   RED_FLAGS_SUBJECT,
-  isChecklistDownload,
-  isConsultingEnquiry,
   isKitWaitlist,
   kitEnterpriseSubject,
   kitWaitlistSubject,
 } from '../contact-intents'
-import { sendContactEmails } from '../resend'
+import { sendBookingGifts, sendContactEmails } from '../resend'
 
 const PDF_PATH = '/downloads/amware-dev-shop-contract-red-flags.pdf'
 
@@ -69,16 +65,6 @@ describe('contact intents', () => {
   it('names the Red Flags subject', () => {
     expect(RED_FLAGS_SUBJECT).toBe('Red Flags checklist')
   })
-
-  it('treats both checklists as downloads, but only the AI search one as a lead', () => {
-    expect(isChecklistDownload(RED_FLAGS_SUBJECT)).toBe(true)
-    expect(isChecklistDownload(AI_SEARCH_CHECKLIST_SUBJECT)).toBe(true)
-    expect(isChecklistDownload('Hello')).toBe(false)
-    expect(isChecklistDownload(undefined)).toBe(false)
-    // The AI search checklist is a step toward the intro call.
-    expect(isConsultingEnquiry(AI_SEARCH_CHECKLIST_SUBJECT)).toBe(true)
-    expect(isConsultingEnquiry(RED_FLAGS_SUBJECT)).toBe(false)
-  })
 })
 
 describe('sendContactEmails routing', () => {
@@ -97,20 +83,6 @@ describe('sendContactEmails routing', () => {
     expect(visitor.text).toContain(`https://www.amware.dev${PDF_PATH}`)
     expect(visitor.text).not.toContain('Thanks for reaching out')
     expect(visitor.subject).not.toBe('Thanks for reaching out')
-  })
-
-  it('mails the AI search checklist PDF with the intro-call link', async () => {
-    await sendContactEmails(submission(AI_SEARCH_CHECKLIST_SUBJECT))
-    expect(recipients()).toEqual(['owner@amware.dev', 'ada@example.com'])
-    const visitor = send.mock.calls[1][0]
-    expect(visitor.subject).toBe('Your "Does AI Name Your Business?" checklist')
-    expect(visitor.text).toContain(
-      'https://www.amware.dev/downloads/amware-does-ai-name-your-business.pdf'
-    )
-    // The Build & support call, never the consulting one.
-    expect(visitor.text).toContain(BUILD_INTRO_CALL_URL)
-    expect(visitor.text).not.toContain('amware/intro-call')
-    expect(visitor.text).not.toContain('Thanks for reaching out')
   })
 
   it('keeps a trailing slash on the site URL out of the PDF link', async () => {
@@ -171,14 +143,6 @@ describe('ContactSubmissions afterChange', () => {
     })
   })
 
-  it('fails the request when the AI search checklist mail does not leave', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    send.mockResolvedValue({ data: null, error: { message: 'bad domain' } })
-    await expect(run(AI_SEARCH_CHECKLIST_SUBJECT)).rejects.toMatchObject({
-      status: 502,
-    })
-  })
-
   it('swallows a mail failure for every other subject', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     send.mockRejectedValue(new Error('resend down'))
@@ -192,5 +156,52 @@ describe('ContactSubmissions afterChange', () => {
   it('sends nothing on update', async () => {
     await run(RED_FLAGS_SUBJECT, 'update')
     expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe('sendBookingGifts', () => {
+  const site = 'https://www.amware.dev'
+
+  it('mails the ebook for the consulting intro call', async () => {
+    await sendBookingGifts({
+      email: 'dana@example.com',
+      name: 'Dana Reyes',
+      track: 'consulting',
+    })
+    const mail = send.mock.calls[0][0]
+    expect(mail.to).toBe('dana@example.com')
+    expect(mail.subject).toBe(
+      'Your free ebook: Turn Website Visitors Into Buyers'
+    )
+    expect(mail.text).toContain('Hi Dana,')
+    expect(mail.text).toContain(
+      `${site}/downloads/amware-turn-website-visitors-into-buyers-4e0774d13d6c.pdf`
+    )
+    expect(mail.text).not.toContain('does-ai-name-your-business')
+  })
+
+  it('mails the checklist and the ebook for the build call', async () => {
+    await sendBookingGifts({
+      email: 'dana@example.com',
+      name: 'dana@example.com',
+      track: 'build',
+    })
+    const mail = send.mock.calls[0][0]
+    expect(mail.subject).toBe('Your free checklist and ebook')
+    // A name that is only the address gets no greeting by name.
+    expect(mail.text).toContain('Hi,\n')
+    expect(mail.text).toContain(
+      `${site}/downloads/amware-does-ai-name-your-business-d8ec7903f20f.pdf`
+    )
+    expect(mail.text).toContain(
+      `${site}/downloads/amware-turn-website-visitors-into-buyers-4e0774d13d6c.pdf`
+    )
+  })
+
+  it('throws when Resend rejects the mail', async () => {
+    send.mockResolvedValue({ data: null, error: { message: 'bad domain' } })
+    await expect(
+      sendBookingGifts({ email: 'a@b.co', name: 'A', track: 'consulting' })
+    ).rejects.toThrow('bad domain')
   })
 })

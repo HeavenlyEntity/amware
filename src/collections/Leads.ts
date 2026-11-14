@@ -14,7 +14,7 @@ export const Leads: CollectionConfig = {
     useAsTitle: 'name',
     defaultColumns: ['name', 'business', 'track', 'stage', 'fit', 'updatedAt'],
     description:
-      'People coming in through either side, consulting or Build & support (see Track). Bookings, contact-form messages and checklist sign-ups add them automatically.',
+      'People coming in through either side, consulting or Build & support (see Track). Bookings and contact-form messages add them automatically.',
   },
   access: {
     create: ({ req }) => Boolean(req.user),
@@ -149,7 +149,7 @@ export const Leads: CollectionConfig = {
       admin: {
         position: 'sidebar',
         description:
-          'Which side they came in through: the consulting intro call, or the Build & support call and checklist. A sign-up sets it; the first booking decides it.',
+          'Which side they came in through: the consulting intro call, or the Build & support call and checklist. The first booking decides it; a contact-form message starts as Consulting.',
       },
     },
     {
