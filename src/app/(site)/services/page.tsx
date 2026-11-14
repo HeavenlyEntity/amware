@@ -15,6 +15,8 @@ import { DeskMotionSync } from '@/components/founders/desk/motion-flag'
 import { ServicesHero } from '@/components/services/services-hero'
 import { Engagements } from '@/components/services/engagements'
 import { BookBand } from '@/components/services/book-band'
+import { IntroCallStrip } from '@/components/services/intro-call-strip'
+import { calLinkFromUrl } from '@/lib/commerce/calLink'
 import {
   FitCheck,
   PainPoints,
@@ -92,10 +94,20 @@ export default async function ServicesPage() {
   /* The studio template's pricing section: priced services side by side at
      equal height, joined by 1px seams in one frame, then anything without a
      price as a wide strip underneath. */
-  const cards = (list: Service[]) => {
+  const cards = (list: Service[], { sharedTerms = false } = {}) => {
     const { priced, unpriced } = splitByPrice(list)
+    /* When every priced card books the free intro call, its terms and the
+       free ebook are said once above the grid instead of in each card. */
+    const shareTerms =
+      sharedTerms &&
+      priced.length > 0 &&
+      priced.every(
+        (service) =>
+          !service.creemProductId && calLinkFromUrl(service.bookingUrl)
+      )
     return (
       <>
+        {shareTerms && <IntroCallStrip />}
         {priced.length > 0 && (
           <ServiceGrid
             className={cn(
@@ -108,6 +120,7 @@ export default async function ServicesPage() {
                 key={service.id}
                 service={service}
                 description={body(service)}
+                sharedTerms={shareTerms}
               />
             ))}
           </ServiceGrid>
@@ -158,7 +171,7 @@ export default async function ServicesPage() {
           loadError ? (
             <EngagementsLoadError />
           ) : consulting.length ? (
-            cards(consulting)
+            cards(consulting, { sharedTerms: true })
           ) : (
             <StoreEmpty label="consulting track" />
           )

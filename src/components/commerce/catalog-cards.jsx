@@ -7,7 +7,10 @@ import Link from 'next/link'
 import { BuyButton } from '@/components/commerce/BuyButton'
 import { BookCallButton } from '@/components/commerce/BookCallButton'
 import { DepositCheckout } from '@/components/commerce/DepositCheckout'
-import { DepositRiskReversal } from '@/components/commerce/DepositRiskReversal'
+import {
+  DepositRiskReversal,
+  TONE,
+} from '@/components/commerce/DepositRiskReversal'
 import { IntroCallTerms } from '@/components/commerce/IntroCallTerms'
 import { calLinkFromUrl } from '@/lib/commerce/calLink'
 import { depositPlanId, planId } from '@/lib/commerce/whopEnv'
@@ -18,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { typeMeta } from '@/components/commerce/catalog-meta'
 import { Pattern } from '@/components/ui/pattern'
 import { PixelCard } from '@/components/react-bits/pixel-card'
+import { HoursMeter, parseHours } from '@/components/commerce/hours-meter'
 
 /* Catalog cards in the "minimal" template's grammar (components/features.tsx,
    pricing.tsx, how-it-works.tsx): soft rounded-2xl surfaces without borders,
@@ -258,7 +262,12 @@ function CtaLabel({ children, tone }) {
    around the button. The purchase button keeps its own styling and ignores
    `tone`: no service is sold that way today, so a popular one would need it
    taught first. */
-function ServiceAction({ service, tone = 'default', fullWidth = false }) {
+function ServiceAction({
+  service,
+  tone = 'default',
+  fullWidth = false,
+  sharedTerms = false,
+}) {
   const hasPrice = typeof service.startingPrice === 'number'
   /* No service names a figure here, not even the deposit's: the amount is
      shown in the checkout itself, before anything is charged. */
@@ -271,6 +280,17 @@ function ServiceAction({ service, tone = 'default', fullWidth = false }) {
     CTA_TONE[tone],
     fullWidth && 'w-full justify-between'
   )
+  const bookButton = booking ? (
+    <BookCallButton
+      calLink={booking.link}
+      namespace={`${booking.namespace}-${service.slug}`}
+      serviceName={service.name}
+      notes={`Engagement: ${service.name}`}
+      className={className}
+    >
+      <CtaLabel tone={tone}>Book a free intro call</CtaLabel>
+    </BookCallButton>
+  ) : null
   return (
     <>
       {service.creemProductId ? (
@@ -283,17 +303,24 @@ function ServiceAction({ service, tone = 'default', fullWidth = false }) {
           label={'Purchase'}
         />
       ) : booking ? (
-        <IntroCallTerms tone={tone}>
-          <BookCallButton
-            calLink={booking.link}
-            namespace={`${booking.namespace}-${service.slug}`}
-            serviceName={service.name}
-            notes={`Engagement: ${service.name}`}
-            className={className}
-          >
-            <CtaLabel tone={tone}>Book a free intro call</CtaLabel>
-          </BookCallButton>
-        </IntroCallTerms>
+        sharedTerms ? (
+          /* The grid states the intro call's terms once, above the cards
+             (IntroCallStrip); each card keeps only its button and fine
+             print. */
+          <>
+            {bookButton}
+            <p
+              className={cn(
+                'mt-2.5 text-center text-xs leading-relaxed',
+                (TONE[tone] ?? TONE.default).fine
+              )}
+            >
+              Intro call · 15 min · free
+            </p>
+          </>
+        ) : (
+          <IntroCallTerms tone={tone}>{bookButton}</IntroCallTerms>
+        )
       ) : depositPlan ? (
         <DepositRiskReversal tone={tone}>
           <DepositCheckout
@@ -387,11 +414,24 @@ const QUOTE_LINE = {
  * @param {import('react').ReactNode} [props.description] rendered rich text;
  *   without the annotation TS infers the `null` default as the whole type and
  *   rejects every real caller.
+ * @param {boolean} [props.sharedTerms] the grid states the intro call's
+ *   terms above the cards (IntroCallStrip): the card drops its own, shows
+ *   its hours as a meter, and tightens its spacing.
  */
-export function ServiceCard({ service, description = null }) {
+export function ServiceCard({
+  service,
+  description = null,
+  sharedTerms = false,
+}) {
   const tone = service.popular ? 'popular' : 'default'
   const t = CARD_TONE[tone]
   const icon = mediaUrl(service.icon)
+  /* A retainer whose terms sit above the grid trades the repeated "Scoped
+     and priced on the call" headline for its hours, drawn as a meter. */
+  const meter =
+    sharedTerms &&
+    trackOf(service) === 'consulting' &&
+    parseHours(service.commitment) !== null
   return (
     <li
       id={service.slug}
@@ -404,7 +444,12 @@ export function ServiceCard({ service, description = null }) {
           design canvas's service cards. The card sits in the grid's seams,
           so the pixel surface is bare: no fill or frame of its own. */}
       <PixelCard
-        className="amw-pixel-card--bare flex flex-1 flex-col px-6 py-8 md:px-8 md:py-10"
+        className={cn(
+          'amw-pixel-card--bare flex flex-1 flex-col',
+          sharedTerms
+            ? 'px-6 py-7 md:px-7 md:py-8'
+            : 'px-6 py-8 md:px-8 md:py-10'
+        )}
         radius={0}
         gap={6}
         fade={0.78}
@@ -441,23 +486,38 @@ export function ServiceCard({ service, description = null }) {
         {/* Where the price used to sit: how this engagement gets its
             number. A retainer is scoped on the strategy call; a build is
             quoted from the contact form. */}
-        <div className="mt-6">
-          <p className={cn('text-2xl font-medium tracking-tight', t.strong)}>
-            {QUOTE_LINE[trackOf(service)]}
-          </p>
-          {service.commitment && (
-            <p className="amw-kicker mt-2">{service.commitment}</p>
-          )}
-        </div>
+        {meter ? (
+          <HoursMeter commitment={service.commitment} tone={t} />
+        ) : (
+          <div className="mt-6">
+            <p className={cn('text-2xl font-medium tracking-tight', t.strong)}>
+              {QUOTE_LINE[trackOf(service)]}
+            </p>
+            {service.commitment && (
+              <p className="amw-kicker mt-2">{service.commitment}</p>
+            )}
+          </div>
+        )}
 
         {description && (
-          <div className={cn('amw-service-body mt-6 text-sm', t.body)}>
+          <div
+            className={cn(
+              'amw-service-body text-sm',
+              sharedTerms ? 'amw-service-body--compact mt-5' : 'mt-6',
+              t.body
+            )}
+          >
             {description}
           </div>
         )}
 
-        <div className="mt-auto pt-8">
-          <ServiceAction service={service} tone={tone} fullWidth />
+        <div className={cn('mt-auto', sharedTerms ? 'pt-6' : 'pt-8')}>
+          <ServiceAction
+            service={service}
+            tone={tone}
+            fullWidth
+            sharedTerms={sharedTerms}
+          />
         </div>
       </PixelCard>
     </li>

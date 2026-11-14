@@ -122,6 +122,12 @@ export const SERVICES_PAGE = {
       },
     ],
   },
+  /* Above the retainer cards: the intro call's terms and the free ebook,
+     said once for all three instead of in every card (2026-11-13). */
+  introStrip: {
+    lead: 'Every retainer starts with a free 15-minute call.',
+    body: 'A quick hello to see whether we’re a fit, before you pay for anything. The retainer is scoped and priced on the call.',
+  },
   band: {
     eyebrow: { index: '02', label: 'Start here' },
     title: 'Not sure how bad it is?',
