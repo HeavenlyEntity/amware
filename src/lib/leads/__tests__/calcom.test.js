@@ -72,6 +72,22 @@ describe('callKind', () => {
 })
 
 describe('parseCalEvent', () => {
+  it('reads MEETING_ENDED flat or nested under payload', () => {
+    const flat = {
+      triggerEvent: 'MEETING_ENDED',
+      uid: 'bk_1',
+      attendees: [{ email: 'Dana@Example.com' }],
+    }
+    const nested = { triggerEvent: 'MEETING_ENDED', payload: { ...flat } }
+    for (const body of [flat, nested]) {
+      expect(parseCalEvent(body)).toEqual({
+        action: 'ended',
+        email: 'dana@example.com',
+        bookingUid: 'bk_1',
+      })
+    }
+  })
+
   it('reads a new booking into the lead and its call', () => {
     expect(parseCalEvent(booking('BOOKING_CREATED'))).toEqual({
       action: 'booked',

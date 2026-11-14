@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import { getCalApi } from '@calcom/embed-react'
 import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
-import { BOOKED_EVENT } from '@/lib/booking-gifts'
 
 /* The Cal.com booking popup, and the one place a booking can be observed.
 
@@ -60,13 +59,6 @@ export function BookCallButton({
             event_id: booking.uid,
             content_name: serviceName,
           })
-          /* The page's reward panel (BookingReward) hands over the free
-             downloads the booking earned, right away. */
-          window.dispatchEvent(
-            new CustomEvent(BOOKED_EVENT, {
-              detail: { namespace, uid: booking.uid },
-            })
-          )
         },
       })
     })()

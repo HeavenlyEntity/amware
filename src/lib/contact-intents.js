@@ -4,6 +4,11 @@
 
 export const RED_FLAGS_SUBJECT = 'Red Flags checklist'
 
+/* The free AI search checklist on the /services Build & support tab. Unlike
+   the Red Flags download it is a step toward the intro call, so its sign-ups
+   join the Leads list. */
+export const AI_SEARCH_CHECKLIST_SUBJECT = 'AI search checklist'
+
 /* The free 15-minute intro call, the same event the consulting rows'
    booking_url points at (Cal.com, set up 2026-11-13). */
 export const INTRO_CALL_URL = 'https://cal.com/amware/intro-call'
@@ -12,6 +17,14 @@ export const INTRO_CALL_URL = 'https://cal.com/amware/intro-call'
    2026-11-13): its own questions, kept apart from the consulting call, and
    the link the Build & support rows' booking_url points at. */
 export const BUILD_INTRO_CALL_URL = 'https://cal.com/amware/build-intro-call'
+
+/* A sign-up whose whole point is the PDF in its email: if that mail fails,
+   the visitor must see an error rather than a promise. */
+export function isChecklistDownload(subject) {
+  return (
+    subject === RED_FLAGS_SUBJECT || subject === AI_SEARCH_CHECKLIST_SUBJECT
+  )
+}
 
 const KIT_WAITLIST_PREFIX = 'WareKit waitlist'
 
@@ -26,13 +39,16 @@ export function isKitWaitlist(subject) {
 /* A consulting enquiry, the kind that joins the Leads list. Product and
    course sign-ups (WareKit waitlist or Enterprise, the courses waitlist) and
    the Red Flags checklist download post here too, but they are buyers of a
-   product, not people in the consulting funnel. */
+   product, not people in the consulting funnel. The AI search checklist
+   sign-up joins the Leads list later, when its emailed link is opened
+   (checklist-link.ts), so an address nobody owns never becomes a lead. */
 export function isConsultingEnquiry(subject) {
   if (typeof subject !== 'string') return true
   return !(
     subject.startsWith('WareKit') ||
     subject.startsWith('Courses waitlist') ||
-    subject === RED_FLAGS_SUBJECT
+    subject === RED_FLAGS_SUBJECT ||
+    subject === AI_SEARCH_CHECKLIST_SUBJECT
   )
 }
 

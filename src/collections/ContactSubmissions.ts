@@ -1,10 +1,14 @@
 import { after } from 'next/server'
 import { APIError, type CollectionConfig } from 'payload'
 
-import { RED_FLAGS_SUBJECT, isConsultingEnquiry } from '../lib/contact-intents'
+import {
+  isChecklistDownload,
+  isConsultingEnquiry,
+} from '../lib/contact-intents'
 import { recordContact } from '../lib/leads/record'
 import { sendContactEmails } from '../lib/resend'
 import { verifyContactToken } from '../lib/turnstile'
+import { checkEmail } from '../lib/email-check'
 
 export const ContactSubmissions: CollectionConfig = {
   slug: 'contact-submissions',
@@ -41,6 +45,24 @@ export const ContactSubmissions: CollectionConfig = {
         // Protect REST and GraphQL creation before persistence or email hooks.
         if (operation === 'create') {
           await verifyContactToken(req.headers.get('x-turnstile-token'))
+          /* A checklist goes only to an address that can receive mail and
+             is not a throwaway inbox (owner decision 2026-11-14). */
+          if (
+            isChecklistDownload(data?.subject) &&
+            typeof data?.email === 'string'
+          ) {
+            const verdict = await checkEmail(data.email)
+            if (verdict !== 'ok') {
+              throw new APIError(
+                verdict === 'disposable'
+                  ? 'Use your own email address, not a temporary inbox.'
+                  : 'That email address can’t receive mail. Check it and try again.',
+                400,
+                undefined,
+                true
+              )
+            }
+          }
         }
         return data
       },
@@ -50,6 +72,7 @@ export const ContactSubmissions: CollectionConfig = {
         if (operation === 'create') {
           try {
             await sendContactEmails({
+              id: doc.id,
               name: doc.name,
               email: doc.email,
               subject: doc.subject,
@@ -57,10 +80,10 @@ export const ContactSubmissions: CollectionConfig = {
             })
           } catch (err) {
             console.error('Resend contact emails failed:', err)
-            /* The checklist email is the whole point of that sign-up. Failing
+            /* A checklist email is the whole point of that sign-up. Failing
                the request rolls the row back with it, so the visitor sees an
                error instead of a promise, and a retry is not blocked. */
-            if (doc.subject === RED_FLAGS_SUBJECT) {
+            if (isChecklistDownload(doc.subject)) {
               throw new APIError(
                 'We could not send the checklist. Try again in a moment.',
                 502,

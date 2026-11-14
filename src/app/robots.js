@@ -13,6 +13,7 @@ export default function robots() {
           '/machine-export/',
           // The free downloads a booking earns: unlisted, never indexed.
           '/downloads/',
+          '/get/',
         ],
       },
     ],

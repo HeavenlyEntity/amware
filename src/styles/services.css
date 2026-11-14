@@ -1083,6 +1083,14 @@ html[data-dk-motion='ok'] .svc .svc-rise {
   grid-area: form;
   min-width: 0;
 }
+.svc-ck-form > form > div:first-child {
+  margin-top: 0;
+}
+.svc-ck-next {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
 .svc-ck-next-t {
   font-size: 0.9375rem;
   font-weight: 600;
@@ -1095,13 +1103,8 @@ html[data-dk-motion='ok'] .svc .svc-rise {
   color: #a1a1aa;
 }
 .amw .svc-ck-cta {
-  margin-top: 14px;
+  margin-top: 12px;
   background: #3ce8ce;
-}
-.svc-ck-fine {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #a1a1aa;
 }
 @media (min-width: 640px) {
   .svc-ck {

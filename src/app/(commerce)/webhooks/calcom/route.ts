@@ -3,7 +3,7 @@ import { after } from 'next/server'
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { parseCalEvent, verifyCalSignature } from '@/lib/leads/calcom'
 import { recordCalEvent, type RecordMeta } from '@/lib/leads/record'
-import { sendBookingGifts } from '@/lib/resend'
+import { sendEbookAfterCall } from '@/lib/resend'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,17 +38,16 @@ export async function POST(req: Request) {
     const payload = await getPayloadClient()
     const meta: RecordMeta = {}
     const result = await recordCalEvent(payload as any, event, meta)
-    /* A lead's first intro call earns its free downloads by email. Sent
-       after the response, so Cal.com is not kept waiting; a failed mail is
-       logged, never retried through Cal.com (the lead is recorded, and the
-       page showed the downloads). */
-    if (meta.firstIntro && event.action === 'booked') {
-      const { email, name, track } = event
+    /* A lead's first intro call has ended: the free ebook goes out. After
+       the response, so Cal.com is not kept waiting; a failed mail is
+       logged, never retried through Cal.com. */
+    const to = meta.ebookTo
+    if (to) {
       const mail = async () => {
         try {
-          await sendBookingGifts({ email, name, track })
+          await sendEbookAfterCall(to)
         } catch (err) {
-          console.error('Booking gift mail failed:', err)
+          console.error('Ebook mail failed:', err)
         }
       }
       try {

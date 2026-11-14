@@ -1,7 +1,13 @@
 import { Resend } from 'resend'
 
-import { RED_FLAGS_SUBJECT, isKitWaitlist } from './contact-intents'
-import { giftsFor } from './booking-gifts'
+import {
+  AI_SEARCH_CHECKLIST_SUBJECT,
+  BUILD_INTRO_CALL_URL,
+  RED_FLAGS_SUBJECT,
+  isKitWaitlist,
+} from './contact-intents'
+import { FREE_EBOOK } from '../content/site/free-ebook'
+import { checklistLink } from './checklist-link'
 
 let resend: Resend | null = null
 
@@ -11,6 +17,8 @@ function getResend(): Resend {
 }
 
 export type ContactSubmission = {
+  /** The contact submission's id, for the checklist's signed link. */
+  id?: string | number
   name: string
   email: string
   subject?: string
@@ -43,6 +51,25 @@ export async function sendContactEmails(
     process.env.NEXT_PUBLIC_SITE_URL || 'https://www.amware.dev'
   ).replace(/\/+$/, '')
 
+  if (submission.subject === AI_SEARCH_CHECKLIST_SUBJECT) {
+    if (submission.id === undefined) {
+      throw new Error('AI search checklist mail needs the submission id')
+    }
+    /* Opening this link proves the inbox is theirs: it adds them to Leads,
+       then forwards to the PDF. */
+    const link = checklistLink(site, submission.id)
+    const { error } = await getResend().emails.send({
+      from,
+      to: submission.email,
+      subject: 'Your "Does AI Name Your Business?" checklist',
+      text: `Here is the checklist you asked for:\n\n${link}\n\nThree pages, five steps: get your baseline, open the door to the crawlers, rewrite the page they read, earn the mentions and links, and run the monthly loop.\n\nWhether you have a site today or are starting from scratch, book a free 15-minute intro call and we'll go over what you need:\n${BUILD_INTRO_CALL_URL}\n\n— Alec`,
+    })
+    if (error) {
+      throw new Error(`AI search checklist mail rejected: ${error.message}`)
+    }
+    return
+  }
+
   if (submission.subject === RED_FLAGS_SUBJECT) {
     const { error } = await getResend().emails.send({
       from,
@@ -64,42 +91,29 @@ export async function sendContactEmails(
   })
 }
 
-/* The reward for booking a free intro call (owner decision 2026-11-14):
-   the downloads it earned, mailed as soon as Cal.com reports the booking,
-   for anyone who booked on cal.com itself or closed the page before the
-   panel showed. The same gifts as the page's BookingReward. Throws when
-   Resend rejects the mail, so the caller can log it. */
-export async function sendBookingGifts({
+/* The free ebook, mailed after a lead's first intro call ends (the booking
+   webhook decides when). Throws when Resend rejects it, so the caller can
+   log it. */
+export async function sendEbookAfterCall({
   email,
   name,
-  track,
 }: {
   email: string
   name: string
-  track: 'consulting' | 'build'
 }): Promise<void> {
   const from = process.env.RESEND_FROM || 'Amware <hello@amware.dev>'
   const site = (
     process.env.NEXT_PUBLIC_SITE_URL || 'https://www.amware.dev'
   ).replace(/\/+$/, '')
-  const gifts = giftsFor(track) as { title: string; path: string }[]
   const first = String(name || '')
     .trim()
     .split(/\s+/)[0]
   const greeting = first && !first.includes('@') ? `Hi ${first},` : 'Hi,'
-  const list = gifts
-    .map((gift) => `${gift.title}\n${site}${gift.path}`)
-    .join('\n\n')
   const { error } = await getResend().emails.send({
     from,
     to: email,
-    subject:
-      gifts.length > 1
-        ? 'Your free checklist and ebook'
-        : 'Your free ebook: Turn Website Visitors Into Buyers',
-    text: `${greeting}\n\nThanks for booking your free intro call. As promised, here ${
-      gifts.length > 1 ? 'are your downloads' : 'is your ebook'
-    }:\n\n${list}\n\nThey are yours to keep. See you on the call.\n\n— Alec`,
+    subject: `Your free ebook: ${FREE_EBOOK.title}`,
+    text: `${greeting}\n\nThanks for taking the intro call. As promised, here is your free ebook:\n\n${FREE_EBOOK.title}\n${site}${FREE_EBOOK.pdfPath}\n\nIt is yours to keep.\n\n— Alec`,
   })
-  if (error) throw new Error(`Booking gift mail rejected: ${error.message}`)
+  if (error) throw new Error(`Ebook mail rejected: ${error.message}`)
 }
