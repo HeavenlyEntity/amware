@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 /* /services is a public page: if Payload cannot be read it still renders,
    says so where the cards would be, and the intro call falls back to the
@@ -101,6 +101,62 @@ describe('ServicesPage', () => {
     }
     expect(container.querySelector('#engagements')).not.toBeNull()
     expect(container.querySelector('#book')).not.toBeNull()
+  })
+
+  it('states the intro call once above the retainer cards, each with its hours', async () => {
+    payload.find.mockResolvedValueOnce({
+      docs: [
+        tier({ slug: 'advisor', commitment: 'about 10 hrs a month' }),
+        tier({
+          slug: 'fractional-cto',
+          commitment: 'about 20 to 25 hrs a month',
+        }),
+        tier({
+          slug: 'embedded-cto',
+          commitment: 'about 35 to 40 hrs a month',
+        }),
+      ],
+    })
+    const { container } = render(await ServicesPage())
+    const panel = container.querySelector('#engagements')
+    const notes = within(panel).getAllByRole('note', {
+      name: 'Intro call terms for every retainer',
+    })
+    expect(notes).toHaveLength(1)
+    expect(notes[0]).toHaveTextContent(
+      'Every retainer starts with a free 15-minute call.'
+    )
+    expect(notes[0]).toHaveTextContent('Turn Website Visitors Into Buyers')
+    const card = container.querySelector('li#fractional-cto')
+    expect(card).toHaveTextContent('20–25hrs a month')
+    expect(card).not.toHaveTextContent('Scoped and priced on the call')
+    expect(card.querySelector('.fe')).toBeNull()
+    expect(
+      within(card).getByRole('button', { name: /book a free intro call/i })
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the terms on each card when a retainer has no booking link or no hours', async () => {
+    payload.find.mockResolvedValueOnce({
+      docs: [
+        tier({ slug: 'advisor', commitment: 'about 10 hrs a month' }),
+        tier({ slug: 'fractional-cto', commitment: 'Near full-time' }),
+        tier({ slug: 'embedded-cto', bookingUrl: null }),
+      ],
+    })
+    const { container } = render(await ServicesPage())
+    const panel = container.querySelector('#engagements')
+    expect(
+      within(panel).queryByRole('note', {
+        name: 'Intro call terms for every retainer',
+      })
+    ).toBeNull()
+    // Each booking card wraps its own terms, and keeps the headline.
+    const advisor = container.querySelector('li#advisor')
+    expect(
+      within(advisor).getByRole('note', { name: 'What the intro call is' })
+    ).toBeInTheDocument()
+    expect(advisor).toHaveTextContent('Scoped and priced on the call')
   })
 
   it('runs the buyer from pain to promise, fit and objections, with FAQ data that matches', async () => {

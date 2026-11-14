@@ -18,6 +18,9 @@
   box-shadow: inset 0 0 0 1px
     color-mix(in srgb, var(--amw-accent) 32%, transparent);
 }
+.fe--flush {
+  margin-top: 0;
+}
 .fe-head {
   display: flex;
   align-items: center;

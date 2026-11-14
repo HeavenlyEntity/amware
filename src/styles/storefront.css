@@ -612,6 +612,19 @@
 .amw-service-body .prose .payload-richtext > :first-child {
   margin-top: 0;
 }
+/* Retainer cards whose call terms sit above the grid: a tighter list, so
+   all three cards fit one screen (2026-11-13). */
+.amw-service-body--compact .prose :where(ul) {
+  margin-block: 0;
+}
+.amw-service-body--compact .prose :where(ul > li) {
+  margin-block: 0.55rem 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.amw-service-body--compact .prose :where(ul > li):first-child {
+  margin-top: 0;
+}
 .amw-check,
 .amw-service-body :where(ul > li) {
   position: relative;

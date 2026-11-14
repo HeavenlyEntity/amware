@@ -18,10 +18,10 @@ const ICON = { call: CalendarCheck, mail: Mail, grow: TrendingUp }
  * `tone` is IntroCallTerms' TONE entry, so the text reads on a regular card
  * and on a popular card's deep teal.
  */
-export function FreeEbook({ tone }) {
+export function FreeEbook({ tone, className = '' }) {
   const { kicker, title, steps } = FREE_EBOOK
   return (
-    <div className="fe">
+    <div className={className ? `fe ${className}` : 'fe'}>
       <div className="fe-head">
         <span className="fe-badge" aria-hidden="true">
           <BookOpen className="h-[15px] w-[15px]" strokeWidth={2.2} />
