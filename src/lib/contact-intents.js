@@ -39,13 +39,16 @@ export function isKitWaitlist(subject) {
 /* A consulting enquiry, the kind that joins the Leads list. Product and
    course sign-ups (WareKit waitlist or Enterprise, the courses waitlist) and
    the Red Flags checklist download post here too, but they are buyers of a
-   product, not people in the consulting funnel. */
+   product, not people in the consulting funnel. The AI search checklist
+   sign-up joins the Leads list later, when its emailed link is opened
+   (checklist-link.ts), so an address nobody owns never becomes a lead. */
 export function isConsultingEnquiry(subject) {
   if (typeof subject !== 'string') return true
   return !(
     subject.startsWith('WareKit') ||
     subject.startsWith('Courses waitlist') ||
-    subject === RED_FLAGS_SUBJECT
+    subject === RED_FLAGS_SUBJECT ||
+    subject === AI_SEARCH_CHECKLIST_SUBJECT
   )
 }
 

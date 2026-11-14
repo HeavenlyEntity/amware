@@ -43,20 +43,27 @@ const callsOf = (lead: any): any[] =>
 
 type Result = 'created' | 'updated' | 'unchanged' | 'ignored'
 
+/** Filled in by recordCalEvent. `ebookTo` is set when a lead's first intro
+    call has just ended: who earns the free ebook. A retried MEETING_ENDED,
+    a second intro call, or a strategy call earns nothing. */
+export type RecordMeta = { ebookTo?: { email: string; name: string } }
+
 export async function recordCalEvent(
   payload: PayloadLike,
-  event: CalEvent
+  event: CalEvent,
+  meta: RecordMeta = {}
 ): Promise<Result> {
   if (event.action === 'ignored') return 'ignored'
   return withLeadLock(payload, event.email, (tx) =>
-    applyCalEvent(payload, event, tx)
+    applyCalEvent(payload, event, tx, meta)
   )
 }
 
 async function applyCalEvent(
   payload: PayloadLike,
   event: Exclude<CalEvent, { action: 'ignored' }>,
-  tx: { req?: any }
+  tx: { req?: any },
+  meta: RecordMeta = {}
 ): Promise<Result> {
   const lead = await findLead(payload, event.email, tx)
 
@@ -65,6 +72,15 @@ async function applyCalEvent(
     const calls = callsOf(lead)
     const call = calls.find((c) => c.bookingUid === event.bookingUid)
     if (!call) return 'ignored'
+    if (call.status === 'completed') return 'unchanged'
+    /* The first intro call to end earns the ebook; any intro call that
+       ended before it already did. */
+    if (
+      call.kind === 'intro' &&
+      !calls.some((c) => c.kind === 'intro' && c.status === 'completed')
+    ) {
+      meta.ebookTo = { email: lead.email, name: lead.name }
+    }
     call.status = 'completed'
     const next = stageFor(call.kind, 'ended')
     await payload.update({

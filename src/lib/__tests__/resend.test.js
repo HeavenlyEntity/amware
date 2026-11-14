@@ -18,7 +18,7 @@ import {
   kitEnterpriseSubject,
   kitWaitlistSubject,
 } from '../contact-intents'
-import { sendContactEmails } from '../resend'
+import { sendContactEmails, sendEbookAfterCall } from '../resend'
 
 const PDF_PATH = '/downloads/amware-dev-shop-contract-red-flags.pdf'
 
@@ -75,8 +75,8 @@ describe('contact intents', () => {
     expect(isChecklistDownload(AI_SEARCH_CHECKLIST_SUBJECT)).toBe(true)
     expect(isChecklistDownload('Hello')).toBe(false)
     expect(isChecklistDownload(undefined)).toBe(false)
-    // The AI search checklist is a step toward the intro call.
-    expect(isConsultingEnquiry(AI_SEARCH_CHECKLIST_SUBJECT)).toBe(true)
+    // The AI search checklist joins Leads when its emailed link is opened.
+    expect(isConsultingEnquiry(AI_SEARCH_CHECKLIST_SUBJECT)).toBe(false)
     expect(isConsultingEnquiry(RED_FLAGS_SUBJECT)).toBe(false)
   })
 })
@@ -99,14 +99,21 @@ describe('sendContactEmails routing', () => {
     expect(visitor.subject).not.toBe('Thanks for reaching out')
   })
 
-  it('mails the AI search checklist PDF with the intro-call link', async () => {
-    await sendContactEmails(submission(AI_SEARCH_CHECKLIST_SUBJECT))
+  it('mails the AI search checklist as a signed click-through link', async () => {
+    vi.stubEnv('PAYLOAD_SECRET', 'test-secret')
+    await sendContactEmails({
+      ...submission(AI_SEARCH_CHECKLIST_SUBJECT),
+      id: 41,
+    })
     expect(recipients()).toEqual(['owner@amware.dev', 'ada@example.com'])
     const visitor = send.mock.calls[1][0]
     expect(visitor.subject).toBe('Your "Does AI Name Your Business?" checklist')
-    expect(visitor.text).toContain(
-      'https://www.amware.dev/downloads/amware-does-ai-name-your-business.pdf'
+    // Through amware.dev, so opening it proves the inbox; no address in it.
+    expect(visitor.text).toMatch(
+      /https:\/\/www\.amware\.dev\/get\/checklist\/41\.[A-Za-z0-9_-]{32}/
     )
+    expect(visitor.text).not.toContain('/downloads/')
+    expect(visitor.text).not.toContain('ada%40')
     // The Build & support call, never the consulting one.
     expect(visitor.text).toContain(BUILD_INTRO_CALL_URL)
     expect(visitor.text).not.toContain('amware/intro-call')
@@ -192,5 +199,32 @@ describe('ContactSubmissions afterChange', () => {
   it('sends nothing on update', async () => {
     await run(RED_FLAGS_SUBJECT, 'update')
     expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe('sendEbookAfterCall', () => {
+  it('mails the ebook link, greeting by first name', async () => {
+    await sendEbookAfterCall({ email: 'dana@example.com', name: 'Dana Reyes' })
+    const mail = send.mock.calls[0][0]
+    expect(mail.to).toBe('dana@example.com')
+    expect(mail.subject).toBe(
+      'Your free ebook: Turn Website Visitors Into Buyers'
+    )
+    expect(mail.text).toContain('Hi Dana,')
+    expect(mail.text).toMatch(
+      /https:\/\/www\.amware\.dev\/downloads\/amware-turn-website-visitors-into-buyers-[0-9a-f]+\.pdf/
+    )
+  })
+
+  it('does not greet an email address by name', async () => {
+    await sendEbookAfterCall({ email: 'a@b.co', name: 'a@b.co' })
+    expect(send.mock.calls[0][0].text.startsWith('Hi,\n')).toBe(true)
+  })
+
+  it('throws when Resend rejects the mail', async () => {
+    send.mockResolvedValue({ data: null, error: { message: 'bad domain' } })
+    await expect(
+      sendEbookAfterCall({ email: 'a@b.co', name: 'A' })
+    ).rejects.toThrow('bad domain')
   })
 })

@@ -155,6 +155,70 @@ describe('recordCalEvent', () => {
     expect(data.calls[0].status).toBe('completed')
   })
 
+  it("earns the ebook when a lead's first intro call ends, once", async () => {
+    const lead = {
+      id: 7,
+      name: 'Dana Reyes',
+      email: 'dana@example.com',
+      stage: 'intro-booked',
+      calls: [
+        { id: 'c1', kind: 'intro', status: 'booked', bookingUid: 'bk_1' },
+      ],
+    }
+    const ended = {
+      action: 'ended',
+      email: 'dana@example.com',
+      bookingUid: 'bk_1',
+    }
+
+    const first = {}
+    await recordCalEvent(fakePayload(lead), ended, first)
+    expect(first.ebookTo).toEqual({
+      email: 'dana@example.com',
+      name: 'Dana Reyes',
+    })
+
+    // A retried MEETING_ENDED finds the call already done.
+    const retry = {}
+    const done = {
+      ...lead,
+      calls: [{ ...lead.calls[0], status: 'completed' }],
+    }
+    expect(await recordCalEvent(fakePayload(done), ended, retry)).toBe(
+      'unchanged'
+    )
+    expect(retry.ebookTo).toBeUndefined()
+
+    // A second intro call ending earns nothing more.
+    const second = {}
+    await recordCalEvent(
+      fakePayload({
+        ...lead,
+        calls: [
+          { id: 'c0', kind: 'intro', status: 'completed', bookingUid: 'bk_0' },
+          { id: 'c1', kind: 'intro', status: 'booked', bookingUid: 'bk_1' },
+        ],
+      }),
+      ended,
+      second
+    )
+    expect(second.ebookTo).toBeUndefined()
+
+    // Nor does a strategy call.
+    const strategy = {}
+    await recordCalEvent(
+      fakePayload({
+        ...lead,
+        calls: [
+          { id: 'c2', kind: 'strategy', status: 'booked', bookingUid: 'bk_1' },
+        ],
+      }),
+      ended,
+      strategy
+    )
+    expect(strategy.ebookTo).toBeUndefined()
+  })
+
   it('names a lead that a checklist sign-up created under its email', async () => {
     const lead = {
       id: 3,

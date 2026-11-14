@@ -2,13 +2,13 @@ import { after } from 'next/server'
 import { APIError, type CollectionConfig } from 'payload'
 
 import {
-  AI_SEARCH_CHECKLIST_SUBJECT,
   isChecklistDownload,
   isConsultingEnquiry,
 } from '../lib/contact-intents'
 import { recordContact } from '../lib/leads/record'
 import { sendContactEmails } from '../lib/resend'
 import { verifyContactToken } from '../lib/turnstile'
+import { checkEmail } from '../lib/email-check'
 
 export const ContactSubmissions: CollectionConfig = {
   slug: 'contact-submissions',
@@ -45,6 +45,24 @@ export const ContactSubmissions: CollectionConfig = {
         // Protect REST and GraphQL creation before persistence or email hooks.
         if (operation === 'create') {
           await verifyContactToken(req.headers.get('x-turnstile-token'))
+          /* A checklist goes only to an address that can receive mail and
+             is not a throwaway inbox (owner decision 2026-11-14). */
+          if (
+            isChecklistDownload(data?.subject) &&
+            typeof data?.email === 'string'
+          ) {
+            const verdict = await checkEmail(data.email)
+            if (verdict !== 'ok') {
+              throw new APIError(
+                verdict === 'disposable'
+                  ? 'Use your own email address, not a temporary inbox.'
+                  : 'That email address can’t receive mail. Check it and try again.',
+                400,
+                undefined,
+                true
+              )
+            }
+          }
         }
         return data
       },
@@ -54,6 +72,7 @@ export const ContactSubmissions: CollectionConfig = {
         if (operation === 'create') {
           try {
             await sendContactEmails({
+              id: doc.id,
               name: doc.name,
               email: doc.email,
               subject: doc.subject,
@@ -92,10 +111,6 @@ export const ContactSubmissions: CollectionConfig = {
                 name: doc.name,
                 email: doc.email,
                 message: doc.message,
-                track:
-                  doc.subject === AI_SEARCH_CHECKLIST_SUBJECT
-                    ? 'build'
-                    : 'consulting',
               })
             } catch (err) {
               console.error('Recording the contact as a lead failed:', err)

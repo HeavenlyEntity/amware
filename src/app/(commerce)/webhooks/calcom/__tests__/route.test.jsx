@@ -2,8 +2,10 @@ import crypto from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
+vi.mock('@/lib/resend', () => ({ sendEbookAfterCall: vi.fn() }))
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
+import { sendEbookAfterCall } from '@/lib/resend'
 import { POST } from '../route'
 
 const SECRET = 'whsec_test'
@@ -54,6 +56,61 @@ describe('POST /webhooks/calcom', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, result: 'created' })
     expect(payload.create).toHaveBeenCalledOnce()
+  })
+
+  it('mails the free ebook when the first intro call ends, not on booking', async () => {
+    await POST(request(created))
+    expect(sendEbookAfterCall).not.toHaveBeenCalled()
+
+    payload.find.mockResolvedValue({
+      docs: [
+        {
+          id: 1,
+          name: 'Dana',
+          email: 'dana@example.com',
+          stage: 'intro-booked',
+          calls: [{ kind: 'intro', status: 'booked', bookingUid: 'bk_1' }],
+        },
+      ],
+    })
+    const res = await POST(
+      request({
+        triggerEvent: 'MEETING_ENDED',
+        uid: 'bk_1',
+        attendees: [{ email: 'dana@example.com' }],
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(sendEbookAfterCall).toHaveBeenCalledWith({
+      email: 'dana@example.com',
+      name: 'Dana',
+    })
+  })
+
+  it('still answers 200 when the ebook mail fails', async () => {
+    sendEbookAfterCall.mockRejectedValue(new Error('resend down'))
+    payload.find.mockResolvedValue({
+      docs: [
+        {
+          id: 1,
+          name: 'Dana',
+          email: 'dana@example.com',
+          stage: 'intro-booked',
+          calls: [{ kind: 'intro', status: 'booked', bookingUid: 'bk_1' }],
+        },
+      ],
+    })
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = await POST(
+      request({
+        triggerEvent: 'MEETING_ENDED',
+        uid: 'bk_1',
+        attendees: [{ email: 'dana@example.com' }],
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
   })
 
   it('refuses a body that is not signed with the secret', async () => {

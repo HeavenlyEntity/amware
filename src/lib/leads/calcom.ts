@@ -105,8 +105,11 @@ export const normalizeEmail = (email: unknown): string =>
 export function parseCalEvent(body: any): CalEvent {
   const trigger = body?.triggerEvent
   if (trigger === 'MEETING_ENDED') {
-    const email = normalizeEmail(body?.attendees?.[0]?.email)
-    const bookingUid = text(body?.uid)
+    /* Sent flat by Cal.com today; read a nested `payload` too, so a change
+       of shape never silently drops the after-call ebook. */
+    const b = body?.payload?.uid ? body.payload : body
+    const email = normalizeEmail(b?.attendees?.[0]?.email)
+    const bookingUid = text(b?.uid)
     if (!email || !bookingUid) {
       return { action: 'ignored', reason: 'meeting without attendee or uid' }
     }

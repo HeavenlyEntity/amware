@@ -6,6 +6,9 @@
    PDF's own section names. */
 
 export const AI_SEARCH_CHECKLIST = {
+  /* Reached through the emailed /get/checklist link, which adds the
+     sign-up to Leads first. */
+  pdfPath: '/downloads/amware-does-ai-name-your-business.pdf',
   kicker: 'Free checklist · 3 pages',
   title: 'Does AI name your business?',
   lead: 'Ask the questions your buyers ask, see who the answers name instead of you, and fix the page the engines read.',
