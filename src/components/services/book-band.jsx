@@ -14,14 +14,15 @@ import { StrategyCallCta } from './strategy-call-cta'
  *
  * The lens is the desk's GlassPanel: a static "Scope first." poster on the
  * server, on phones, touch screens and under reduced motion, and the WebGL
- * lens only once the band is near the viewport. No `crown` shape (F9): the
- * repo's FluidGlass has none.
+ * lens only once the band is near the viewport. Clicking it cycles
+ * diamond → crown → torus → prism, as on the boards; the crown is the AMWARE
+ * mark, added to FluidGlass on 2026-11-13.
  */
 
 export const BOOK_LENS = {
   fontSize: 104,
   shape: 'diamond',
-  shapes: ['diamond', 'torus', 'prism', 'cube'],
+  shapes: ['diamond', 'crown', 'torus', 'prism'],
   size: 240,
   refraction: 1.1,
   dispersion: 0.45,

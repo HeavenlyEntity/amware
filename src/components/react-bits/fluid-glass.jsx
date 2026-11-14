@@ -6,6 +6,7 @@
    (src/components/founders/desk/glass-panel.jsx); keep edits there, not here. */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { CROWN } from './fluid-glass-crown'
 
 const HANDLE = {
   none: 'pointer-events-none absolute left-0 top-0 h-0 w-0 rounded-full will-change-transform',
@@ -16,7 +17,19 @@ const HANDLE = {
 
 const PIXEL_BUDGET = 5e6
 const SHADOW_SIZE = 160
-const SHAPES = ['lens', 'blob', 'cube', 'pill', 'torus', 'prism', 'diamond']
+/* Local addition (2026-11-13): `crown`, the AMWARE crown mark, ported from
+   the design canvas's glass bundle. Its outline comes from a baked distance
+   field (fluid-glass-crown.js) sampled through uCrown on texture unit 3. */
+const SHAPES = [
+  'lens',
+  'blob',
+  'cube',
+  'pill',
+  'torus',
+  'prism',
+  'diamond',
+  'crown',
+]
 const EXTENT = {
   lens: 1.02,
   blob: 1.08,
@@ -25,6 +38,7 @@ const EXTENT = {
   torus: 1.0,
   prism: 1.18,
   diamond: 1.05,
+  crown: 1.3,
 }
 const BASE = {
   lens: [0, 0, 0],
@@ -34,6 +48,7 @@ const BASE = {
   torus: [-0.5, 0.18, 0.0],
   prism: [-0.3, 0.45, 0.0],
   diamond: [-0.35, 0.5, 0.0],
+  crown: [0.1, 0.0, 0.0],
 }
 const SPIN = {
   lens: [0, 0],
@@ -43,6 +58,7 @@ const SPIN = {
   torus: [0, 1],
   prism: [1, 0],
   diamond: [1, 0],
+  crown: [1, 0],
 }
 const VIDEO = /\.(mp4|webm|ogv|ogg|mov|m4v)(\?|#|$)/i
 
@@ -119,6 +135,14 @@ const SDF = {
     vec3 q = abs(p);
     return (q.x + q.y * 0.92 + q.z * 1.25 - 0.98) * 0.5;
   }`,
+  crown: `{
+    vec2 hb = vec2(${CROWN.x.toFixed(4)}, ${CROWN.y.toFixed(4)});
+    vec2 uv = vec2(p.x / (2.0 * hb.x) + 0.5, 0.5 - p.y / (2.0 * hb.y));
+    vec2 q = abs(p.xy) - hb;
+    float sil = textureLod(uCrown, clamp(uv, vec2(0.0), vec2(1.0)), 0.0).r + length(max(q, 0.0));
+    vec2 w = vec2(sil + 0.035, abs(p.z) - ${(CROWN.halfZ * 1.35).toFixed(4)});
+    return min(max(w.x, w.y), 0.0) + length(max(w, 0.0)) - 0.035;
+  }`,
 }
 
 const SUPERSAMPLE = `
@@ -140,6 +164,7 @@ const SUPERSAMPLE = `
 
 const fragmentFor = (a, b, supersample) => `#version 300 es
 precision highp float;
+precision highp sampler2D;
 uniform vec2 uView;
 uniform float uRatio;
 uniform float uFocal;
@@ -166,6 +191,7 @@ uniform float uTextOn;
 uniform vec4 uBackground;
 uniform float uPass;
 uniform sampler2D uShadowMap;
+uniform sampler2D uCrown;
 uniform vec4 uShadowBox;
 uniform vec2 uShadowSize;
 out vec4 fragColor;
@@ -766,6 +792,36 @@ const FluidGlass = ({
     }
     const mediaTexture = makeTexture()
     const textTexture = makeTexture()
+    /* The crown's distance field, uploaded the first time a crown is drawn
+       so lenses that never show it skip the decode and the upload. */
+    let crownMap = null
+    const crownTexture = () => {
+      if (crownMap) return crownMap
+      crownMap = gl.createTexture()
+      const bytes = atob(CROWN.data)
+      const halves = new Uint16Array(bytes.length / 2)
+      for (let i = 0; i < halves.length; i++)
+        halves[i] = bytes.charCodeAt(i * 2) | (bytes.charCodeAt(i * 2 + 1) << 8)
+      gl.bindTexture(gl.TEXTURE_2D, crownMap)
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.R16F,
+        CROWN.w,
+        CROWN.h,
+        0,
+        gl.RED,
+        gl.HALF_FLOAT,
+        halves
+      )
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      return crownMap
+    }
     const shadowMap = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, shadowMap)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
@@ -1404,6 +1460,13 @@ const FluidGlass = ({
         footprint * 2
       )
       gl.uniform2f(u.uShadowSize, SHADOW_SIZE, SHADOW_SIZE)
+      if (u.uCrown) {
+        /* Unit 3 is the crown's alone: keep it before the TEXTURE2 switch
+           below so the media and text uploads never land on it. */
+        gl.activeTexture(gl.TEXTURE3)
+        gl.bindTexture(gl.TEXTURE_2D, crownTexture())
+        gl.uniform1i(u.uCrown, 3)
+      }
       gl.uniform1i(u.uShadowMap, 2)
       gl.activeTexture(gl.TEXTURE2)
       gl.bindTexture(gl.TEXTURE_2D, null)
@@ -1611,6 +1674,7 @@ const FluidGlass = ({
         gl.deleteTexture(mediaTexture)
         gl.deleteTexture(textTexture)
         gl.deleteTexture(shadowMap)
+        if (crownMap) gl.deleteTexture(crownMap)
         gl.deleteFramebuffer(shadowTarget)
         gl.deleteVertexArray(vao)
       }
