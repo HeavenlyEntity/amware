@@ -77,11 +77,13 @@ describe('boilerplate confirmation email, the route to Pro', () => {
       proPath: '/products/warekit-next-netsuite-pro',
     })
     const text = body()
-    expect(text).toContain('Want sessions in NetSuite? Pro adds them.')
+    expect(text).toContain(
+      'Pro adds licensing, roles, a typed data layer and more.'
+    )
     expect(text).toContain(
       'https://example.com/products/warekit-next-netsuite-pro'
     )
-    expect(text.match(/Pro adds them/g)).toHaveLength(1)
+    expect(text.match(/Pro adds licensing/g)).toHaveLength(1)
   })
 
   it('adds it to the manual branch too, since the claim result does', async () => {
@@ -90,14 +92,16 @@ describe('boilerplate confirmation email, the route to Pro', () => {
       inviteUrl: null,
       proPath: '/products/warekit-next-netsuite-pro',
     })
-    expect(body()).toContain('Pro adds them.')
+    expect(body()).toContain(
+      'Pro adds licensing, roles, a typed data layer and more.'
+    )
   })
 
   it('says nothing about Pro without a path, which is how every paid kit email stays as it was', async () => {
     await sendBoilerplateConfirmationEmail(claim)
-    expect(body()).not.toMatch(/pro adds|sessions in netsuite/i)
+    expect(body()).not.toMatch(/pro adds|typed data layer/i)
     await sendBoilerplateConfirmationEmail({ ...claim, proPath: null })
-    expect(body()).not.toMatch(/pro adds|sessions in netsuite/i)
+    expect(body()).not.toMatch(/pro adds|typed data layer/i)
   })
 
   it('leaves the line out rather than send a link that goes nowhere', async () => {

@@ -284,44 +284,75 @@ function insideWhy(seats, states) {
   ]
 }
 
-function connectedRec(answers, states) {
-  const { sessions, seats } = answers
-  if (sessions === 'pg') {
-    const why =
-      stateOf(states, 'next-lite') === 'free'
-        ? 'Postgres sessions are a viable architecture, and Lite is free. Move to Pro if you later want sessions kept in NetSuite.'
-        : 'Postgres sessions are a viable architecture.'
-    return picked('Next / Lite', [why], 'next-lite', 'Get Lite', states)
+/* The same question for both families: whether the paid modules are wanted.
+   `ids` are the family's three edition ids, Lite, Pro and Team. */
+function modulesRec(answers, states, { names, ids, family, ask }) {
+  const { modules, seats } = answers
+  if (modules === 'no') {
+    // TODO(alec): confirm this wording.
+    /* "Free" is a claim about what is on sale, so it is left out until true. */
+    const why = `Lite is the whole architecture${
+      stateOf(states, ids[0]) === 'free' ? ', and it is free' : ''
+    }. Move to Pro when you want the modules built for you.`
+    return picked(names[0], [why], ids[0], 'Get Lite', states)
   }
-  if (sessions !== 'ns') {
+  if (modules !== 'yes') {
     return {
       kicker: 'So far',
-      name: 'A Next.js edition',
-      why: 'Tell me where sessions should live and I will narrow it to one edition.',
-      cta: 'See Next editions',
-      action: { type: 'family', family: 'connected' },
+      name: ask.name,
+      // TODO(alec): confirm this wording.
+      why: 'Tell me whether you need the Pro modules and I will narrow it to one edition.',
+      cta: ask.cta,
+      action: { type: 'family', family },
     }
   }
   return seats === 'five'
     ? picked(
-        'Next / Team',
-        [
-          'The Pro codebase with sessions in NetSuite, licensed for up to five developers.',
-        ],
-        'next-team',
+        names[2],
+        // TODO(alec): confirm this wording.
+        ['The Pro codebase, licensed for up to five developers.'],
+        ids[2],
         'Buy Team',
         states
       )
     : picked(
-        'Next / Pro',
+        names[1],
+        // TODO(alec): confirm this wording. One developer needs Pro, not Team.
         [
-          'Sessions live in NetSuite with caching to reduce repeated reads. One developer is all you need.',
+          'Pro adds licensing, roles and a typed data layer. One developer is all you need.',
         ],
-        'next-pro',
+        ids[1],
         'Buy Pro',
         states
       )
 }
+
+const connectedRec = (answers, states) =>
+  modulesRec(answers, states, {
+    names: ['Next / Lite', 'Next / Pro', 'Next / Team'],
+    ids: ['next-lite', 'next-pro', 'next-team'],
+    family: 'connected',
+    ask: { name: 'A Next.js edition', cta: 'See Next editions' },
+  })
+
+/* While React Pro and Team are planned there is nothing to choose between, so
+   the pick stays Lite whatever the modules answer is. Once either is on sale
+   the same rule as the Next family applies. */
+const insideRec = (answers, states) =>
+  ['react-pro', 'react-team'].every((id) => stateOf(states, id) === 'planned')
+    ? picked(
+        'React / Lite',
+        insideWhy(answers.seats, states),
+        'react-lite',
+        'Get Lite',
+        states
+      )
+    : modulesRec(answers, states, {
+        names: ['React / Lite', 'React / Pro', 'React / Team'],
+        ids: ['react-lite', 'react-pro', 'react-team'],
+        family: 'inside',
+        ask: { name: 'A React edition', cta: 'See React editions' },
+      })
 
 /* Past five developers is past Team, so the quiz ends at a conversation. */
 function enterpriseRec(where) {
@@ -350,13 +381,7 @@ export function recommendEdition(answers, states) {
   }
   if (answers.seats === 'more') return enterpriseRec(answers.where)
   if (answers.where === 'inside') {
-    return picked(
-      'React / Lite',
-      insideWhy(answers.seats, states),
-      'react-lite',
-      'Get Lite',
-      states
-    )
+    return insideRec(answers, states)
   }
   if (answers.where === 'connected') return connectedRec(answers, states)
   return {

@@ -83,7 +83,7 @@ describe('with nothing on sale', () => {
   it('asserts none through every quiz answer', () => {
     const { container } = mount()
     answer(WHERE, 'Hosted separately')
-    answer('Where should sessions live?', 'Postgres is fine')
+    answer('Do you need licensing, roles and a data layer built in?', 'Not yet')
     expect(container).toHaveTextContent('Next / Lite')
     expect(container).not.toHaveTextContent('Lite is free')
     answer(WHERE, 'Inside NetSuite')
@@ -243,10 +243,10 @@ describe('the sections', () => {
   it('swaps the editions and the compare table with the family', () => {
     mount()
     expect(screen.getByText('Next.js editions.')).toBeInTheDocument()
-    expect(screen.getByText('Session reads')).toBeInTheDocument()
+    expect(screen.getByText('Sessions')).toBeInTheDocument()
     family('Inside')
     expect(screen.getByText('React editions.')).toBeInTheDocument()
-    expect(screen.queryByText('Session reads')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sessions')).not.toBeInTheDocument()
     expect(screen.getByText('Hosting')).toBeInTheDocument()
   })
 

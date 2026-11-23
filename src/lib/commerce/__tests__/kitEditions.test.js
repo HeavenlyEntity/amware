@@ -10,7 +10,11 @@ import {
   recommendEdition,
   setupCopy,
 } from '../kitEditions'
-import { EDITIONS, NOT_ON_SALE_LEAD } from '../../../content/site/warekit'
+import {
+  EDITIONS,
+  NOT_ON_SALE_LEAD,
+  QUESTIONS,
+} from '../../../content/site/warekit'
 
 const pro = {
   slug: 'warekit-next-netsuite-pro',
@@ -393,13 +397,13 @@ describe('editionLead', () => {
       'React Lite is free and available today. Pro and Team are planned, so they have no checkout yet.'
     )
     expect(editionLead('connected', editionStates([liteNext]))).toBe(
-      'Start free with Lite. Pro moves sessions into NetSuite; Team licenses the same code for five developers.'
+      'Start free with Lite. Pro adds the modules a product needs; Team licenses the same code for five developers.'
     )
   })
 
   it('does not promise a free Lite that is not on sale', () => {
     expect(editionLead('connected', editionStates([pro]))).toBe(
-      'Pro moves sessions into NetSuite; Team licenses the same code for five developers.'
+      'Pro adds the modules a product needs; Team licenses the same code for five developers.'
     )
   })
 
@@ -529,7 +533,11 @@ describe('compareTable', () => {
     expect(table.rec).toBe(1)
     expect(table.head).toEqual(['Lite', 'Pro', 'Team'])
     expect(row(table, 'Sessions').cells[1]).toEqual({
-      value: 'Inside NetSuite',
+      value: 'Cookie, or stored in NetSuite',
+      hi: true,
+    })
+    expect(row(table, 'Role mapping').cells[1]).toEqual({
+      value: 'Included',
       hi: true,
     })
     expect(row(table, 'Runs').cells[1].hi).toBe(false)
@@ -566,7 +574,7 @@ describe('recommendEdition', () => {
   describe('more than five developers', () => {
     it('ends at Enterprise with the kit and tier filled in', () => {
       const rec = recommendEdition(
-        { where: 'connected', who: 'dev', sessions: 'ns', seats: 'more' },
+        { where: 'connected', who: 'dev', modules: 'yes', seats: 'more' },
         {}
       )
       expect(rec).toMatchObject({
@@ -681,68 +689,110 @@ describe('recommendEdition', () => {
     })
   })
 
+  describe('React modules once a paid edition is on sale', () => {
+    const reactOn = {
+      ...free,
+      'react-pro': { state: 'ready', price: 499, seats: 1, slug: 'rp' },
+      'react-team': { state: 'ready', price: 999, seats: 5, slug: 'rt' },
+    }
+
+    it("keeps today's pick while the paid editions are planned", () => {
+      const base = recommendEdition({ where: 'inside' }, free)
+      for (const modules of ['no', 'yes']) {
+        expect(recommendEdition({ where: 'inside', modules }, free)).toEqual(
+          base
+        )
+      }
+    })
+
+    it('applies the modules rule once they are on sale', () => {
+      expect(
+        recommendEdition({ where: 'inside', modules: 'no' }, reactOn)
+      ).toMatchObject({ name: 'React / Lite', action: { type: 'link' } })
+      expect(
+        recommendEdition({ where: 'inside', modules: 'yes' }, reactOn)
+      ).toMatchObject({ name: 'React / Pro', cta: 'Buy Pro' })
+      expect(
+        recommendEdition(
+          { where: 'inside', modules: 'yes', seats: 'five' },
+          reactOn
+        )
+      ).toMatchObject({ name: 'React / Team', cta: 'Buy Team' })
+    })
+
+    it('asks for the modules answer once they are on sale', () => {
+      expect(recommendEdition({ where: 'inside' }, reactOn)).toMatchObject({
+        kicker: 'So far',
+        name: 'A React edition',
+        action: { type: 'family', family: 'inside' },
+      })
+    })
+  })
+
   describe('connected to NetSuite', () => {
-    it('narrows once where sessions live is known', () => {
+    it('narrows once the modules answer is known', () => {
       expect(recommendEdition({ where: 'connected' }, onSale)).toEqual({
         kicker: 'So far',
         name: 'A Next.js edition',
-        why: 'Tell me where sessions should live and I will narrow it to one edition.',
+        why: 'Tell me whether you need the Pro modules and I will narrow it to one edition.',
         cta: 'See Next editions',
         action: { type: 'family', family: 'connected' },
       })
     })
 
-    it('gets Next Lite for Postgres sessions when it is free', () => {
+    it('recommends Lite when the modules are not needed', () => {
       expect(
-        recommendEdition({ where: 'connected', sessions: 'pg' }, free)
+        recommendEdition(
+          { where: 'connected', who: 'dev', modules: 'no', seats: 'one' },
+          free
+        )
       ).toEqual({
         kicker: 'Recommended',
         name: 'Next / Lite',
-        why: 'Postgres sessions are a viable architecture, and Lite is free. Move to Pro if you later want sessions kept in NetSuite.',
+        why: 'Lite is the whole architecture, and it is free. Move to Pro when you want the modules built for you.',
         cta: 'Get Lite',
         action: { type: 'link', href: '/products/next-lite' },
       })
     })
 
     it('answers Get notified while Next Lite is planned', () => {
-      const rec = recommendEdition({ where: 'connected', sessions: 'pg' }, {})
+      const rec = recommendEdition({ where: 'connected', modules: 'no' }, {})
       expect(rec).toMatchObject({
         name: 'Next / Lite',
         cta: 'Get notified',
         action: { type: 'notify', id: 'next-lite' },
       })
-      expect(rec.why).not.toContain('Lite is free')
+      expect(rec.why).not.toContain('it is free')
     })
 
-    it('gets Next Pro for NetSuite sessions', () => {
+    it('recommends Pro when the modules are needed', () => {
       expect(
-        recommendEdition({ where: 'connected', sessions: 'ns' }, onSale)
-      ).toEqual({
+        recommendEdition({ where: 'connected', modules: 'yes' }, onSale)
+      ).toMatchObject({
         kicker: 'Recommended',
         name: 'Next / Pro',
-        why: 'Sessions live in NetSuite with caching to reduce repeated reads. One developer is all you need.',
         cta: 'Buy Pro',
         action: { type: 'link', href: '/products/warekit-next-netsuite-pro' },
       })
     })
 
-    it('gets Next Team for five developers', () => {
+    it('recommends Team for five developers', () => {
       expect(
         recommendEdition(
-          { where: 'connected', sessions: 'ns', seats: 'five' },
+          { where: 'connected', modules: 'yes', seats: 'five' },
           onSale
         )
       ).toEqual({
         kicker: 'Recommended',
         name: 'Next / Team',
-        why: 'The Pro codebase with sessions in NetSuite, licensed for up to five developers.',
+        why: 'The Pro codebase, licensed for up to five developers.',
         cta: 'Buy Team',
         action: { type: 'link', href: '/products/next-team' },
       })
     })
 
     it('answers Get notified while Pro and Team are planned', () => {
-      const answers = { where: 'connected', sessions: 'ns' }
+      const answers = { where: 'connected', modules: 'yes' }
       expect(recommendEdition(answers, {})).toMatchObject({
         name: 'Next / Pro',
         cta: 'Get notified',
@@ -756,5 +806,58 @@ describe('recommendEdition', () => {
         }
       )
     })
+  })
+})
+
+describe('the copy describes the kits by their modules', () => {
+  it('mentions Postgres nowhere in the edition copy', () => {
+    expect(JSON.stringify(EDITIONS)).not.toMatch(/postgres/i)
+  })
+
+  it('asks the modules question for both families', () => {
+    expect(QUESTIONS.find((q) => q.k === 'sessions')).toBeUndefined()
+    expect(QUESTIONS.find((q) => q.k === 'modules')).toEqual({
+      k: 'modules',
+      label: 'Do you need licensing, roles and a data layer built in?',
+      opts: [
+        ['no', 'Not yet'],
+        ['yes', 'Yes'],
+      ],
+    })
+  })
+
+  it('lists the Pro modules in the Next compare table, not session reads', () => {
+    const labels = compareTable('connected', {}).rows.map((r) => r.label)
+    expect(labels).not.toContain('Session reads')
+    for (const label of [
+      'Licensing and seats',
+      'Role mapping',
+      'Typed data layer',
+      'Schema generator',
+      'Observability',
+    ]) {
+      expect(labels).toContain(label)
+    }
+    expect(labels.indexOf('Observability')).toBeLessThan(
+      labels.indexOf('Developers')
+    )
+  })
+
+  it('adds the React-only module rows', () => {
+    const labels = compareTable('inside', {}).rows.map((r) => r.label)
+    for (const label of ['Admin center', 'Email', 'Release pipeline']) {
+      expect(labels).toContain(label)
+    }
+    expect(
+      compareTable('connected', {}).rows.map((r) => r.label)
+    ).not.toContain('Admin center')
+  })
+
+  it('sells Next Pro on its modules', () => {
+    const [, pro] = EDITIONS.connected
+    expect(pro.head).toBe(
+      'The modules a NetSuite product needs, already built.'
+    )
+    expect(pro.recLabel).toBe('Pro modules included')
   })
 })

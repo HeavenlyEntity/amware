@@ -38,9 +38,18 @@ export const EDITIONS = {
       items: ['Licensing', 'Permissions and packaging', 'Administration'],
       // TODO(alec): confirm this wording before React Pro goes on sale.
       onSale: {
+        // TODO(alec): confirm this wording.
         head: 'A commercial SuiteApp foundation.',
-        copy: 'Extensions on top of Lite.',
+        // TODO(alec): confirm this wording.
+        copy: 'The Lite shell plus the ten modules a SuiteApp needs to be sold.',
+        // TODO(alec): confirm this wording.
         listLabel: 'Modules',
+        // TODO(alec): confirm this wording.
+        items: [
+          'Licensing, roles and a typed data layer',
+          'Admin center, email and observability',
+          'Schema generator and a release pipeline',
+        ],
       },
       cta: 'Buy Pro',
       tone: 'solid',
@@ -76,11 +85,13 @@ export const EDITIONS = {
       label: 'Next / Lite',
       full: 'WareKit Next NetSuite (Lite)',
       head: 'Build a Next.js app connected to NetSuite.',
-      copy: 'Explore the hybrid architecture with local fixtures before connecting your account. Lite stores sessions in Postgres.',
+      // TODO(alec): confirm this wording.
+      copy: 'Explore the hybrid architecture with local fixtures before connecting your account. Sessions live in an encrypted cookie, so there is no database to run.',
       listLabel: 'Included',
       items: [
         'Browser, Next.js server and NetSuite foundation',
-        'Sessions stored in Postgres',
+        // TODO(alec): confirm this wording.
+        'Encrypted cookie sessions, no database',
         'Local fixtures before you connect',
       ],
       cta: 'Get Lite',
@@ -91,18 +102,23 @@ export const EDITIONS = {
       id: 'next-pro',
       label: 'Next / Pro',
       full: 'WareKit Next NetSuite (Pro)',
-      head: 'Keep your app’s sessions in NetSuite.',
-      copy: 'A Next.js foundation with NetSuite-backed sessions and caching designed to reduce repeated session reads.',
+      // TODO(alec): confirm this wording.
+      head: 'The modules a NetSuite product needs, already built.',
+      // TODO(alec): confirm this wording.
+      copy: 'The Lite foundation plus licensing, role mapping, a typed data layer, a schema generator and observability.',
       listLabel: 'Included',
+      // TODO(alec): confirm this wording.
       items: [
-        'NetSuite-backed session storage',
-        'Caching to reduce repeated session reads',
-        'No separate Postgres service for sessions',
+        'Licensing, seats and per-account activation',
+        'Role mapping and a typed data layer',
+        'Schema generator and observability',
+        'Optional revocable sessions stored in NetSuite',
       ],
       cta: 'Buy Pro',
       tone: 'solid',
       rec: true,
-      recLabel: 'Sessions in NetSuite',
+      // TODO(alec): confirm this wording.
+      recLabel: 'Pro modules included',
     },
     {
       id: 'next-team',
@@ -134,10 +150,12 @@ export const FAMILIES = {
 export const EDITION_LEADS = {
   inside:
     'React Lite is free and available today. Pro and Team are planned, so they have no checkout yet.',
+  // TODO(alec): confirm this wording.
   connected:
-    'Start free with Lite. Pro moves sessions into NetSuite; Team licenses the same code for five developers.',
+    'Start free with Lite. Pro adds the modules a product needs; Team licenses the same code for five developers.',
+  // TODO(alec): confirm this wording.
   connectedPaid:
-    'Pro moves sessions into NetSuite; Team licenses the same code for five developers.',
+    'Pro adds the modules a product needs; Team licenses the same code for five developers.',
   built: 'For business owners who want the outcome, not the framework.',
 }
 export const NOT_ON_SALE_LEAD =
@@ -222,7 +240,6 @@ export const BUILD_PROCESS = [
   },
 ]
 
-/* `sessions` only matters to an app hosted outside NetSuite. */
 export const QUESTIONS = [
   {
     k: 'where',
@@ -240,14 +257,14 @@ export const QUESTIONS = [
       ['build', 'I need it built'],
     ],
   },
+  // TODO(alec): confirm this wording.
   {
-    k: 'sessions',
-    label: 'Where should sessions live?',
+    k: 'modules',
+    label: 'Do you need licensing, roles and a data layer built in?',
     opts: [
-      ['pg', 'Postgres is fine'],
-      ['ns', 'Inside NetSuite'],
+      ['no', 'Not yet'],
+      ['yes', 'Yes'],
     ],
-    skipInside: true,
   },
   {
     k: 'seats',
@@ -273,6 +290,21 @@ const ACCOUNTS_ROW = {
   note: ACCOUNTS_NOTE,
 }
 
+/* Lite leaves the modules out; Pro and Team include them. */
+const included = (label) => ({ label, cells: ['—', 'Included', 'Included'] })
+// TODO(alec): confirm this wording.
+const MODULE_ROWS = [
+  'Licensing and seats',
+  'Role mapping',
+  'Typed data layer',
+  'Schema generator',
+  'Observability',
+].map(included)
+// TODO(alec): confirm this wording.
+const REACT_MODULE_ROWS = ['Admin center', 'Email', 'Release pipeline'].map(
+  included
+)
+
 export const COMPARE = {
   inside: {
     family: 'React editions',
@@ -291,6 +323,8 @@ export const COMPARE = {
           'Served from your account',
         ],
       },
+      ...MODULE_ROWS,
+      ...REACT_MODULE_ROWS,
       { label: 'Developers', cells: 'developers' },
       ACCOUNTS_ROW,
       { label: 'Price', cells: 'price' },
@@ -310,18 +344,16 @@ export const COMPARE = {
           'Hosted, connected to NetSuite',
         ],
       },
+      // TODO(alec): confirm this wording.
       {
         label: 'Sessions',
-        cells: ['Postgres', 'Inside NetSuite', 'Inside NetSuite'],
-      },
-      {
-        label: 'Session reads',
         cells: [
-          'Standard',
-          'Cached to reduce repeats',
-          'Cached to reduce repeats',
+          'Encrypted cookie',
+          'Cookie, or stored in NetSuite',
+          'Cookie, or stored in NetSuite',
         ],
       },
+      ...MODULE_ROWS,
       { label: 'Developers', cells: 'developers' },
       ACCOUNTS_ROW,
       { label: 'Price', cells: 'price' },

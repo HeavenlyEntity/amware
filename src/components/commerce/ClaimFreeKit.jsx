@@ -127,9 +127,9 @@ export function ClaimFreeKit({ slug, label = 'Get free access' }) {
             be bought: the server sends no path otherwise. */}
         {proPath && (
           <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-            Want sessions in NetSuite?{' '}
+            {/* TODO(alec): confirm this wording. */}
             <Link href={proPath} className="underline">
-              Pro adds them.
+              Pro adds licensing, roles, a typed data layer and more.
             </Link>
           </p>
         )}

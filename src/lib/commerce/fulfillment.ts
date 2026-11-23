@@ -258,9 +258,10 @@ Keep that link — it is how you get back to the page.`
      Left out without a site URL: a relative link in an email goes nowhere, and
      this is a pointer, not something to fail a send over. */
   if (args.proPath && site()) {
+    // TODO(alec): confirm this wording.
     body += `
 
-Want sessions in NetSuite? Pro adds them.
+Pro adds licensing, roles, a typed data layer and more.
 ${site()}${args.proPath}`
   }
 

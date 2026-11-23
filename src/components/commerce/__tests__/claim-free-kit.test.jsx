@@ -456,11 +456,11 @@ describe('ClaimFreeKit form', () => {
     const status = await submit('warekit-next-netsuite-lite')
 
     expect(status).toHaveTextContent(
-      'Want sessions in NetSuite? Pro adds them.'
+      'Pro adds licensing, roles, a typed data layer and more.'
     )
-    expect(screen.getAllByText(/pro adds them/i)).toHaveLength(1)
+    expect(screen.getAllByText(/pro adds licensing/i)).toHaveLength(1)
     expect(
-      screen.getByRole('link', { name: /pro adds them/i })
+      screen.getByRole('link', { name: /pro adds licensing/i })
     ).toHaveAttribute('href', '/products/warekit-next-netsuite-pro')
   })
 
