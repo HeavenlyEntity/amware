@@ -170,3 +170,13 @@ describe('product social image precedence', () => {
     ).toBe('/images/og/amware/home.png')
   })
 })
+
+describe('the WareKit social cards', () => {
+  it('do not sell the kits on sessions, Postgres or a database', () => {
+    const kits = catalog.filter((entry) => /warekit/i.test(entry.title ?? ''))
+    expect(kits.length).toBeGreaterThan(0)
+    for (const { title, subtitle } of kits) {
+      expect(`${title} ${subtitle}`).not.toMatch(/session|postgres|database/i)
+    }
+  })
+})

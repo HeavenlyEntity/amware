@@ -86,6 +86,7 @@ describe('with nothing on sale', () => {
     answer('Do you need licensing, roles and a data layer built in?', 'Not yet')
     expect(container).toHaveTextContent('Next / Lite')
     expect(container).not.toHaveTextContent('Lite is free')
+    expect(container).not.toHaveTextContent('it is free')
     answer(WHERE, 'Inside NetSuite')
     expect(container).not.toHaveTextContent('free to evaluate')
     answer('How many developers need the code?', 'Up to five')

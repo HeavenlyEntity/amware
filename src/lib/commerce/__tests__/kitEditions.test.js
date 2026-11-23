@@ -720,6 +720,46 @@ describe('recommendEdition', () => {
       ).toMatchObject({ name: 'React / Team', cta: 'Buy Team' })
     })
 
+    it('handles Pro on sale with Team still planned', () => {
+      const states = {
+        ...free,
+        'react-pro': { state: 'ready', price: 499, seats: 1, slug: 'rp' },
+      }
+      expect(
+        recommendEdition({ where: 'inside', modules: 'yes' }, states)
+      ).toMatchObject({ name: 'React / Pro', cta: 'Buy Pro' })
+      expect(
+        recommendEdition(
+          { where: 'inside', modules: 'yes', seats: 'five' },
+          states
+        )
+      ).toMatchObject({
+        name: 'React / Team',
+        cta: 'Get notified',
+        action: { type: 'notify', id: 'react-team' },
+      })
+    })
+
+    it('handles Team on sale with Pro still planned', () => {
+      const states = {
+        ...free,
+        'react-team': { state: 'ready', price: 999, seats: 5, slug: 'rt' },
+      }
+      expect(
+        recommendEdition({ where: 'inside', modules: 'yes' }, states)
+      ).toMatchObject({
+        name: 'React / Pro',
+        cta: 'Get notified',
+        action: { type: 'notify', id: 'react-pro' },
+      })
+      expect(
+        recommendEdition(
+          { where: 'inside', modules: 'yes', seats: 'five' },
+          states
+        )
+      ).toMatchObject({ name: 'React / Team', cta: 'Buy Team' })
+    })
+
     it('asks for the modules answer once they are on sale', () => {
       expect(recommendEdition({ where: 'inside' }, reactOn)).toMatchObject({
         kicker: 'So far',

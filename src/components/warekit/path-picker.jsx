@@ -120,21 +120,7 @@ function ConnectedDiagram() {
       >
         NetSuite
       </text>
-      <ellipse
-        className="pr-pulse"
-        cx="58"
-        cy="108"
-        rx="18"
-        ry="5"
-        fill="none"
-        stroke="#a1a1aa"
-      />
-      <path
-        d="M40 108 v10 a18 5 0 0 0 36 0 v-10"
-        fill="none"
-        stroke="#a1a1aa"
-      />
-      <path d="M58 86 V102" stroke="#71717a" strokeDasharray="2 3" />
+      {/* TODO(alec): the session database is gone from this drawing; confirm the look on the preview. */}
       <text
         x="86"
         y="118"
@@ -143,7 +129,7 @@ function ConnectedDiagram() {
         fontSize="8"
         letterSpacing="1"
       >
-        SESSIONS
+        COOKIE SESSION
       </text>
     </svg>
   )

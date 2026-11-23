@@ -20,9 +20,6 @@ export function HelpMeChoose({ states, onFamily, onAction }) {
   /* Re-keys the recommendation so it pops on every answer. */
   const [pop, setPop] = useState(0)
   const rec = recommendEdition(answers, states)
-  const questions = QUESTIONS.filter(
-    (q) => !(q.skipInside && answers.where === 'inside')
-  )
 
   const pick = (k, value) => {
     setAnswers({ ...answers, [k]: value })
@@ -68,7 +65,7 @@ export function HelpMeChoose({ states, onFamily, onAction }) {
         <div>
           <div className="pr-quiz">
             <div>
-              {questions.map((q, i) => (
+              {QUESTIONS.map((q, i) => (
                 <div
                   key={q.k}
                   className="pr-q"
