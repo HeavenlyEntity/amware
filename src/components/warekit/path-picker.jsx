@@ -122,8 +122,9 @@ function ConnectedDiagram() {
       </text>
       {/* TODO(alec): the session database is gone from this drawing; confirm the look on the preview. */}
       <text
-        x="86"
-        y="118"
+        x="58"
+        y="100"
+        textAnchor="middle"
         fill="#71717a"
         fontFamily={MONO}
         fontSize="8"
