@@ -18,10 +18,15 @@ vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
 vi.mock('@/lib/commerce/licenseRecord', async (importOriginal) => ({
   ...(await importOriginal()),
   attachPurchase: vi.fn(),
+  attachRenewal: vi.fn(),
+}))
+vi.mock('@/lib/commerce/licenseRestore', () => ({
+  restoreLicenseAccess: vi.fn(),
 }))
 vi.mock('@/lib/commerce/fulfillment', () => ({
   sendAccessLinkEmail: vi.fn(),
   sendBoilerplateConfirmationEmail: vi.fn(),
+  sendRenewalConfirmationEmail: vi.fn(),
 }))
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
@@ -31,9 +36,11 @@ import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
 import {
   sendAccessLinkEmail,
   sendBoilerplateConfirmationEmail,
+  sendRenewalConfirmationEmail,
 } from '@/lib/commerce/fulfillment'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
-import { attachPurchase } from '@/lib/commerce/licenseRecord'
+import { attachPurchase, attachRenewal } from '@/lib/commerce/licenseRecord'
+import { restoreLicenseAccess } from '@/lib/commerce/licenseRestore'
 import { POST } from '../route'
 
 const completed = ({
@@ -42,6 +49,8 @@ const completed = ({
   productId = 'prod_guide',
   metadata = {},
   orderId = 'ord_1',
+  amount = 1200,
+  licenseKeys,
 }) =>
   new Request('https://example.com/webhooks/creem', {
     method: 'POST',
@@ -49,11 +58,12 @@ const completed = ({
       eventType: 'checkout.completed',
       object: {
         id: 'chk_1',
-        order: { id: orderId, amount: 1200, currency: 'USD' },
+        order: { id: orderId, amount, currency: 'USD' },
         customer: { email: 'buyer@example.com' },
         product: { id: productId },
         metadata: { itemType, itemId: String(itemId), ...metadata },
         request_id: 'req_1',
+        license_keys: licenseKeys,
       },
     }),
   })
@@ -84,6 +94,15 @@ beforeEach(() => {
     state: 'invited',
   })
   attachPurchase.mockResolvedValue({ id: 77, tier: 'pro' })
+  attachRenewal.mockResolvedValue({
+    id: 41,
+    stack: 'next-netsuite',
+    tier: 'pro',
+    creemEnvironment: 'production',
+    ownerEmail: 'owner@example.com',
+    updatesComputedUntil: '2099-01-01T00:00:00.000Z',
+  })
+  restoreLicenseAccess.mockResolvedValue({ state: 'restored' })
 })
 
 describe('Creem checkout.completed', () => {
@@ -599,6 +618,209 @@ describe('Creem checkout.completed for a kit', () => {
       expect(attachPurchase).toHaveBeenCalled()
     })
   })
+
+  describe('renewals', () => {
+    const proRenewable = {
+      ...pro,
+      renewalPrice: 199,
+      creemRenewalProductId: 'prod_renew',
+      creemRenewalSandboxProductId: 'prod_renew_sb',
+    }
+    // The receipt shows what was paid on this order, in cents on the event.
+    const renewal = (over = {}) =>
+      kit({
+        productId: 'prod_renew',
+        amount: 19900,
+        metadata: { licenseId: '41', renewal: '1' },
+        ...over,
+      })
+
+    it('records a renewal on the license it names, grants no tier and sends a receipt', async () => {
+      const payload = withItem(proRenewable, { license: ownerLicense })
+      const res = await POST(completed(renewal()))
+      expect(res.status).toBe(200)
+      const data = payload.create.mock.calls[0][0].data
+      expect(data).toMatchObject({
+        kind: 'renewal',
+        fulfillmentStatus: 'not_required',
+      })
+      expect(data.grantsTier).toBeUndefined()
+      expect(attachRenewal).toHaveBeenCalledWith(payload, {
+        purchase: { id: 99 },
+        license: ownerLicense,
+      })
+      expect(attachPurchase).not.toHaveBeenCalled()
+      expect(inviteToRepo).not.toHaveBeenCalled()
+      expect(tryCreateAccessToken).not.toHaveBeenCalled()
+      expect(restoreLicenseAccess).not.toHaveBeenCalled()
+      expect(sendRenewalConfirmationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'owner@example.com',
+          price: 199,
+          restored: false,
+        })
+      )
+    })
+    it('carries no license key even when the event does', async () => {
+      const payload = withItem(proRenewable, { license: ownerLicense })
+      await POST(completed(renewal({ licenseKeys: [{ key: 'KEY-1' }] })))
+      expect(payload.create.mock.calls[0][0].data.licenseKey).toBeUndefined()
+    })
+    it('shows the amount paid on this order, not the product row price', async () => {
+      withItem(proRenewable, { license: ownerLicense })
+      await POST(completed(renewal({ amount: 14925 })))
+      expect(sendRenewalConfirmationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ price: 149.25 })
+      )
+    })
+    it('uses the no-price wording when the paid amount cannot be read', async () => {
+      withItem(proRenewable, { license: ownerLicense })
+      await POST(completed(renewal({ amount: null })))
+      expect(sendRenewalConfirmationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ price: null })
+      )
+    })
+    it('still answers 200 when the receipt cannot be sent', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      sendRenewalConfirmationEmail.mockRejectedValue(new Error('bounced'))
+      const payload = withItem(proRenewable, { license: ownerLicense })
+      expect((await POST(completed(renewal()))).status).toBe(200)
+      expect(failedUpdate(payload)).toBe(false)
+    })
+    it('gives access back when the renewal ends a withdrawal', async () => {
+      const fresh = {
+        ...ownerLicense,
+        ownerEmail: 'owner@example.com',
+        updatesComputedUntil: '2099-01-01T00:00:00.000Z',
+        accessWithdrawnAt: '2027-12-11T06:00:00.000Z',
+      }
+      attachRenewal.mockResolvedValue(fresh)
+      const payload = withItem(proRenewable, { license: ownerLicense })
+      await POST(completed(renewal()))
+      expect(restoreLicenseAccess).toHaveBeenCalledTimes(1)
+      // The freshly read license, never the stale one.
+      expect(restoreLicenseAccess).toHaveBeenCalledWith(payload, fresh)
+      expect(sendRenewalConfirmationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ restored: true })
+      )
+    })
+    it('does not restore access when the renewal still leaves the term ended', async () => {
+      attachRenewal.mockResolvedValue({
+        ...ownerLicense,
+        ownerEmail: 'owner@example.com',
+        updatesComputedUntil: '2000-01-01T00:00:00.000Z',
+        accessWithdrawnAt: '1999-12-11T06:00:00.000Z',
+      })
+      withItem(proRenewable, { license: ownerLicense })
+      await POST(completed(renewal()))
+      expect(restoreLicenseAccess).not.toHaveBeenCalled()
+    })
+    it('answers 200 and says access is not back when restoring ends in retry', async () => {
+      restoreLicenseAccess.mockResolvedValue({ state: 'retry' })
+      attachRenewal.mockResolvedValue({
+        ...ownerLicense,
+        ownerEmail: 'owner@example.com',
+        updatesComputedUntil: '2099-01-01T00:00:00.000Z',
+        accessWithdrawnAt: '2027-12-11T06:00:00.000Z',
+      })
+      withItem(proRenewable, { license: ownerLicense })
+      expect((await POST(completed(renewal()))).status).toBe(200)
+      expect(sendRenewalConfirmationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ restored: false })
+      )
+    })
+    it.each([
+      ['a license with no paid tier', { ...ownerLicense, tier: null }],
+      ['a Lite license', { ...ownerLicense, tier: 'lite' }],
+      [
+        'a Team license renewing at the Pro product',
+        { ...ownerLicense, tier: 'team' },
+      ],
+    ])('refuses and flags a renewal for %s', async (_name, license) => {
+      const payload = withItem(proRenewable, { license })
+      expect((await POST(completed(renewal()))).status).toBe(200)
+      expect(failedUpdate(payload)).toBe(true)
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          collection: 'licenses',
+          data: { needsReview: true },
+        })
+      )
+      expect(attachRenewal).not.toHaveBeenCalled()
+    })
+    it('refuses a payment that carries both renewal and upgrade metadata', async () => {
+      const payload = withItem(proRenewable, { license: ownerLicense })
+      await POST(
+        completed(
+          renewal({
+            metadata: { licenseId: '41', renewal: '1', upgrade: 'team' },
+          })
+        )
+      )
+      expect(failedUpdate(payload)).toBe(true)
+      expect(attachRenewal).not.toHaveBeenCalled()
+      expect(attachPurchase).not.toHaveBeenCalled()
+    })
+    it('refuses a renewal for a license on another stack or in another Creem environment', async () => {
+      for (const license of [
+        { ...ownerLicense, stack: 'react-netsuite' },
+        { ...ownerLicense, creemEnvironment: 'sandbox' },
+      ]) {
+        const payload = withItem(proRenewable, { license })
+        await POST(completed(renewal()))
+        expect(failedUpdate(payload)).toBe(true)
+      }
+      expect(attachRenewal).not.toHaveBeenCalled()
+    })
+    it('refuses a renewal with no license, or paid with a product that is not the renewal product', async () => {
+      const a = withItem(proRenewable)
+      await POST(completed(renewal({ metadata: { renewal: '1' } })))
+      expect(failedUpdate(a)).toBe(true)
+      const b = withItem(proRenewable, { license: ownerLicense })
+      await POST(completed(renewal({ productId: 'prod_pro' })))
+      expect(failedUpdate(b)).toBe(true)
+      expect(attachRenewal).not.toHaveBeenCalled()
+    })
+    it('does not accept the renewal product for a plain purchase', async () => {
+      const payload = withItem(proRenewable)
+      await POST(completed(kit({ productId: 'prod_renew' })))
+      expect(failedUpdate(payload)).toBe(true)
+    })
+    it('does nothing on a redelivered renewal', async () => {
+      const payload = withItem(proRenewable, {
+        license: ownerLicense,
+        existing: [{ id: 99 }],
+      })
+      await POST(completed(renewal()))
+      expect(payload.create).not.toHaveBeenCalled()
+      expect(attachRenewal).not.toHaveBeenCalled()
+    })
+    it('still answers 200 and marks the row failed when attaching a renewal fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      attachRenewal.mockRejectedValue(new Error('db down'))
+      const payload = withItem(proRenewable, { license: ownerLicense })
+      expect((await POST(completed(renewal()))).status).toBe(200)
+      expect(failedUpdate(payload)).toBe(true)
+      expect(sendRenewalConfirmationEmail).not.toHaveBeenCalled()
+      expect(restoreLicenseAccess).not.toHaveBeenCalled()
+    })
+    it('marks an upgrade row as an upgrade and a first sale as a sale', async () => {
+      const a = withItem(team, { license: ownerLicense })
+      await POST(
+        completed(
+          kit({
+            itemId: 21,
+            productId: 'prod_upgrade',
+            metadata: { licenseId: '41', upgrade: 'team' },
+          })
+        )
+      )
+      expect(a.create.mock.calls[0][0].data.kind).toBe('upgrade')
+      const b = withItem(pro)
+      await POST(completed(kit()))
+      expect(b.create.mock.calls[0][0].data.kind).toBe('sale')
+    })
+  })
 })
 
 describe('Creem subscription.paid', () => {
@@ -916,6 +1138,42 @@ describe('Creem checkout.completed: an upgrade that raises nothing', () => {
 })
 
 describe('Creem refund.created', () => {
+  it('takes a refunded renewal’s 12 months back and flags nothing', async () => {
+    const { tables } = database({
+      purchases: [
+        kitPurchase({ kind: 'sale', createdAt: '2026-12-10T15:00:00.000Z' }),
+        {
+          id: 2,
+          status: 'paid',
+          license: 41,
+          kind: 'renewal',
+          grantsTier: null,
+          creemOrderId: 'ord_renew',
+          createdAt: '2027-11-01T00:00:00.000Z',
+        },
+      ],
+      licenses: [
+        {
+          id: 41,
+          stack: 'next-netsuite',
+          tier: 'pro',
+          updatesComputedUntil: '2028-12-10T15:00:00.000Z',
+        },
+      ],
+    })
+    expect(
+      (await POST(refund({ orderId: 'ord_renew', amount: 19900, paid: 19900 })))
+        .status
+    ).toBe(200)
+    expect(tables.purchases[1].status).toBe('refunded')
+    expect(tables.licenses[0].tier).toBe('pro')
+    expect(tables.licenses[0].updatesComputedUntil).toBe(
+      '2027-12-10T15:00:00.000Z'
+    )
+    expect(needsReview(tables)).toBe(false)
+    expect(revokeLicenseAccess).not.toHaveBeenCalled()
+  })
+
   it('marks a full refund and recomputes the tier', async () => {
     const { payload, tables } = database({
       purchases: [kitPurchase()],

@@ -6,6 +6,7 @@ import { creemEnvironment } from '@/lib/commerce/creemEnv'
 import { activeAccounts, licenseLimits, tierRank } from '@/lib/commerce/license'
 import {
   attachPurchase,
+  attachRenewal,
   expectedProductIds,
   licenseIdFrom,
   quoteProductIdFor,
@@ -13,6 +14,8 @@ import {
   relationId,
 } from '@/lib/commerce/licenseRecord'
 import { revokeLicenseAccess } from '@/lib/commerce/licenseRevoke'
+import { restoreLicenseAccess } from '@/lib/commerce/licenseRestore'
+import { TERM_TIERS, termState } from '@/lib/commerce/licenseTerm'
 import { reserveSeat } from '@/lib/commerce/licenseSeats'
 import { listSeats } from '@/lib/commerce/seats'
 import { onboardingPath } from '@/lib/commerce/onboardingLink'
@@ -20,6 +23,7 @@ import { inviteToRepo } from '@/lib/commerce/githubInvite'
 import {
   sendAccessLinkEmail,
   sendBoilerplateConfirmationEmail,
+  sendRenewalConfirmationEmail,
 } from '@/lib/commerce/fulfillment'
 
 export const dynamic = 'force-dynamic'
@@ -90,6 +94,11 @@ export async function POST(req) {
  * `revokeLicenseAccess`, which is flagged off by default). Creem does not
  * touch the license key on a refund; the report route treats a license below
  * Pro as invalid, so the key needs no action here.
+ *
+ * A refunded renewal is different: it only takes its 12 months back. The date
+ * is recomputed, and nothing else moves: no tier change, no revoke, no flag.
+ * Access that has already ended is not given or taken here; the daily job
+ * cuts off on the new, earlier date.
  * ---------------------------------------------------------------------- */
 
 /* An id from a value that is either the id itself or an object carrying it.
@@ -227,7 +236,11 @@ async function handleRefund(event) {
      failure past this point must not 500: Creem's retry would do nothing.
      It is logged and the license is flagged for a person instead. */
   try {
-    await moveLicenseDown(payload, licenseId, before)
+    if (purchase.kind === 'renewal') {
+      await recomputeTier(payload, licenseId)
+    } else {
+      await moveLicenseDown(payload, licenseId, before)
+    }
   } catch (err) {
     console.error('Refund license update failed for order', orderId, err)
     await flagForReview(payload, licenseId).catch(() => {})
@@ -574,8 +587,14 @@ async function handleCheckout(event) {
         creemProductId &&
         creemProductId === quoteProductIdFor(license, env)
     )
+  /* A renewal pays for 12 more months of updates on a license it names. It
+     grants no tier and carries no key. A payment that says both "renewal" and
+     "upgrade" lines up with neither and is refused below. */
+  const isRenewal = isBoilerplate && meta.renewal === '1'
   const grantsTier: string | null = isBoilerplate
-    ? isQuote
+    ? isRenewal
+      ? null
+      : isQuote
       ? 'enterprise'
       : upgradeTarget || item?.tier || null
     : null
@@ -598,12 +617,13 @@ async function handleCheckout(event) {
     item,
     license,
     upgrade: upgradeTarget,
+    renewal: isRenewal,
     env,
   })
   const productMismatch =
     item &&
     creemProductId &&
-    (upgradeTarget || expected.length > 0) &&
+    (upgradeTarget || isRenewal || expected.length > 0) &&
     !expected.includes(creemProductId)
 
   /* A license named in metadata is usable only if it is on the stack being
@@ -619,8 +639,23 @@ async function handleCheckout(event) {
       license.stack === item?.stack &&
       (license.creemEnvironment || 'production') === env
     )
-  // An upgrade only means something on the license it names.
-  const upgradeWithoutLicense = namedLicenseUnusable || (isUpgrade && !license)
+  // An upgrade or a renewal only means something on the license it names.
+  const upgradeWithoutLicense =
+    namedLicenseUnusable || ((isUpgrade || isRenewal) && !license)
+  /* Only Pro and Team renew themselves, and only at their own product: Team
+     paying the Pro renewal price would short the license. A payment that is
+     also marked as an upgrade is not a renewal. */
+  const renewalRefused = Boolean(
+    isRenewal &&
+      license &&
+      (!TERM_TIERS.includes(license.tier) ||
+        item?.tier !== license.tier ||
+        meta.upgrade)
+  )
+  /* What this order paid, in dollars, for the receipt: the amount stored on
+     the purchase (cents), not the product row's current price. */
+  const paidPrice =
+    typeof amount === 'number' && Number.isFinite(amount) ? amount / 100 : null
 
   // Create the Purchase first (need its id to sign the access token).
   let purchase
@@ -636,7 +671,7 @@ async function handleCheckout(event) {
         creemEnvironment: env,
         creemOrderId: orderId,
         creemRequestId: requestId || undefined,
-        licenseKey: licenseKey || undefined,
+        licenseKey: isRenewal ? undefined : licenseKey || undefined,
         amount,
         currency,
         githubUsername: githubUsername || undefined,
@@ -644,9 +679,12 @@ async function handleCheckout(event) {
           typeof subscriptionId === 'string' ? subscriptionId : undefined,
         status: 'paid',
         subscriptionStatus: subscriptionId ? 'active' : undefined,
+        ...(isBoilerplate
+          ? { kind: isRenewal ? 'renewal' : isUpgrade ? 'upgrade' : 'sale' }
+          : {}),
         fulfillmentStatus: upgradeRefused
           ? 'failed'
-          : isUpgrade
+          : isUpgrade || isRenewal
           ? 'not_required'
           : isBoilerplate
           ? 'pending_invite'
@@ -703,6 +741,73 @@ async function handleCheckout(event) {
         data: { fulfillmentStatus: 'failed' },
       })
       .catch(() => {})
+  } else if (renewalRefused) {
+    /* The money is in, but this renewal does not fit the license: no paid
+       Pro or Team tier, another tier's product, or marked as an upgrade too.
+       Nothing is attached, so no date moves; a person decides. */
+    console.error('Renewal does not fit its license for order', orderId, {
+      license: license.id,
+      tier: license.tier ?? null,
+    })
+    await payload
+      .update({
+        collection: 'purchases',
+        id: purchase.id,
+        overrideAccess: true,
+        data: { fulfillmentStatus: 'failed' },
+      })
+      .catch(() => {})
+    await flagForReview(payload, license.id).catch((err) =>
+      console.error('Renewal review flag failed for order', orderId, err)
+    )
+  } else if (isRenewal) {
+    /* Every check has passed, so the row can join the license now. Attaching
+       is what adds the 12 months. It throws on a database failure, and the
+       sale is already recorded, so that is logged and said on the row. Same
+       repo, same key: nothing is invited, no access link is signed and there
+       is no onboarding. The only access work is giving it back when the
+       renewal ends a withdrawal, and that goes by the license as it is read
+       now, never the copy read above. */
+    let fresh: any = null
+    try {
+      fresh = await attachRenewal(payload, { purchase, license })
+    } catch (err) {
+      console.error('Renewal attach failed for order', orderId, err)
+      await payload
+        .update({
+          collection: 'purchases',
+          id: purchase.id,
+          overrideAccess: true,
+          data: { fulfillmentStatus: 'failed' },
+        })
+        .catch(() => {})
+    }
+    if (fresh) {
+      const term = termState(fresh, new Date())
+      let restored = false
+      try {
+        if (fresh.accessWithdrawnAt && !term.ended) {
+          const result = await restoreLicenseAccess(payload, fresh)
+          restored = result.state === 'restored'
+        }
+      } catch (err) {
+        console.error('Renewal restore failed for order', orderId, err)
+      }
+      // Best-effort: the date is recorded either way. With no end date to
+      // name there is no honest receipt to send.
+      try {
+        if (!term.until) throw new Error('no end date after a renewal')
+        await sendRenewalConfirmationEmail({
+          to: fresh.ownerEmail,
+          kitName: item.name,
+          until: term.until,
+          price: paidPrice,
+          restored,
+        })
+      } catch {
+        console.error('Renewal confirmation email failed for order', orderId)
+      }
+    }
   } else if (upgradeRefused) {
     console.error('Upgrade paid on a license below Pro for order', orderId, {
       license: license.id,
