@@ -476,7 +476,8 @@ html[data-dk-motion='ok'] .svc .svc-rise {
 .svc-ascii-poster {
   transition: opacity 0.8s ease;
 }
-.svc-ascii--hero .svc-ascii-poster {
+.svc-ascii--hero .svc-ascii-poster,
+.svc-ascii--panel .svc-ascii-poster {
   background: radial-gradient(
     90% 45% at 50% 100%,
     color-mix(in srgb, var(--amw-accent) 26%, transparent),
