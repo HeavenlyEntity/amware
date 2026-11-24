@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
 /* Same reason as claim-free-kit.test.jsx: the action is stubbed so the
    component's states can be driven without Creem or the CMS. */
@@ -65,5 +65,28 @@ describe('CreemBuyButton', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Not on sale yet.'
     )
+  })
+
+  it('spins in the knob while pending, and checks once the browser leaves', async () => {
+    let finish
+    action.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    render(<CreemBuyButton slug="guide" name="Guide" price={12} />)
+    fireEvent.submit(screen.getByRole('button').closest('form'))
+
+    const button = await screen.findByRole('button', {
+      name: 'Opening checkout…',
+    })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    expect(button.querySelector('.amw-kit-spin')).not.toBeNull()
+
+    act(() => {
+      window.dispatchEvent(new Event('beforeunload'))
+    })
+    const leaving = screen.getByRole('button', { name: 'Taking you to Creem' })
+    expect(leaving.querySelector('.amw-kit-spin')).toBeNull()
+    expect(leaving.querySelector('.amw-kit-pop')).not.toBeNull()
+
+    await act(async () => finish({ error: null }))
   })
 })

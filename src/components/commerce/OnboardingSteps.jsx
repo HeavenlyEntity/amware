@@ -1,3 +1,4 @@
+import { IconArrowRight, IconCheck } from '@tabler/icons-react'
 import { NextStep } from '@/components/commerce/NextStep'
 
 /* What a buyer sees once Whop sends them back.
@@ -17,24 +18,46 @@ import { NextStep } from '@/components/commerce/NextStep'
  * a wrong one is fixed by replying to the receipt email.
  */
 
+/* Each step is a muted card in the kit pages' grammar, numbered the way the
+   "what happens next" strip numbers its cards. */
 function Step({ n, title, done, children }) {
   return (
-    <li className="border-[var(--amw-line)] relative border-l pb-10 pl-8 last:border-transparent last:pb-0">
-      <span
-        aria-hidden="true"
-        className={`amw-mono absolute -left-[13px] top-0 grid h-6 w-6 place-items-center rounded-full border text-[11px] ${
-          done
-            ? 'border-[var(--amw-accent)] bg-[var(--amw-accent)] text-zinc-950'
-            : 'border-[var(--amw-line-strong)] bg-[var(--amw-page)] text-[var(--amw-mut)]'
-        }`}
-      >
-        {done ? '✓' : n}
-      </span>
-      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-        {title}
-      </h2>
-      <div className="mt-3">{children}</div>
+    <li className="amw-kit-card p-5 sm:p-6">
+      <div className="flex items-center gap-2.5">
+        <span
+          aria-hidden="true"
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[13px] font-semibold ${
+            done
+              ? 'bg-[var(--amw-accent)] text-zinc-950'
+              : 'bg-[var(--amw-accent-soft)] text-[var(--amw-accent-ink)]'
+          }`}
+        >
+          {done ? <IconCheck size={14} stroke={2.4} /> : n}
+        </span>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+          {title}
+        </h2>
+      </div>
+      <div className="mt-3.5">{children}</div>
     </li>
+  )
+}
+
+const TEXT = 'text-sm leading-relaxed text-[var(--amw-mut)]'
+const CODE =
+  'amw-mono amw-kit-inset block overflow-x-auto px-3.5 py-2.5 text-sm text-[var(--amw-ink)]'
+/* The about page's ring button, as a link that may leave the site. */
+const RING =
+  'amw-kit-ring hover:text-[var(--amw-accent-ink)] hover:ring-[var(--amw-accent)] mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-md px-4 text-sm font-medium text-zinc-700 no-underline ring-1 ring-inset ring-zinc-900/15 transition-colors duration-200 dark:text-zinc-200 dark:ring-white/[0.18]'
+
+function Arrow() {
+  return (
+    <IconArrowRight
+      size={16}
+      stroke={1.5}
+      aria-hidden="true"
+      className="amw-kit-chev"
+    />
   )
 }
 
@@ -71,12 +94,12 @@ export function OnboardingSteps({
 }) {
   return (
     <>
-      <ol className="mt-12">
+      <ol className="mt-9 flex flex-col gap-3">
         {delivered ? (
           <>
             <Step n="1" title="Your repository" done>
               {repo ? (
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                <p className={TEXT}>
                   <a
                     href={`https://github.com/${repo}`}
                     target="_blank"
@@ -88,7 +111,7 @@ export function OnboardingSteps({
                   is yours. Clone it and follow the README to get started.
                 </p>
               ) : (
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                <p className={TEXT}>
                   {itemName} is yours. Clone the repository and follow the
                   README to get started.
                 </p>
@@ -99,7 +122,7 @@ export function OnboardingSteps({
                 that 404s is worse than no community section. */}
             {discordUrl && (
               <Step n="2" title="Join the Discord">
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                <p className={TEXT}>
                   Where questions get answered and bugs get reported. Other
                   people building on the same kit are in there.
                 </p>
@@ -107,9 +130,10 @@ export function OnboardingSteps({
                   href={discordUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="border-[var(--amw-line)] hover:border-[var(--amw-accent)] hover:text-[var(--amw-accent)] mt-4 inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-zinc-700 transition-colors dark:text-zinc-300"
+                  className={RING}
                 >
                   Accept the Discord invite
+                  <Arrow />
                 </a>
               </Step>
             )}
@@ -117,27 +141,21 @@ export function OnboardingSteps({
             <Step n={discordUrl ? '3' : '2'} title="Set up your copy">
               {maskedLicenseKey && (
                 <>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  <p className={TEXT}>
                     {licenseUrl || licenseExpired
                       ? 'Your license key, masked for this page. The full key is on your license page.'
                       : 'Your license key, masked for this page. The full key is in your receipt email.'}
                   </p>
-                  <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] mt-3 block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
-                    {maskedLicenseKey}
-                  </code>
+                  <code className={`${CODE} mt-3`}>{maskedLicenseKey}</code>
                 </>
               )}
 
               <div className="mt-4 space-y-2">
                 <p className="amw-kicker">in your terminal</p>
-                <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
+                <code className={CODE}>
                   git clone git@github.com:{repo || 'amwaredotdev/your-kit'}.git
                 </code>
-                {cliCommand && (
-                  <code className="amw-mono border-[var(--amw-line)] bg-[var(--amw-card-2)] block overflow-x-auto rounded-md border px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200">
-                    {cliCommand}
-                  </code>
-                )}
+                {cliCommand && <code className={CODE}>{cliCommand}</code>}
               </div>
             </Step>
 
@@ -146,26 +164,24 @@ export function OnboardingSteps({
                 old for a fresh link, the route that emails one. */}
             {(licenseUrl || licenseExpired) && (
               <Step n={discordUrl ? '4' : '3'} title="Add your key to .env">
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                <p className={TEXT}>
                   Your license page has the full key. Copy{' '}
                   <code className="amw-mono">WAREKIT_LICENSE_KEY=…</code> into
                   your <code className="amw-mono">.env</code>, beside{' '}
                   <code className="amw-mono">NS_ACCOUNT_ID</code>.
                 </p>
-                <a
-                  href={licenseUrl || '/access/resend'}
-                  className="border-[var(--amw-line)] hover:border-[var(--amw-accent)] hover:text-[var(--amw-accent)] mt-4 inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-zinc-700 transition-colors dark:text-zinc-300"
-                >
+                <a href={licenseUrl || '/access/resend'} className={RING}>
                   {licenseUrl
                     ? 'Open your license page'
                     : 'Email me a new license link'}
+                  <Arrow />
                 </a>
               </Step>
             )}
           </>
         ) : (
           <Step n="1" title="Repository access" done={false}>
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            <p className={TEXT}>
               Payment received. Repository access is being prepared for{' '}
               <span className="font-medium">
                 {githubUsername ? `@${githubUsername}` : 'the account on file'}
@@ -181,7 +197,7 @@ export function OnboardingSteps({
           signed seat link, which only the receipt email carries -- without
           this line the page never mentions them at all. */}
       {seats > 1 && (
-        <p className="mt-10 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-[var(--amw-mut)] mt-8 text-sm leading-relaxed">
           {`Your license covers ${seats} developers — add the rest from the link in your receipt email.`}
         </p>
       )}

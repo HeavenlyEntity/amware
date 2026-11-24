@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { RingLink } from '@/components/site/ChevronCta'
 
 /* The one next step worth offering, after the buyer already has what they
  * paid for — never before, and never in the way of it.
@@ -26,36 +26,36 @@ const UPGRADE = {
   },
 }
 
+const CARD = 'amw-kit-card flex flex-col p-5 sm:p-6'
+
 export function NextStep({ tier }) {
   const upgrade = tier ? UPGRADE[tier] : null
   return (
-    <aside className="mt-12 space-y-6 border-t border-zinc-200 pt-8 dark:border-zinc-800">
+    <aside className="mt-12 grid grid-cols-1 gap-3 sm:grid-cols-2">
       {upgrade && (
-        <div>
-          <h2 className="text-base font-semibold">{upgrade.title}</h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <div className={CARD}>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+            {upgrade.title}
+          </h2>
+          <p className="text-[var(--amw-mut)] mt-1.5 flex-1 text-sm leading-relaxed">
             {upgrade.body}
           </p>
-          <Link
-            href="/pricing"
-            className="mt-3 inline-block text-sm font-medium underline"
-          >
+          <RingLink href="/pricing" className="mt-4">
             {upgrade.cta}
-          </Link>
+          </RingLink>
         </div>
       )}
-      <div>
-        <h2 className="text-base font-semibold">Want it built with you?</h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+      <div className={`${CARD} ${upgrade ? '' : 'sm:col-span-2'}`}>
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+          Want it built with you?
+        </h2>
+        <p className="text-[var(--amw-mut)] mt-1.5 flex-1 text-sm leading-relaxed">
           The kit is where a NetSuite build starts. If you want help taking it
           to production, that is what an engagement is for.
         </p>
-        <Link
-          href="/services"
-          className="mt-3 inline-block text-sm font-medium underline"
-        >
+        <RingLink href="/services" className="mt-4">
           Book an intro call
-        </Link>
+        </RingLink>
       </div>
     </aside>
   )

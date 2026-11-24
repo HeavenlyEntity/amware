@@ -695,6 +695,71 @@ describe('Onboarding page for a Creem kit buyer', () => {
     )
   })
 
+  it('shows the stepper on the GitHub step, and the kit’s next steps', async () => {
+    const { container } = await renderPage(link())
+
+    expect(
+      screen.getByRole('list', { name: /setup progress/i })
+    ).toBeInTheDocument()
+    expect(container.querySelector('[aria-current="step"]')).toHaveTextContent(
+      'GitHub account'
+    )
+    expect(screen.getByText(/step 2 of 3/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'From invite to running app.' })
+    ).toBeInTheDocument()
+    for (const step of ['Accept the invite', 'Clone and run', 'Add your key']) {
+      expect(screen.getByRole('heading', { name: step })).toBeInTheDocument()
+    }
+    expect(screen.getByText('pnpm install')).toBeInTheDocument()
+  })
+
+  it('moves the stepper on once the account is on file', async () => {
+    purchases = [
+      creemRow({
+        githubUsername: 'octocat',
+        githubRepo: 'amwaredotdev/warekit-next-netsuite',
+        fulfillmentStatus: 'sent',
+      }),
+    ]
+    const { container } = await renderPage(link())
+
+    expect(container.querySelector('[aria-current="step"]')).toHaveTextContent(
+      'License key'
+    )
+    expect(screen.getByText(/step 3 of 3/i)).toBeInTheDocument()
+    // The delivered steps already walk through the same three things.
+    expect(
+      screen.queryByRole('heading', { name: 'From invite to running app.' })
+    ).toBeNull()
+  })
+
+  it('leaves out the next steps for a kit with no story', async () => {
+    const reactKit = {
+      ...teamKit,
+      name: 'WareKit React NetSuite (Team)',
+      slug: 'warekit-react-netsuite-team',
+      stack: 'react-netsuite',
+    }
+    purchases = [
+      creemRow({ item: { relationTo: 'products', value: reactKit } }),
+    ]
+    await renderPage(link())
+
+    expect(
+      screen.getByRole('list', { name: /setup progress/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'From invite to running app.' })
+    ).toBeNull()
+  })
+
+  it('shows no stepper on a state that cannot describe a purchase', async () => {
+    purchases = []
+    await renderPage(link())
+    expect(screen.queryByRole('list', { name: /setup progress/i })).toBeNull()
+  })
+
   it('rejects an unsigned r', async () => {
     for (const params of [
       { r: REQUEST_ID },

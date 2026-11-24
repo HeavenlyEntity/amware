@@ -180,3 +180,43 @@ export function StackLogos({ stack = [], className = '', onCard = false }) {
     </ul>
   )
 }
+
+/**
+ * The stack as icon-and-name pills, for the "Built on" row under a product's
+ * tagline. Same matching and the same brand colours as the discs above,
+ * drawn through `.amw-kit-mark`, which mixes each colour toward ink so a
+ * black brand mark never vanishes on a dark panel.
+ *
+ * @param {{
+ *   stack?: (string | { tech?: string | null } | null)[],
+ *   className?: string,
+ *   label?: string,
+ * }} props
+ */
+export function StackPills({ stack = [], className = '', label = 'Built on' }) {
+  const items = names(stack)
+  if (items.length === 0) return null
+
+  return (
+    <ul aria-label={label} className={`flex flex-wrap gap-2 ${className}`}>
+      {items.map((tech) => {
+        const Icon = stackIcon(tech)
+        return (
+          <li
+            key={tech}
+            className="amw-kit-tech bg-[var(--amw-muted)] min-h-8 text-[var(--amw-ink)] inline-flex items-center gap-2 rounded-full py-1.5 pl-2 pr-3 text-[13px] ring-1 ring-inset ring-zinc-900/[0.06] dark:ring-0"
+          >
+            <Icon
+              size={18}
+              stroke={1.5}
+              aria-hidden="true"
+              className="amw-kit-mark shrink-0"
+              style={{ '--logo': stackColor(tech) }}
+            />
+            {tech}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}

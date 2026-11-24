@@ -446,3 +446,161 @@ export const STANDARD_STEPS = [
     copy: 'Waitlist signups per data layer set the order the kits get built.',
   },
 ]
+
+/* ---- kit story -----------------------------------------------------------
+ * The illustrated sections on a kit's product page, and the "what happens
+ * next" strip on its setup page. Keyed by the product row's `stack` and
+ * `tier`; a product with no entry renders none of them, so a React kit, a
+ * guide or anything new looks the way it did before the story existed.
+ *
+ * Every fact is from the kit repository's README.md and docs/sessions.md
+ * (amwaredotdev/warekit-next-netsuite and its -lite twin). Nothing here says
+ * more than they do. Backticks mark inline code, resolved by inlineCode().
+ *
+ * `highlights` are phrases of the product's own tagline. They are only ever
+ * applied to the tagline as it is stored: a phrase the tagline no longer
+ * contains simply highlights nothing, so this can never add words to it. */
+
+const NEXT_FLOW = {
+  title: 'The browser never talks to NetSuite.',
+  copy: 'NetSuite sends no CORS headers, and the only way around that is a credential in the bundle. So every NetSuite call goes through the app’s API routes, which hold the credential server-side.',
+}
+
+const nextNodes = (restletNote) => [
+  { icon: 'browser', name: 'Browser', note: 'Your users. No secrets here.' },
+  {
+    icon: 'vercel',
+    name: 'Next.js on Vercel',
+    note: 'API routes hold the credential. `server-only`, so a leak fails the build.',
+    accent: true,
+  },
+  { icon: 'restlet', name: 'NetSuite RESTlet', note: restletNote },
+]
+
+const NEXT_LAYERS = {
+  title: 'Four layers between your traffic and the limit.',
+  copy: 'NetSuite allows 15 concurrent requests on Service Tier 1, plus 10 per SuiteCloud Plus licence, shared by every integration in the account. A session read per request uses that up and starts returning 429s. Pro spends NetSuite calls on state changes, not on traffic.',
+  items: [
+    {
+      name: 'Signed session cookie',
+      note: 'Most requests make no NetSuite call at all.',
+    },
+    {
+      name: 'Per-instance cache',
+      note: 'Repeat reads inside one warm function.',
+    },
+    {
+      name: 'In-flight collapsing',
+      note: 'Concurrent misses for one key become one request.',
+    },
+    {
+      name: 'N/cache in the RESTlet',
+      note: 'Saves the search and the record load once a call arrives.',
+    },
+  ],
+  trade:
+    'The trade, stated plainly: sign-out is eventually consistent, up to the cache TTL (30 seconds by default, tunable).',
+}
+
+const NEXT_QUICK_START = {
+  title: 'It runs before you have a NetSuite account.',
+  copy: 'Three commands start it against built-in fixtures. Provision the account later.',
+  commands: ['pnpm install', 'cp .env.example .env', 'pnpm dev'],
+  note: 'No NetSuite account, no credentials. Sign-in needs an https tunnel: `pnpm dev:tunnel` starts one.',
+}
+
+const dir = (name, depth = 0, note = '') => ({ name, depth, note, dir: true })
+const file = (name, depth = 0, note = '') => ({ name, depth, note, dir: false })
+
+const nextTree = (pro) => [
+  dir('apps/'),
+  dir('web/', 1, 'the Next.js app'),
+  dir('suiteapp/', 1, 'SDF project and RESTlets'),
+  dir('e2e/', 1, 'Playwright tests'),
+  dir('packages/'),
+  dir('netsuite-server/', 1, 'server-only NetSuite client'),
+  ...(pro
+    ? [dir('netsuite-sessions/', 1, 'Better Auth adapter and cache')]
+    : []),
+  dir('brand/', 1),
+  dir(
+    'docs/',
+    0,
+    pro ? 'authentication, sessions, tooling' : 'authentication, tooling'
+  ),
+  dir('tooling/', 0, 'build, sync, tunnel'),
+  file('.env.example'),
+  file('warekit.json'),
+]
+
+const NEXT_ROADMAP =
+  'Session storage is the first Pro feature to land. Licensing, role mapping, the data layer, the schema generator and observability are roadmap, and the repository says so rather than implying otherwise.'
+
+const nextSteps = (licensed) => ({
+  title: 'From invite to running app.',
+  accept: { title: 'Accept the invite', note: 'From the email GitHub sends.' },
+  run: {
+    title: 'Clone and run',
+    note: 'It runs on built-in fixtures before you connect NetSuite.',
+  },
+  /* Lite has no license key, so it has no third card. */
+  key: licensed
+    ? {
+        title: 'Add your key',
+        note: 'Your key is on your license page. The link is in your purchase email.',
+      }
+    : null,
+})
+
+const NEXT_PRO = {
+  highlights: [
+    'sessions in NetSuite',
+    'one less service',
+    'survives real traffic',
+  ],
+  flow: {
+    ...NEXT_FLOW,
+    nodes: nextNodes(
+      'The SuiteScript half, deployed by SDF. Sessions live in a custom record.'
+    ),
+  },
+  layers: NEXT_LAYERS,
+  repo: { name: 'amwaredotdev/warekit-next-netsuite', tree: nextTree(true) },
+  quickStart: NEXT_QUICK_START,
+  roadmap: NEXT_ROADMAP,
+  next: nextSteps(true),
+}
+
+export const kitStory = {
+  'next-netsuite': {
+    lite: {
+      highlights: ['talk to NetSuite', 'Hosted on Vercel'],
+      flow: {
+        ...NEXT_FLOW,
+        nodes: nextNodes('The SuiteScript half, deployed by SDF.'),
+      },
+      layers: null,
+      repo: {
+        name: 'amwaredotdev/warekit-next-netsuite-lite',
+        tree: nextTree(false),
+      },
+      quickStart: NEXT_QUICK_START,
+      roadmap: null,
+      next: nextSteps(false),
+    },
+    pro: NEXT_PRO,
+    /* Team is the Pro repository, licensed for more developers. */
+    team: {
+      ...NEXT_PRO,
+      highlights: ['licensed for a team', 'up to five GitHub accounts'],
+    },
+  },
+}
+
+/** The story for a stack and tier, or null when there is none. */
+export function storyFor(stack, tier) {
+  if (typeof stack !== 'string' || typeof tier !== 'string') return null
+  // Own keys only: a tier of "constructor" is not a story.
+  const byStack = Object.hasOwn(kitStory, stack) ? kitStory[stack] : null
+  return byStack && Object.hasOwn(byStack, tier) ? byStack[tier] : null
+}
