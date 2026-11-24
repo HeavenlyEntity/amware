@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   attachPurchase,
+  attachRenewal,
   currentKey,
   enterpriseLinkFor,
   expectedProductIds,
@@ -408,6 +409,7 @@ describe('recomputeTier', () => {
     await expect(recomputeTier(payload, 9)).resolves.toEqual({
       tier: 'pro',
       changed: true,
+      updatesComputedUntil: null,
     })
     expect(updatesTo(payload, 'licenses')[0].data.tier).toBe('pro')
   })
@@ -421,6 +423,7 @@ describe('recomputeTier', () => {
     await expect(recomputeTier(payload, 9)).resolves.toEqual({
       tier: 'pro',
       changed: false,
+      updatesComputedUntil: null,
     })
     expect(payload.update).not.toHaveBeenCalled()
 
@@ -446,6 +449,7 @@ describe('recomputeTier', () => {
     await expect(recomputeTier(payload, 9)).resolves.toEqual({
       tier: null,
       changed: true,
+      updatesComputedUntil: null,
     })
     expect(updatesTo(payload, 'licenses')[0].data.tier).toBeNull()
   })
@@ -455,7 +459,207 @@ describe('recomputeTier', () => {
     await expect(recomputeTier(payload, 9)).resolves.toEqual({
       tier: null,
       changed: false,
+      updatesComputedUntil: null,
     })
+  })
+})
+
+describe('recomputeTier and the update term', () => {
+  const bought = {
+    id: 1,
+    status: 'paid',
+    grantsTier: 'pro',
+    kind: 'sale',
+    createdAt: '2026-12-10T15:00:00.000Z',
+  }
+
+  it('stores the worked-out end date with the tier', async () => {
+    const payload = fakePayload({ licenses: [{ id: 9 }], purchases: [bought] })
+    await expect(recomputeTier(payload, 9)).resolves.toEqual({
+      tier: 'pro',
+      changed: true,
+      updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+    })
+    expect(updatesTo(payload, 'licenses')[0].data).toMatchObject({
+      tier: 'pro',
+      updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+    })
+  })
+
+  it('moves the date for a renewal without touching tierChangedAt', async () => {
+    const payload = fakePayload({
+      licenses: [
+        {
+          id: 9,
+          tier: 'pro',
+          updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+        },
+      ],
+      purchases: [
+        bought,
+        {
+          id: 2,
+          status: 'paid',
+          kind: 'renewal',
+          grantsTier: null,
+          createdAt: '2027-11-01T00:00:00.000Z',
+        },
+      ],
+    })
+    await recomputeTier(payload, 9)
+    const data = updatesTo(payload, 'licenses')[0].data
+    expect(data).toEqual({ updatesComputedUntil: '2028-12-10T15:00:00.000Z' })
+  })
+
+  it('leaves the stored date alone when the original sale is refunded and the upgrade is paid', async () => {
+    const payload = fakePayload({
+      licenses: [
+        {
+          id: 9,
+          tier: 'team',
+          updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+        },
+      ],
+      purchases: [
+        {
+          id: 2,
+          status: 'paid',
+          grantsTier: 'team',
+          kind: 'upgrade',
+          createdAt: '2027-03-01T00:00:00.000Z',
+        },
+      ],
+    })
+    await expect(recomputeTier(payload, 9)).resolves.toMatchObject({
+      updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+    })
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it('clears the date when nothing paid is left', async () => {
+    const payload = fakePayload({
+      licenses: [
+        {
+          id: 9,
+          tier: 'pro',
+          updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+        },
+      ],
+      purchases: [],
+    })
+    await recomputeTier(payload, 9)
+    expect(updatesTo(payload, 'licenses')[0].data).toMatchObject({
+      tier: null,
+      updatesComputedUntil: null,
+    })
+  })
+
+  it.each([
+    ['enterprise', 'enterprise'],
+    ['lite', 'lite'],
+  ])(
+    'clears the old date when a license becomes %s',
+    async (_name, grantsTier) => {
+      const payload = fakePayload({
+        licenses: [
+          {
+            id: 9,
+            tier: 'pro',
+            updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+          },
+        ],
+        purchases: [
+          {
+            id: 3,
+            status: 'paid',
+            grantsTier,
+            kind: 'sale',
+            createdAt: '2027-03-01T00:00:00.000Z',
+          },
+        ],
+      })
+      await expect(recomputeTier(payload, 9)).resolves.toMatchObject({
+        tier: grantsTier,
+        updatesComputedUntil: null,
+      })
+      expect(updatesTo(payload, 'licenses')[0].data).toMatchObject({
+        tier: grantsTier,
+        updatesComputedUntil: null,
+      })
+    }
+  )
+
+  it('reads the same instant in another ISO shape as unchanged', async () => {
+    const payload = fakePayload({
+      licenses: [
+        {
+          id: 9,
+          tier: 'pro',
+          updatesComputedUntil: '2027-12-10T15:00:00+00:00',
+        },
+      ],
+      purchases: [bought],
+    })
+    await recomputeTier(payload, 9)
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('attachRenewal', () => {
+  it('puts the renewal on the license, grants no tier and returns the fresh license', async () => {
+    const payload = fakePayload({
+      licenses: [{ id: 41, tier: 'pro', stack: 'next-netsuite' }],
+      purchases: [],
+    })
+    const license = await attachRenewal(payload, {
+      purchase: { id: 99 },
+      license: { id: 41 },
+    })
+    const written = updatesTo(payload, 'purchases')[0]
+    expect(written).toMatchObject({
+      id: 99,
+      data: { license: 41, kind: 'renewal' },
+    })
+    expect(written.data).not.toHaveProperty('grantsTier')
+    expect(license.id).toBe(41)
+  })
+})
+
+describe('expectedProductIds for a renewal', () => {
+  const proRow = {
+    creemProductId: 'prod_pro',
+    creemRenewalProductId: 'prod_renew',
+    creemRenewalSandboxProductId: 'prod_renew_sb',
+  }
+  it('expects only the renewal product of this world', () => {
+    expect(
+      expectedProductIds({
+        item: proRow,
+        license: null,
+        upgrade: null,
+        renewal: true,
+        env: 'production',
+      })
+    ).toEqual(['prod_renew'])
+    expect(
+      expectedProductIds({
+        item: proRow,
+        license: null,
+        upgrade: null,
+        renewal: true,
+        env: 'sandbox',
+      })
+    ).toEqual(['prod_renew_sb'])
+  })
+  it('never accepts the renewal product for a plain purchase', () => {
+    expect(
+      expectedProductIds({
+        item: proRow,
+        license: null,
+        upgrade: null,
+        env: 'production',
+      })
+    ).toEqual(['prod_pro'])
   })
 })
 
@@ -789,6 +993,20 @@ describe('syncTierAfterChange', () => {
     })
     await done
     expect(payload.find).toHaveBeenCalled()
+  })
+
+  it('recomputes when a row becomes a renewal', async () => {
+    const before = { id: 1, license: 9, status: 'paid', kind: 'sale' }
+    const { payload, done } = run(
+      {
+        doc: { ...before, kind: 'renewal' },
+        previousDoc: before,
+      },
+      fakePayload({ licenses: [{ id: 9 }] })
+    )
+    await done
+    expect(payload.find).toHaveBeenCalled()
+    expect(payload.findByID.mock.calls[0][0].id).toBe(9)
   })
 
   it('reads a license that arrives populated', async () => {

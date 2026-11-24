@@ -12,6 +12,7 @@
 import {
   creemEnvironment,
   creemProductIdFor,
+  creemRenewalProductIdFor,
   creemUpgradeProductIdFor,
 } from './creemEnv'
 import { tryCreateAccessToken } from './accessToken'
@@ -22,6 +23,7 @@ import {
   licenseLimits,
   tierRank,
 } from './license'
+import { computeUpdatesUntil, sameInstant } from './licenseTerm'
 import { seatsUsed } from './seats'
 
 /**
@@ -60,14 +62,21 @@ export function quoteProductIdFor(license, env = creemEnvironment()) {
  * plain purchase. Ids come from the active Creem environment only: in
  * production a sandbox id is not expected, and in the sandbox a live one is
  * not. An upgrade accepts nothing but its own product, and the upgrade
- * products are never accepted for a plain purchase.
+ * products are never accepted for a plain purchase. A renewal accepts only
+ * the renewal product of this world, and a plain purchase never accepts it.
  */
 export function expectedProductIds({
   item,
   license,
   upgrade,
+  renewal = false,
   env = creemEnvironment(),
 }) {
+  if (renewal) {
+    const id = creemRenewalProductIdFor(item, env)
+    return id ? [id] : []
+  }
+
   const quote = quoteProductIdFor(license, env)
 
   if (upgrade === 'enterprise') return quote ? [quote] : []
@@ -90,9 +99,13 @@ const awaitsQuotePayment = (license) =>
   !license?.tier && String(license?.quoteCreemProductId ?? '').trim() !== ''
 
 /**
- * Recompute a license's tier from its paid purchases and store it when it
- * changed. A refunded row stops counting the moment its status changes, so a
- * refund needs no history table. `tierChangedAt` moves only with the tier.
+ * Recompute a license's tier and the end of its updates from its paid
+ * purchases, and store them when they changed. A refunded row stops counting
+ * the moment its status changes, so a refund needs no history table.
+ * `tierChangedAt` moves only with the tier. The end date is the worked-out
+ * one (`updatesComputedUntil`): it is cleared when the tier carries no term,
+ * and left exactly as stored when the tier carries one but no sale is left to
+ * work it out from (an upgrade outliving a refunded sale).
  *
  * `options.req` is a Payload request. A caller already inside a Payload
  * transaction, such as a collection hook, must pass it: every query then
@@ -123,16 +136,31 @@ export async function recomputeTier(payload, licenseId, options = {}) {
     ...req,
   })
   const changed = (license?.tier ?? null) !== tier
-  if (changed) {
+
+  const stored = license?.updatesComputedUntil ?? null
+  const worked = computeUpdatesUntil(rows.docs ?? [], tier)
+  const updatesComputedUntil = worked.keep ? stored : worked.until
+  const dateChanged =
+    updatesComputedUntil === null || stored === null
+      ? updatesComputedUntil !== stored
+      : !sameInstant(updatesComputedUntil, stored)
+
+  if (changed || dateChanged) {
+    const data = {}
+    if (changed) {
+      data.tier = tier
+      data.tierChangedAt = new Date().toISOString()
+    }
+    if (dateChanged) data.updatesComputedUntil = updatesComputedUntil
     await payload.update({
       collection: 'licenses',
       id: licenseId,
       overrideAccess: true,
-      data: { tier, tierChangedAt: new Date().toISOString() },
+      data,
       ...req,
     })
   }
-  return { tier, changed }
+  return { tier, changed, updatesComputedUntil }
 }
 
 /**
@@ -172,7 +200,8 @@ export async function syncTierAfterChange({
       operation === 'create' ||
       moved ||
       doc?.status !== previousDoc?.status ||
-      (doc?.grantsTier ?? null) !== (previousDoc?.grantsTier ?? null)
+      (doc?.grantsTier ?? null) !== (previousDoc?.grantsTier ?? null) ||
+      (doc?.kind ?? null) !== (previousDoc?.kind ?? null)
     if (!changed) return doc
 
     const ids = []
@@ -295,6 +324,30 @@ export async function attachPurchase(
 
   const { tier } = await recomputeTier(payload, license.id)
   return { ...license, tier }
+}
+
+/**
+ * Put a renewal purchase on the license it renews, and work the end date out
+ * again. The row grants no tier and carries no key, so only `license` and
+ * `kind` are written. Returns a fresh read of the license.
+ *
+ * Throws on a database failure; the webhook catches it and answers 500, so
+ * Creem redelivers.
+ */
+export async function attachRenewal(payload, { purchase, license }) {
+  await payload.update({
+    collection: 'purchases',
+    id: purchase.id,
+    overrideAccess: true,
+    data: { license: license.id, kind: 'renewal' },
+  })
+  await recomputeTier(payload, license.id)
+  return payload.findByID({
+    collection: 'licenses',
+    id: license.id,
+    depth: 0,
+    overrideAccess: true,
+  })
 }
 
 /**
