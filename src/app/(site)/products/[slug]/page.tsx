@@ -1,6 +1,6 @@
 import { withProductSocialImage } from '@/lib/social/metadata'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { Container } from '@/components/Container'
 import { TrackView } from '@/components/analytics/TrackView'
 import { RichText } from '@/components/site/RichText'
@@ -53,7 +53,9 @@ export async function generateStaticParams() {
     depth: 0,
     limit: 1000,
   })
-  return docs.map((d) => ({ slug: d.slug as string }))
+  return docs
+    .filter((d) => d.stack !== 'standard')
+    .map((d) => ({ slug: d.slug as string }))
 }
 
 export async function generateMetadata({
@@ -63,7 +65,8 @@ export async function generateMetadata({
 }) {
   const { slug } = await params
   const product = await getProduct(slug)
-  if (!product) return {}
+  // A Standard kit redirects to its presale page, so it describes nothing.
+  if (!product || product.stack === 'standard') return {}
   return withProductSocialImage(
     { title: product.name, description: product.tagline ?? undefined },
     product
@@ -78,6 +81,8 @@ export default async function ProductPage({
   const { slug } = await params
   const product = await getProduct(slug)
   if (!product) notFound()
+  // Standard kits are sold only from the presale page.
+  if (product.stack === 'standard') redirect('/products/standard#founding')
 
   const hero =
     product.heroImage && typeof product.heroImage === 'object'
