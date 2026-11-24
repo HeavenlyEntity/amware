@@ -104,16 +104,16 @@ describe('PricingCompare', () => {
     expect(screen.getAllByText('one time').length).toBeGreaterThan(0)
   })
 
-  it('flips every plan to its other price from the switch, by keyboard', () => {
+  it('flips every plan to its other price from the switch', () => {
     const { container } = setup()
     const control = screen.getByRole('switch', {
       name: 'Show the founding price',
     })
+    // A native button: the browser turns Space and Enter into this click.
+    expect(control.tagName).toBe('BUTTON')
+    expect(control).toHaveAttribute('type', 'button')
     expect(control).toHaveAttribute('aria-checked', 'true')
-    control.focus()
-    expect(control).toHaveFocus()
-    fireEvent.keyDown(control, { key: ' ', code: 'Space' })
-    fireEvent.keyUp(control, { key: ' ', code: 'Space' })
+    fireEvent.click(control)
     expect(control).toHaveAttribute('aria-checked', 'false')
     const prices = live(container)
     expect(prices).toContain('299.00')
@@ -122,13 +122,9 @@ describe('PricingCompare', () => {
     // While off, nothing is struck through.
     expect(container.querySelectorAll('s')).toHaveLength(0)
 
-    fireEvent.keyDown(control, { key: 'Enter', code: 'Enter' })
+    fireEvent.click(control)
     expect(control).toHaveAttribute('aria-checked', 'true')
     expect(live(container)).toContain('149.00')
-
-    // A pointer click flips it too, once.
-    fireEvent.click(control)
-    expect(control).toHaveAttribute('aria-checked', 'false')
   })
 
   it('keeps a plan with no other price steady', () => {
@@ -248,6 +244,43 @@ describe('PricingCompare', () => {
     const parts = container.querySelectorAll('[data-compare-part]')
     expect(parts.length).toBeGreaterThan(0)
     parts.forEach((part) => expect(part.style.opacity).not.toBe('0'))
+  })
+
+  it('tells a screen reader which price is charged', () => {
+    const founding = PRESALE.founding
+    const { on, off } = founding.toggle
+    const prices = {
+      lite: { price: '0.00' },
+      pro: { price: '149.00', altPrice: '299.00' },
+      team: { price: '299.00', altPrice: '599.00' },
+    }
+    const { container } = render(
+      <PricingCompare
+        plans={founding.plans.map((plan) => ({ ...plan, ...prices[plan.id] }))}
+        groups={founding.groups}
+        toggle={founding.toggle}
+        unit={founding.unit}
+        strike
+      />
+    )
+    // The text left once everything hidden from assistive tech is removed.
+    const spoken = (id) => {
+      const block = container
+        .querySelector(`[data-plan-col="${id}"] [data-price]`)
+        .cloneNode(true)
+      block.querySelectorAll('[aria-hidden="true"]').forEach((node) => {
+        node.remove()
+      })
+      return block.textContent.replace(/\s+/g, ' ').trim()
+    }
+
+    expect(spoken('pro')).toBe(`${on}: $149.00${off}: $299.00${founding.unit}`)
+    expect(spoken('lite')).toBe(`$0.00${founding.unit}`)
+
+    fireEvent.click(screen.getByRole('switch'))
+    expect(spoken('pro')).toBe(`${off}: $299.00${founding.unit}`)
+    expect(spoken('lite')).toBe(`$0.00${founding.unit}`)
+    expect(container.querySelector('[data-plan-col="lite"] s')).toBeNull()
   })
 
   it('draws every field of the founding terms', () => {

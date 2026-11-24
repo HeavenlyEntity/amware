@@ -118,34 +118,31 @@ export function PricingCompare({
   const hasAlt = (plan) => plan.altPrice !== undefined && plan.altPrice !== null
   const priceOf = (plan) => (live || !hasAlt(plan) ? plan.price : plan.altPrice)
   const wasOf = (plan) =>
-    strike && live && hasAlt(plan) && plan.altPrice !== plan.price
+    toggle && strike && live && hasAlt(plan) && plan.altPrice !== plan.price
       ? plan.altPrice
       : null
+  /* Which price a figure is, for a screen reader, in the switch's own words.
+     Only a plan with two prices under a switch needs it. */
+  const labelOf = (plan, which) =>
+    toggle && hasAlt(plan) ? toggle[which] : null
 
   const flip = () => setOn((value) => !value)
-
-  /* A real button already flips on Space and Enter; handling the keys here
-     keeps that true wherever the click is not synthesised, and cancelling
-     the default stops the browser's own click from flipping it back. */
-  const onSwitchKeyDown = (event) => {
-    if (event.key === ' ' || event.key === 'Enter') {
-      event.preventDefault()
-      flip()
-    }
-  }
-  const onSwitchKeyUp = (event) => {
-    if (event.key === ' ') event.preventDefault()
-  }
 
   const renderPrice = (plan) => {
     const price = priceOf(plan)
     if (price === undefined || price === null || price === '') return null
     const was = wasOf(plan)
+    const liveLabel = labelOf(plan, live ? 'on' : 'off')
+    const wasLabel = labelOf(plan, live ? 'off' : 'on')
     return (
-      <div className="mt-5 flex flex-wrap items-baseline gap-1">
-        <span className={cn('text-lg font-medium', muted)}>{currency}</span>
-        <span data-price-live="" className="sr-only">
-          {price}
+      <div data-price="" className="mt-5 flex flex-wrap items-baseline gap-1">
+        <span aria-hidden="true" className={cn('text-lg font-medium', muted)}>
+          {currency}
+        </span>
+        <span className="sr-only">
+          {liveLabel ? `${liveLabel}: ` : null}
+          {currency}
+          <span data-price-live="">{price}</span>
         </span>
         <span
           aria-hidden="true"
@@ -172,6 +169,7 @@ export function PricingCompare({
         </span>
         {was !== null ? (
           <s className={cn('ml-1.5 text-base tabular-nums', muted)}>
+            {wasLabel ? <span className="sr-only">{wasLabel}: </span> : null}
             {currency}
             {was}
           </s>
@@ -228,8 +226,6 @@ export function PricingCompare({
             aria-checked={on}
             aria-label={toggle.label || toggle.on}
             onClick={flip}
-            onKeyDown={onSwitchKeyDown}
-            onKeyUp={onSwitchKeyUp}
             className={cn(
               'relative h-7 w-12 cursor-pointer rounded-full transition-colors duration-200',
               focusRing,
