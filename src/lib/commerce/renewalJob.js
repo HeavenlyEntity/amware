@@ -42,7 +42,7 @@ import { recomputeTier } from './licenseRecord'
 import { jsonResponse } from './licenseReport'
 import { restoreLicenseAccess } from './licenseRestore'
 import { planRevocation, revokeLicenseAccess } from './licenseRevoke'
-import { dueAction, termState } from './licenseTerm'
+import { dueAction, isRenewalPrice, termState } from './licenseTerm'
 import { PAID_TIERS } from './repoAccess'
 
 const errorCode = (err) => err?.code ?? err?.name
@@ -85,7 +85,7 @@ function licenseStep({ payload, now, live, counts, kits }) {
     const kit = exactKit(license)
     return {
       kitName: kit?.name || kitName(license.stack) || 'WareKit',
-      price: typeof kit?.renewalPrice === 'number' ? kit.renewalPrice : null,
+      price: isRenewalPrice(kit?.renewalPrice) ? kit.renewalPrice : null,
     }
   }
 

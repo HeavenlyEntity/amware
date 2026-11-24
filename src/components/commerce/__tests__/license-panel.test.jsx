@@ -899,6 +899,46 @@ describe('LicensePanel Enterprise', () => {
       ).toBeInTheDocument()
     })
 
+    it('offers the license page without ?renewed= once the renewal checks run out', () => {
+      renderPanel({
+        term: open,
+        renewed: open.until,
+        attempt: MAX_ATTEMPTS,
+      })
+      const way = screen.getByRole('link', { name: 'open your license page' })
+      expect(way).toHaveAttribute('href', '/access/seats/signed-tok')
+      expect(way.getAttribute('href')).not.toContain('renewed=')
+      expect(
+        screen.getByText(/If you did not finish paying,/)
+      ).toBeInTheDocument()
+      // The slow-webhook way is still there, with the parameter kept.
+      expect(
+        screen.getByRole('link', { name: 'Refresh the page' })
+      ).toHaveAttribute(
+        'href',
+        `/access/seats/signed-tok?renewed=${encodeURIComponent(open.until)}`
+      )
+      expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
+    })
+
+    it('offers no way out while the renewal checks remain', () => {
+      renderPanel({ term: open, renewed: open.until, attempt: 0 })
+      expect(
+        screen.queryByRole('link', { name: 'open your license page' })
+      ).toBeNull()
+    })
+
+    it('offers no license-page link on an upgrade whose checks ran out', () => {
+      panel({ upgraded: 'team', attempt: MAX_ATTEMPTS })
+      expect(
+        screen.getByRole('link', { name: 'Refresh the page' })
+      ).toHaveAttribute('href', '/access/seats/signed-tok?upgraded=team')
+      expect(
+        screen.queryByRole('link', { name: 'open your license page' })
+      ).toBeNull()
+      expect(screen.queryByText(/did not finish paying/)).toBeNull()
+    })
+
     it('never says Renewed on an ended license, whatever ?renewed= holds', () => {
       renderPanel({
         term: { ...open, ended: true },

@@ -7,7 +7,12 @@ import { createCheckoutSession } from './creem'
 import { verifyAccessToken } from './accessToken'
 import { creemEnvironment, creemRenewalProductIdFor } from './creemEnv'
 import { licenseFromClaims } from './licenseRecord'
-import { TERM_TIERS, formatTermDate, termState } from './licenseTerm'
+import {
+  TERM_TIERS,
+  formatTermDate,
+  isRenewalPrice,
+  termState,
+} from './licenseTerm'
 
 /*
  * Paying for 12 more months of updates, from the license page.
@@ -93,8 +98,7 @@ export async function startRenewal(_prevState, formData) {
   const productId = creemRenewalProductIdFor(product, env)
   if (!product) return refuse('no kit row')
   if (!productId) return refuse('no renewal product')
-  if (typeof product.renewalPrice !== 'number')
-    return refuse('no renewal price')
+  if (!isRenewalPrice(product.renewalPrice)) return refuse('no renewal price')
 
   const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
   // Without this secret every webhook is rejected and the payment would go

@@ -13,7 +13,11 @@ import {
   creemRenewalProductIdFor,
   creemUpgradeProductIdFor,
 } from '@/lib/commerce/creemEnv'
-import { nextUntil, termState } from '@/lib/commerce/licenseTerm'
+import {
+  isRenewalPrice,
+  nextUntil,
+  termState,
+} from '@/lib/commerce/licenseTerm'
 import { centsToValue } from '@/lib/analytics/whop'
 import {
   kitName,
@@ -221,7 +225,7 @@ export default async function LicensePage({ params, searchParams }) {
   let term = null
   if (state.until) {
     const price = product?.renewalPrice ?? null
-    const hasPrice = Number.isFinite(price) && price > 0
+    const hasPrice = isRenewalPrice(price)
     const hasProduct = Boolean(
       creemRenewalProductIdFor(product, creemEnvironment())
     )

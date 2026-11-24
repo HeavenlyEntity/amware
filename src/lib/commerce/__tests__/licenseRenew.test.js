@@ -199,6 +199,16 @@ describe('startRenewal', () => {
     expect(createCheckoutSession).not.toHaveBeenCalled()
   })
 
+  it('refuses a kit row whose renewal price is 0, as it does a missing price', async () => {
+    world({ products: [{ ...proRow, renewalPrice: null }] })
+    const missing = await startRenewal(null, form({ token: token() }))
+    world({ products: [{ ...proRow, renewalPrice: 0 }] })
+    const zero = await startRenewal(null, form({ token: token() }))
+    expect(zero.error.message).toBe(missing.error.message)
+    expect(zero.error.message).toContain('Nothing was charged.')
+    expect(createCheckoutSession).not.toHaveBeenCalled()
+  })
+
   it('refuses a link that is not valid', async () => {
     world()
     const result = await startRenewal(null, form({ token: 'nope' }))

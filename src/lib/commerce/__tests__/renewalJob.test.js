@@ -278,6 +278,54 @@ it('never reminds or cuts off a license with no end date', async () => {
   expect(removeFromRepo).not.toHaveBeenCalled()
   expect(sendRenewalReminderEmail).not.toHaveBeenCalled()
 })
+describe('a withdrawn license that became Enterprise', () => {
+  // Tier is worked out from purchases: the Enterprise quote is paid after the
+  // Pro sale, and Enterprise has no date until an override is set.
+  const enterpriseWorld = () => {
+    const p = world({
+      license: {
+        tier: 'enterprise',
+        accessWithdrawnAt: '2027-12-11T06:00:00.000Z',
+        accessWithdrawnFor: UNTIL,
+      },
+    })
+    p.tables.purchases.push({
+      id: 2,
+      license: 41,
+      status: 'paid',
+      grantsTier: 'enterprise',
+      kind: 'quote',
+      createdAt: '2027-12-15T00:00:00.000Z',
+      githubRepo: REPO,
+    })
+    return p
+  }
+  it('gets its access back on a live run', async () => {
+    inviteToRepo.mockResolvedValue({
+      ok: true,
+      state: 'invited',
+      url: 'x',
+      id: 1,
+    })
+    const p = enterpriseWorld()
+    expect(await run(p, '2027-12-20T00:00:00.000Z')).toMatchObject({
+      restored: 1,
+      failed: 0,
+    })
+    expect(inviteToRepo).toHaveBeenCalledTimes(2)
+    expect(license41(p).accessWithdrawnAt).toBeNull()
+    expect(removeFromRepo).not.toHaveBeenCalled()
+  })
+  it('is only counted on a dry run', async () => {
+    const p = enterpriseWorld()
+    expect(await run(p, '2027-12-20T00:00:00.000Z', false)).toMatchObject({
+      restored: 1,
+    })
+    expect(inviteToRepo).not.toHaveBeenCalled()
+    expect(p.update).not.toHaveBeenCalled()
+    expect(license41(p).accessWithdrawnAt).toBe('2027-12-11T06:00:00.000Z')
+  })
+})
 it('gives access back when the date in force moves ahead again', async () => {
   inviteToRepo.mockResolvedValue({
     ok: true,
@@ -371,6 +419,13 @@ it('sends the ended notice with no price when the kit row has none', async () =>
 })
 it('still sends the reminder, with no price, when the kit row has none', async () => {
   const p = world({ kitRow: { renewalPrice: null } })
+  await run(p, '2027-11-10T16:00:00.000Z')
+  expect(sendRenewalReminderEmail).toHaveBeenCalledWith(
+    expect.objectContaining({ price: null })
+  )
+})
+it('sends the reminder with no price when the kit row says 0', async () => {
+  const p = world({ kitRow: { renewalPrice: 0 } })
   await run(p, '2027-11-10T16:00:00.000Z')
   expect(sendRenewalReminderEmail).toHaveBeenCalledWith(
     expect.objectContaining({ price: null })

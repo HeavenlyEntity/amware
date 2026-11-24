@@ -190,11 +190,12 @@ function EnterpriseQuote({ token, license, name }) {
 
 /* Said while a payment is on its way and again once the checks run out, so a
    buyer who has just paid is never invited to pay a second time. `what` is
-   the payment, and `keep` is the URL parameter that names it, kept through
-   every re-check. */
-function Confirming({ token, what, keep, attempt }) {
+   the payment, and `param` and `value` are the URL parameter that names it,
+   kept through every re-check. Once the checks run out a renewal also offers
+   the license page without that parameter: a payment that never completed
+   would otherwise leave the owner on this state with no Renew button. */
+function Confirming({ token, what, param, value, attempt }) {
   const checking = attempt < MAX_ATTEMPTS
-  const [param, value] = Object.entries(keep)[0]
   return (
     <div>
       <p
@@ -213,7 +214,7 @@ function Confirming({ token, what, keep, attempt }) {
           <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
             This checks again automatically every few seconds.
           </p>
-          <PendingRefresh attempt={attempt} keepParams={keep} />
+          <PendingRefresh attempt={attempt} keepParams={{ [param]: value }} />
         </>
       ) : (
         <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
@@ -231,6 +232,17 @@ function Confirming({ token, what, keep, attempt }) {
             get in touch
           </Link>{' '}
           and I will sort it by hand.
+          {what === 'renewal' && (
+            <>
+              {' '}
+              {/* TODO(alec): confirm this wording. */}
+              If you did not finish paying,{' '}
+              <Link href={`/access/seats/${token}`} className={linkClass}>
+                open your license page
+              </Link>{' '}
+              to renew.
+            </>
+          )}
         </p>
       )}
     </div>
@@ -262,8 +274,9 @@ function GetInTouchToRenew() {
 function TermNotice({ token, license, name, term, renewed, attempt }) {
   const until = formatTermDate(term.until)
   const nextUntil = formatTermDate(term.nextUntil)
-  /* A price of zero or less is no price: nothing is shown or sold for it. */
-  const price = term.price > 0 ? priceLabel(term.price) : null
+  /* Only a real renewal price (`isRenewalPrice`, which `priceLabel` applies)
+     is shown or sold: zero, negative or not a number is no price. */
+  const price = priceLabel(term.price)
   const canRenew = term.canRenew && Boolean(price)
   /* `renewed` comes from the URL, and the checkout's return link is bookmarked
      and reopened later. A real renewal moves the end at least 12 months out, so
@@ -282,7 +295,8 @@ function TermNotice({ token, license, name, term, renewed, attempt }) {
         <Confirming
           token={token}
           what="renewal"
-          keep={{ renewed }}
+          param="renewed"
+          value={renewed}
           attempt={attempt}
         />
       </section>
@@ -409,7 +423,8 @@ export function LicensePanel({
             <Confirming
               token={token}
               what="upgrade"
-              keep={{ upgraded: returned.target }}
+              param="upgraded"
+              value={returned.target}
               attempt={attempt}
             />
           </div>
@@ -455,7 +470,8 @@ export function LicensePanel({
       <Confirming
         token={token}
         what="upgrade"
-        keep={{ upgraded: returned.target }}
+        param="upgraded"
+        value={returned.target}
         attempt={attempt}
       />
     )

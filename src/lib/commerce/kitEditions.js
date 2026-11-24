@@ -14,6 +14,7 @@ import {
   updatesTerm,
 } from '../../content/site/warekit'
 import { checkoutRoute } from './checkoutRoute'
+import { isRenewalPrice } from './licenseTerm'
 
 /*
  * What the NetSuite storefront may say about each kit.
@@ -50,10 +51,7 @@ export const accountsLabel = (n) => plural(n, 'NetSuite account')
 const money = (price) =>
   typeof price === 'number' ? `$${price.toFixed(2)}` : ''
 /* A renewal price counts only as a finite number above zero. */
-const renewal = (price) =>
-  typeof price === 'number' && Number.isFinite(price) && price > 0
-    ? price
-    : null
+const renewal = (price) => (isRenewalPrice(price) ? price : null)
 const productHref = (states, id) => `/products/${states[id].slug}`
 
 function plannedEditions() {

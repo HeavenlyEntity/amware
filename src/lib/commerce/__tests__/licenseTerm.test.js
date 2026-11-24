@@ -10,6 +10,7 @@ import {
   dateInForce,
   dueAction,
   formatTermDate,
+  isRenewalPrice,
   nextUntil,
   priceLabel,
   renewalReturn,
@@ -311,6 +312,15 @@ describe('dueAction', () => {
       dueAction(pro({ tier: null }), at('2030-01-01T00:00:00.000Z'))
     ).toBeNull()
   })
+  it('restores a withdrawn Enterprise license that has no date in force', () => {
+    const now = at('2028-01-05T00:00:00.000Z')
+    const withdrawn = { accessWithdrawnAt: '2027-12-11T06:00:00.000Z' }
+    expect(dueAction({ tier: 'enterprise', ...withdrawn }, now)).toBe('restore')
+    expect(dueAction({ tier: null, ...withdrawn }, now)).toBeNull()
+    expect(dueAction({ tier: 'lite', ...withdrawn }, now)).toBeNull()
+    expect(dueAction({ tier: 'enterprise' }, now)).toBeNull()
+    expect(dueAction(pro({ updatesComputedUntil: null }), now)).toBeNull()
+  })
 })
 
 describe('renewalReturn', () => {
@@ -340,5 +350,26 @@ describe('formatting', () => {
     expect(priceLabel(199)).toBe('$199.00')
     expect(priceLabel(null)).toBeNull()
     expect(priceLabel('199')).toBeNull()
+  })
+  it('labels no price that is zero, negative or not a number', () => {
+    expect(priceLabel(0)).toBeNull()
+    expect(priceLabel(-5)).toBeNull()
+    expect(priceLabel(NaN)).toBeNull()
+    expect(priceLabel(Infinity)).toBeNull()
+    expect(priceLabel(199.5)).toBe('$199.50')
+  })
+})
+
+describe('isRenewalPrice', () => {
+  it('is true only for a finite number greater than 0', () => {
+    expect(isRenewalPrice(199)).toBe(true)
+    expect(isRenewalPrice(0.5)).toBe(true)
+    expect(isRenewalPrice(0)).toBe(false)
+    expect(isRenewalPrice(-5)).toBe(false)
+    expect(isRenewalPrice(NaN)).toBe(false)
+    expect(isRenewalPrice(Infinity)).toBe(false)
+    expect(isRenewalPrice('199')).toBe(false)
+    expect(isRenewalPrice(null)).toBe(false)
+    expect(isRenewalPrice(undefined)).toBe(false)
   })
 })

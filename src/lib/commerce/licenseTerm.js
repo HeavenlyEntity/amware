@@ -137,7 +137,14 @@ export function termState(license, now) {
  */
 export function dueAction(license, now) {
   const { until, ended } = termState(license, now)
-  if (!until) return null
+  /* No date in force (an Enterprise license with no override): a license
+     whose access was withdrawn has it given back; any other does nothing. */
+  if (!until) {
+    return license?.accessWithdrawnAt &&
+      TIERS_WITH_A_TERM.includes(license.tier)
+      ? 'restore'
+      : null
+  }
 
   if (ended) {
     if (!license.accessWithdrawnAt) return 'withdraw'
@@ -180,9 +187,12 @@ export function formatTermDate(value) {
   return date ? termDateFormat.format(date) : ''
 }
 
-/** `$199.00`; null when the price is not a finite number. */
+/** Whether a value is a real price: a finite number greater than 0. */
+export function isRenewalPrice(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+/** `$199.00`; null unless the price is a finite number greater than 0. */
 export function priceLabel(price) {
-  return typeof price === 'number' && Number.isFinite(price)
-    ? `$${price.toFixed(2)}`
-    : null
+  return isRenewalPrice(price) ? `$${price.toFixed(2)}` : null
 }
