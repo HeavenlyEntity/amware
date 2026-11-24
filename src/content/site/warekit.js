@@ -373,8 +373,6 @@ export const SETUP_STEPS = [
   },
 ]
 
-export const STANDARD_STACK = ['Supabase', 'Drizzle', 'Prisma', 'Manifest']
-
 /* The Standard edition's data layers, in picker order. */
 export const STACKS = [
   {

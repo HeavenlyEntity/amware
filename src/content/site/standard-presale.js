@@ -342,6 +342,7 @@ export const PRESALE = {
     cta: {
       pro: 'Get founding Pro',
       team: 'Get founding Team',
+      // Unused: Lite's button opens the waitlist, so it says `waitlist`.
       lite: 'Notify me at v1.0',
       waitlist: 'Join the waitlist',
     },

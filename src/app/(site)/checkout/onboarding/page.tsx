@@ -306,11 +306,10 @@ export default async function OnboardingPage({
           </>
         ) : (
           <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-            If your bank or card step did not finish, nothing was taken.{' '}
-            <Link href="/pricing" className={linkClass}>
-              Try again
-            </Link>{' '}
-            from the pricing page,{' '}
+            {/* No link: the page cannot know which kit this was, and
+                /pricing does not sell every kit. */}
+            If your bank or card step did not finish, nothing was taken. Try
+            again from the page you bought from,{' '}
             <Link href={manualHref} className={linkClass}>
               refresh the page
             </Link>{' '}

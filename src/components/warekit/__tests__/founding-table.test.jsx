@@ -150,17 +150,22 @@ describe('FoundingTable', () => {
       view.unmount()
     }
 
-    /* While the waitlist is on the page, Lite points at it. */
-    render(<FoundingTable presale={closed} />)
-    expect(
-      within(column('lite')).getByRole('link', { name: cta.lite })
-    ).toHaveAttribute('href', '#st-join')
+    /* While the waitlist is on the page, Lite points at it, and says so:
+       the form it lands on sends one email when the presale opens. */
+    for (const presale of [closed, presaleOf(ready('pro', 149), planned)]) {
+      const view = render(<FoundingTable presale={presale} />)
+      expect(
+        within(column('lite')).getByRole('link', { name: cta.waitlist })
+      ).toHaveAttribute('href', '#st-join')
+      expect(
+        within(column('lite')).queryByText(cta.lite)
+      ).not.toBeInTheDocument()
+      view.unmount()
+    }
   })
 
   it('sends Lite nowhere once both tiers are on sale and the waitlist is gone', () => {
     render(<FoundingTable presale={both} />)
-    expect(
-      within(column('lite')).queryByRole('link', { name: cta.lite })
-    ).not.toBeInTheDocument()
+    expect(within(column('lite')).queryByRole('link')).not.toBeInTheDocument()
   })
 })

@@ -112,7 +112,7 @@ const TOPICS = {
   enterprise: {
     eyebrow: 'ENTERPRISE',
     title: 'Talk about Enterprise',
-    lead: 'Tell me what you need beyond Team’s developers and NetSuite accounts. Your kit and tier are already in the subject.',
+    lead: 'Tell me what you need beyond what Team covers. Your kit and tier are already in the subject.',
     subject: 'WareKit Enterprise',
     message: undefined,
     ack: null,

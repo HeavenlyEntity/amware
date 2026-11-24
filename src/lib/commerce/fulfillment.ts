@@ -62,8 +62,12 @@ export async function sendLicenseLinkEmail(args: {
   /** `upgrade` is a buyer who came from "Already on Pro? Pay only the
       difference", so the mail says what the link is for. */
   reason: 'link' | 'upgrade'
+  /** False for a kit whose license has no key (`tracksAccounts` in
+      license.js), so the mail does not mention one. Defaults to true. */
+  usesKey?: boolean
 }): Promise<void> {
   const SITE = site()
+  const usesKey = args.usesKey ?? true
   const lapse = `This link is personal to you and expires in 30 days. If it has lapsed, open it and I will email a new one${
     SITE ? `, or ask for one at ${SITE}/access/resend` : ''
   }.`
@@ -75,8 +79,14 @@ export async function sendLicenseLinkEmail(args: {
       ? `Upgrade your ${args.itemName} license`
       : `Your ${args.itemName} license page`,
     text: upgrade
-      ? `Here is your license page for ${args.itemName}. Open it to upgrade.\n\nOn Pro, you pay only the difference for Team, and your code, repo and key stay the same.\n\n${args.url}\n\n${lapse}\n\n— Alec`
-      : `Here is your license page for ${args.itemName}, for your key, your developers and upgrades.\n\n${args.url}\n\n${lapse}\n\n— Alec`,
+      ? `Here is your license page for ${
+          args.itemName
+        }. Open it to upgrade.\n\nOn Pro, you pay only the difference for Team, and your ${
+          usesKey ? 'code, repo and key stay' : 'code and repo stay'
+        } the same.\n\n${args.url}\n\n${lapse}\n\n— Alec`
+      : `Here is your license page for ${args.itemName}, for ${
+          usesKey ? 'your key, ' : ''
+        }your developers and upgrades.\n\n${args.url}\n\n${lapse}\n\n— Alec`,
   })
 }
 
@@ -167,7 +177,12 @@ export async function sendBoilerplateConfirmationEmail(args: {
   /** Path to the Pro product page, passed only by a Lite claim while Pro is
       on sale. It adds the one line on what Pro adds. */
   proPath?: string | null
+  /** False for a kit whose license has no key (`tracksAccounts` in
+      license.js), so the license page line does not mention one. Defaults
+      to true. */
+  usesKey?: boolean
 }): Promise<void> {
+  const usesKey = args.usesKey ?? true
   const target = args.githubUsername
     ? `@${args.githubUsername}`
     : 'the GitHub account you gave at checkout'
@@ -226,7 +241,7 @@ GitHub sends its own email when the invitation goes out, and it does sometimes l
   if (args.seatsUrl) {
     body += `
 
-Your license page, for your key, your team and upgrades:
+Your license page, for ${usesKey ? 'your key, ' : ''}your team and upgrades:
 ${args.seatsUrl}
 
 Keep that link — it is how you get back to your license, and it does not need an account.`

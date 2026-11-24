@@ -478,10 +478,14 @@ describe('Onboarding page while no row has arrived, which could be either outcom
     expect(text).not.toMatch(/on its way/i)
     expect(text).not.toMatch(/email|receipt/i)
     expect(text).not.toMatch(/did not go through|nothing was charged/i)
-    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
-      'href',
-      '/pricing'
+    /* The page cannot know which kit this was, and /pricing does not sell
+       every kit, so the sentence names no page and links to none. */
+    expect(text).toContain(
+      'Try again from the page you bought from, refresh the page to check once more, or get in touch and I will sort it by hand.'
     )
+    expect(text).not.toMatch(/pricing page/i)
+    expect(screen.queryByRole('link', { name: /try again/i })).toBeNull()
+    expect(container.querySelector('a[href="/pricing"]')).toBeNull()
     expect(
       screen.getByRole('link', { name: /refresh the page/i })
     ).toHaveAttribute('href', `/checkout/onboarding?ref=${REF}`)

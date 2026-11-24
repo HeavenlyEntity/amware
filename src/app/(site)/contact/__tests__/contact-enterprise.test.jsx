@@ -70,6 +70,17 @@ describe('the Enterprise contact page', () => {
     }
   })
 
+  it('never says NetSuite to a Standard Team holder', async () => {
+    await renderPage({ kit: 'standard', tier: 'team' })
+    expect(document.body.textContent).not.toMatch(/netsuite/i)
+    expect(subjectBox().value).not.toMatch(/netsuite/i)
+    expect(
+      screen.getByText(
+        'Tell me what you need beyond what Team covers. Your kit and tier are already in the subject.'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('stays out of search', () => {
     expect(metadata.robots).toEqual({ index: false })
   })

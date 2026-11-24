@@ -83,10 +83,12 @@ export function FoundingTable({ presale }) {
   const waitlist = needsWaitlist(presale)
 
   const renderAction = (plan) => {
+    /* Lite opens the same waitlist form as an unsold tier, which promises
+       one email when the presale opens, so it carries the same label. */
     if (plan.id === 'lite') {
       return waitlist ? (
         <a href="#st-join" className="amw-cta st-plan-link">
-          {founding.cta.lite}
+          {founding.cta.waitlist}
         </a>
       ) : null
     }

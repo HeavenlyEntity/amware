@@ -509,3 +509,106 @@ describe('over-limit email', () => {
     await expect(sendOverLimitEmail(args)).rejects.toThrow(/refused/)
   })
 })
+
+/* A Standard licence has no key and no NetSuite accounts. The NetSuite
+   bodies are pinned to the exact text sent before `usesKey` existed, so the
+   flag's default can never change what a NetSuite buyer reads. */
+describe('the emails a kit without a key sends', () => {
+  const SEATS = 'https://example.com/access/seats/tok'
+  const LICENSE = 'https://example.com/access/seats/lic'
+  const LAPSE =
+    'This link is personal to you and expires in 30 days. If it has lapsed, open it and I will email a new one, or ask for one at https://example.com/access/resend.'
+  const confirmation = {
+    to: 'buyer@example.com',
+    itemName: 'WareKit Pro',
+    githubUsername: 'octocat',
+    repo: 'amwaredotdev/warekit',
+    inviteUrl: 'https://github.com/amwaredotdev/warekit/invitations',
+    seatsUrl: SEATS,
+  }
+
+  it('sends the NetSuite purchase confirmation exactly as before', async () => {
+    await sendBoilerplateConfirmationEmail(confirmation)
+    expect(body()).toBe(`Thanks for buying WareKit Pro.
+
+A GitHub invitation for amwaredotdev/warekit is waiting for @octocat. Accept it here:
+https://github.com/amwaredotdev/warekit/invitations
+
+GitHub also emails you the invitation, and that one does sometimes land in spam. Invitations do lapse if they sit unaccepted — if yours has, reply to this email and I will send another.
+
+If @octocat is not the right account, reply to this email and I will fix it.
+
+— Alec
+
+Your license page, for your key, your team and upgrades:
+${SEATS}
+
+Keep that link — it is how you get back to your license, and it does not need an account.`)
+  })
+
+  it('sends the same confirmation when usesKey is true', async () => {
+    await sendBoilerplateConfirmationEmail(confirmation)
+    const before = body()
+    await sendBoilerplateConfirmationEmail({ ...confirmation, usesKey: true })
+    expect(body()).toBe(before)
+  })
+
+  it('drops the key, and only the key, from a Standard confirmation', async () => {
+    await sendBoilerplateConfirmationEmail({
+      ...confirmation,
+      itemName: 'WareKit Standard Pro',
+      usesKey: false,
+    })
+    const text = body()
+    expect(text).not.toMatch(/\bkey\b/i)
+    expect(text).not.toMatch(/netsuite/i)
+    expect(text).toContain(
+      `Your license page, for your team and upgrades:\n${SEATS}`
+    )
+  })
+
+  it('sends the NetSuite license link email exactly as before', async () => {
+    await sendLicenseLinkEmail({
+      to: 'owner@example.com',
+      itemName: 'WareKit',
+      url: LICENSE,
+      reason: 'link',
+    })
+    expect(body()).toBe(
+      `Here is your license page for WareKit, for your key, your developers and upgrades.\n\n${LICENSE}\n\n${LAPSE}\n\n— Alec`
+    )
+  })
+
+  it('sends the NetSuite upgrade email exactly as before', async () => {
+    await sendLicenseLinkEmail({
+      to: 'owner@example.com',
+      itemName: 'WareKit',
+      url: LICENSE,
+      reason: 'upgrade',
+    })
+    expect(body()).toBe(
+      `Here is your license page for WareKit. Open it to upgrade.\n\nOn Pro, you pay only the difference for Team, and your code, repo and key stay the same.\n\n${LICENSE}\n\n${LAPSE}\n\n— Alec`
+    )
+  })
+
+  it.each(['link', 'upgrade'])(
+    'drops the key, and only the key, from a Standard %s email',
+    async (reason) => {
+      await sendLicenseLinkEmail({
+        to: 'owner@example.com',
+        itemName: 'WareKit Standard Pro',
+        url: LICENSE,
+        reason,
+        usesKey: false,
+      })
+      const text = body()
+      expect(text).not.toMatch(/\bkey\b/i)
+      expect(text).not.toMatch(/netsuite/i)
+      expect(text).toContain(
+        reason === 'upgrade'
+          ? 'On Pro, you pay only the difference for Team, and your code and repo stay the same.'
+          : 'Here is your license page for WareKit Standard Pro, for your developers and upgrades.'
+      )
+    }
+  )
+})
