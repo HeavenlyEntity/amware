@@ -152,7 +152,7 @@ export default async function ServicesPage() {
     <div className="amw svc">
       {/* Built from the same Payload rows as the cards below; the schema
           leaves every figure out itself. */}
-      <JsonLd data={servicesSchema(docs)} />
+      <JsonLd data={servicesSchema([...consulting, ...technical])} />
       <JsonLd data={faqSchema(faqs)} />
       <TrackView type="services" id="services" name="Services" />
       <DeskMotionSync />

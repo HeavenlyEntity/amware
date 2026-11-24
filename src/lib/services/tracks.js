@@ -2,6 +2,8 @@
    under each. The value is stored on the Service (Payload `category`); the
    label is only ever displayed, so it can change without a migration. */
 
+import { DIAGNOSTIC_SLUG } from './deposit-terms'
+
 export const SERVICE_TRACKS = [
   { id: 'consulting', label: 'Consulting', hash: 'consulting' },
   { id: 'technical', label: 'Build & support', hash: 'build-support' },
@@ -16,9 +18,14 @@ export function trackOf(doc) {
   return KNOWN.has(doc?.category) ? doc.category : 'consulting'
 }
 
+/* The Codebase Diagnostic has a services row only so its deposit can be
+   taken on its own unlisted page; it is not an engagement card. */
 export function groupServices(docs = []) {
   const groups = { consulting: [], technical: [] }
-  for (const doc of docs) groups[trackOf(doc)].push(doc)
+  for (const doc of docs) {
+    if (doc?.slug === DIAGNOSTIC_SLUG) continue
+    groups[trackOf(doc)].push(doc)
+  }
   return groups
 }
 
