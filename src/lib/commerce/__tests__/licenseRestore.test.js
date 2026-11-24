@@ -118,3 +118,71 @@ it('never throws and never logs a username', async () => {
     JSON.stringify([error, warn, info].flatMap((s) => s.mock.calls))
   ).not.toMatch(/buyer|teammate/i)
 })
+
+it('does not end as restored when a refused seat could not be flagged', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const payload = fakePayload()
+  payload.update.mockImplementation(async ({ data }) => {
+    if (data.needsReview) throw new Error('db blip')
+    return data
+  })
+  inviteToRepo.mockResolvedValueOnce({ ok: false, reason: 'rejected' })
+  expect(await restoreLicenseAccess(payload, withdrawn())).toMatchObject({
+    state: 'retry',
+  })
+  expect(cleared(payload)).toBe(false)
+})
+it('carries on past an unreachable answer, then asks for a retry', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+  inviteToRepo.mockResolvedValueOnce({ ok: false, reason: 'unreachable' })
+  const payload = fakePayload()
+  const seats = ['a', 'b', 'c'].map((githubUsername) => ({ githubUsername }))
+  expect(
+    await restoreLicenseAccess(payload, withdrawn({ seatMembers: seats }))
+  ).toMatchObject({ state: 'retry', invited: 2, failed: 1 })
+  expect(inviteToRepo).toHaveBeenCalledTimes(3)
+  expect(cleared(payload)).toBe(false)
+})
+it.each(['rate-limited', 'not-configured'])(
+  'stops at %s and asks for a retry',
+  async (reason) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    inviteToRepo.mockResolvedValue({ ok: false, reason })
+    const payload = fakePayload()
+    expect(await restoreLicenseAccess(payload, withdrawn())).toMatchObject({
+      state: 'retry',
+    })
+    expect(inviteToRepo).toHaveBeenCalledTimes(1)
+    expect(cleared(payload)).toBe(false)
+  }
+)
+it('asks for a retry, inviting no one, when no repository is found', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const payload = fakePayload()
+  payload.find.mockResolvedValue({ docs: [] })
+  expect(await restoreLicenseAccess(payload, withdrawn())).toMatchObject({
+    state: 'retry',
+  })
+  expect(inviteToRepo).not.toHaveBeenCalled()
+  expect(cleared(payload)).toBe(false)
+})
+it('asks for a retry when the withdrawn marks cannot be cleared', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const payload = fakePayload()
+  payload.update.mockRejectedValue(new Error('db down'))
+  expect(await restoreLicenseAccess(payload, withdrawn())).toMatchObject({
+    state: 'retry',
+    invited: 2,
+  })
+})
+it('clears the marks of a license with no developers without any lookup', async () => {
+  const payload = fakePayload()
+  expect(
+    await restoreLicenseAccess(payload, withdrawn({ seatMembers: [] }))
+  ).toMatchObject({ state: 'restored', invited: 0 })
+  expect(payload.find).not.toHaveBeenCalled()
+  expect(inviteToRepo).not.toHaveBeenCalled()
+  expect(cleared(payload)).toBe(true)
+})

@@ -42,8 +42,10 @@ async function flagForReview(payload, license) {
       overrideAccess: true,
       data: { needsReview: true },
     })
+    return true
   } catch (err) {
     console.error('Could not flag a license for review', license.id, err?.code)
+    return false
   }
 }
 
@@ -73,7 +75,7 @@ export async function restoreLicenseAccess(payload, license) {
     if (names.size) {
       try {
         repo = await licenseRepo(payload, license)
-      } catch (err) {
+      } catch {
         console.error('Restore could not read the repository', license.id)
       }
       if (!repo) {
@@ -106,15 +108,21 @@ export async function restoreLicenseAccess(payload, license) {
         reason: result.reason,
       })
       if (RETRY_REASONS.includes(result.reason)) {
-        /* GitHub cannot be asked right now; asking again for the rest of the
-           seats would only repeat the failure. */
         retry = true
-        break
+        /* These two hold for every seat, so asking again would only repeat
+           the failure. `unreachable` may be one seat's odd answer, so the
+           other seats still get their turn. */
+        if (result.reason !== 'unreachable') break
+        continue
       }
       needsReview = true
     }
 
-    if (needsReview) await flagForReview(payload, license)
+    /* A refusal nobody was told about must not end the daily job's interest:
+       if the flag did not land, keep the marks so the next run asks again. */
+    if (needsReview && !(await flagForReview(payload, license))) {
+      return done('retry')
+    }
     if (retry) {
       console.warn('Restore waiting: GitHub could not be reached', {
         license: license.id,
