@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "schedules": {
+    "warekit-renewals": {
+      "schedule": "0 6 * * *",
+      "path": "/licenses/renewals",
+      "requestMethod": "GET"
+    }
+  }
+}
