@@ -62,6 +62,7 @@ function EditionCard({ edition, view, index, onNotify }) {
           <div>
             <span className="pr-price">{view.price}</span>
             <span className="pr-price-sub">{view.priceSub}</span>
+            {view.term && <span className="pr-price-sub">{view.term}</span>}
           </div>
           {view.href ? (
             <Link href={view.href} className="pr-cta" data-tone={view.tone}>

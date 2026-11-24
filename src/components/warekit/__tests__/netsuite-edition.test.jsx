@@ -18,6 +18,7 @@ vi.mock('@/components/commerce/EmailCapture', () => ({
   ),
 }))
 
+import { editionStates } from '../../../lib/commerce/kitEditions'
 import { NetsuiteEdition } from '../netsuite-edition'
 
 const nextPro = {
@@ -308,6 +309,29 @@ const nextTeam = {
 }
 const cardOf = (name) =>
   screen.getAllByRole('article').find((card) => card.textContent.includes(name))
+
+describe('the update term', () => {
+  it('shows the update term under a paid edition', () => {
+    mount(
+      editionStates([
+        {
+          slug: 'warekit-next-netsuite-pro',
+          stack: 'next-netsuite',
+          tier: 'pro',
+          type: 'boilerplate',
+          price: 499,
+          renewalPrice: 199,
+          seats: 1,
+          status: 'published',
+          creemProductId: 'prod_1',
+        },
+      ])
+    )
+    expect(
+      screen.getByText('Updates: 12 months, then $199.00 a year')
+    ).toBeInTheDocument()
+  })
+})
 
 describe('developers and accounts', () => {
   it('prices each card with developers and accounts', () => {

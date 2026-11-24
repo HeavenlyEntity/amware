@@ -106,6 +106,7 @@ describe('editionStates', () => {
       price: 999,
       seats: 5,
       netsuiteAccounts: 3,
+      renewalPrice: null,
       slug: 'renamed-team',
     })
   })
@@ -128,7 +129,14 @@ describe('editionStates', () => {
       Object.keys(
         editionStates([{ ...pro, githubRepo: 'a/b' }])['next-pro']
       ).sort()
-    ).toEqual(['netsuiteAccounts', 'price', 'seats', 'slug', 'state'])
+    ).toEqual([
+      'netsuiteAccounts',
+      'price',
+      'renewalPrice',
+      'seats',
+      'slug',
+      'state',
+    ])
   })
 
   it('carries nothing from a draft row', () => {
@@ -138,6 +146,7 @@ describe('editionStates', () => {
       price: null,
       seats: 1,
       netsuiteAccounts: 1,
+      renewalPrice: null,
       slug: 'warekit-next-netsuite-pro',
     })
   })
@@ -899,5 +908,58 @@ describe('the copy describes the kits by their modules', () => {
       'The modules a NetSuite product needs, already built.'
     )
     expect(pro.recLabel).toBe('Pro modules included')
+  })
+})
+
+describe('the update term', () => {
+  const row = (table, label) => table.rows.find((r) => r.label === label)
+  it('shows 12 months and the renewal price for a paid edition on sale', () => {
+    const states = editionStates([
+      { ...pro, renewalPrice: 199 },
+      { ...team, renewalPrice: 399 },
+    ])
+    expect(
+      row(compareTable('connected', states), 'Updates').cells.map(
+        (c) => c.value
+      )
+    ).toEqual([
+      'No end date',
+      '12 months, then $199.00 a year',
+      '12 months, then $399.00 a year',
+    ])
+    expect(editionView(EDITIONS.connected[1], states).term).toBe(
+      'Updates: 12 months, then $199.00 a year'
+    )
+  })
+  it('names no price for a planned edition or a row without one', () => {
+    expect(
+      row(compareTable('inside', {}), 'Updates').cells.map((c) => c.value)
+    ).toEqual(['No end date', '12 months', '12 months'])
+    expect(editionView(EDITIONS.connected[1], editionStates([pro])).term).toBe(
+      'Updates: 12 months'
+    )
+  })
+  it('names no price for a draft row, or one that is not a positive number', () => {
+    const draft = editionStates([
+      { ...pro, status: 'draft', renewalPrice: 199 },
+    ])
+    expect(draft['next-pro'].renewalPrice).toBeNull()
+    for (const bad of [0, -5, NaN, Infinity, '199', undefined]) {
+      expect(
+        editionView(
+          EDITIONS.connected[1],
+          editionStates([{ ...pro, renewalPrice: bad }])
+        ).term
+      ).toBe('Updates: 12 months')
+    }
+  })
+  it('says nothing about a term on a Lite card', () => {
+    expect(editionView(EDITIONS.connected[0], {}).term).toBeNull()
+  })
+  it('puts Updates just before Price in both families', () => {
+    for (const family of ['inside', 'connected']) {
+      const labels = compareTable(family, {}).rows.map((r) => r.label)
+      expect(labels.indexOf('Updates')).toBe(labels.indexOf('Price') - 1)
+    }
   })
 })

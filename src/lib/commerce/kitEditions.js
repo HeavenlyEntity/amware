@@ -10,6 +10,8 @@ import {
   SETUP_INTROS,
   SETUP_STEPS,
   START_WITH_PRO,
+  UPDATES_NO_END,
+  updatesTerm,
 } from '../../content/site/warekit'
 import { checkoutRoute } from './checkoutRoute'
 
@@ -47,6 +49,11 @@ export const developersLabel = (n) => plural(n, 'developer')
 export const accountsLabel = (n) => plural(n, 'NetSuite account')
 const money = (price) =>
   typeof price === 'number' ? `$${price.toFixed(2)}` : ''
+/* A renewal price counts only as a finite number above zero. */
+const renewal = (price) =>
+  typeof price === 'number' && Number.isFinite(price) && price > 0
+    ? price
+    : null
 const productHref = (states, id) => `/products/${states[id].slug}`
 
 function plannedEditions() {
@@ -56,6 +63,7 @@ function plannedEditions() {
       editions[`${name}-${tier}`] = {
         state: 'planned',
         price: null,
+        renewalPrice: null,
         seats,
         netsuiteAccounts: TIER_ACCOUNTS[tier],
         slug: `warekit-${stack}-${tier}`,
@@ -90,6 +98,7 @@ export function editionStates(rows) {
     editions[id] = {
       state,
       price: row.price ?? null,
+      renewalPrice: renewal(row.renewalPrice),
       ...kitLimits(row, editions[id].seats),
       slug: row.slug,
     }
@@ -132,6 +141,14 @@ function limitsLine(id, states) {
   ].join(' · ')
 }
 
+/* The term, with the renewal price named only while the edition is on sale
+   and its row has one. */
+function updatesCell(id, states) {
+  const price =
+    stateOf(states, id) === 'ready' ? renewal(states[id].renewalPrice) : null
+  return updatesTerm(price === null ? '' : money(price))
+}
+
 export function editionView(edition, states) {
   const state = stateOf(states, edition.id)
   const planned = state === 'planned'
@@ -154,6 +171,11 @@ export function editionView(edition, states) {
       planned: 'Planned',
     }[state],
     priceSub: state === 'ready' ? `One-time · ${limits}` : limits,
+    // TODO(alec): confirm this wording.
+    term:
+      tierOf(edition.id) === 'lite'
+        ? null
+        : `Updates: ${updatesCell(edition.id, states)}`,
     tier: tierOf(edition.id),
     paid: state === 'ready',
     cta: planned ? 'Get notified' : edition.cta,
@@ -178,6 +200,9 @@ function liveCell(kind, id, states) {
   if (kind === 'developers') return String(limitsOf(states, id).seats)
   if (kind === 'accounts') {
     return String(limitsOf(states, id).netsuiteAccounts ?? 'Not tracked')
+  }
+  if (kind === 'updates') {
+    return tierOf(id) === 'lite' ? UPDATES_NO_END : updatesCell(id, states)
   }
   const state = stateOf(states, id)
   if (kind === 'status') return STATUS_LABELS[state]

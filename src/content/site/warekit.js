@@ -168,6 +168,7 @@ export const START_WITH_PRO =
   'Start with Pro. Move to Team later and pay only the difference.'
 export const NEVER_CHECKS =
   'Your app never checks a license. Nothing stops working if you go over a limit.'
+/* TODO(alec): this note is about the first purchase. Say whether a renewal can be refunded, and on what terms. */
 export const REFUND_NOTE =
   "Full refund within 14 days if you haven't accepted the GitHub invite."
 export const UPGRADE_NOTE = 'Already on Pro? Pay only the difference.'
@@ -284,6 +285,20 @@ export const QUESTIONS = [
    the board doesn't carry. Confirm it against the licence text. */
 export const ACCOUNTS_NOTE =
   "Yours or a client's. Sandboxes and Release Preview don't count."
+// TODO(alec): confirm this wording.
+export const UPDATES_NOTE =
+  'Updates keep the kit working with every NetSuite release. The code you have keeps working if you stop.'
+// TODO(alec): confirm this wording.
+export const UPDATES_NO_END = 'No end date'
+// TODO(alec): confirm this wording.
+export const updatesTerm = (price) =>
+  price ? `12 months, then ${price} a year` : '12 months'
+// TODO(alec): confirm this wording.
+const UPDATES_ROW = {
+  label: 'Updates',
+  cells: 'updates',
+  note: UPDATES_NOTE,
+}
 const ACCOUNTS_ROW = {
   label: 'NetSuite accounts',
   cells: 'accounts',
@@ -327,6 +342,7 @@ export const COMPARE = {
       ...REACT_MODULE_ROWS,
       { label: 'Developers', cells: 'developers' },
       ACCOUNTS_ROW,
+      UPDATES_ROW,
       { label: 'Price', cells: 'price' },
       { label: 'Status', cells: 'status' },
     ],
@@ -356,6 +372,7 @@ export const COMPARE = {
       ...MODULE_ROWS,
       { label: 'Developers', cells: 'developers' },
       ACCOUNTS_ROW,
+      UPDATES_ROW,
       { label: 'Price', cells: 'price' },
     ],
   },
