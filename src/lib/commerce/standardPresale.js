@@ -34,6 +34,13 @@ export function buildingAnswer(value) {
   return choice ? choice.id : null
 }
 
+/* `checkoutRoute` only checks that an id is truthy, so a number, an object or
+ * a blank string would pass it and Creem would then reject the checkout. */
+function hasCreemId(row, env) {
+  const id = env === 'sandbox' ? row.creemSandboxProductId : row.creemProductId
+  return typeof id === 'string' && id.trim() !== ''
+}
+
 function isReady(row, tier, env) {
   if (!row || typeof row !== 'object') return false
   return (
@@ -46,7 +53,9 @@ function isReady(row, tier, env) {
     row.price > 0 &&
     typeof row.githubRepo === 'string' &&
     row.githubRepo.trim() !== '' &&
+    row.slug === `warekit-standard-${tier}` &&
     tierFromSlug(row.slug) === tier &&
+    hasCreemId(row, env) &&
     checkoutRoute(row, env) === 'creem'
   )
 }

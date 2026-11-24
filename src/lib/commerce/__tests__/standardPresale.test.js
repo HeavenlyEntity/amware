@@ -98,8 +98,27 @@ describe('standardPresale', () => {
     ['a NetSuite stack', { stack: 'next-netsuite' }],
     ['a product type that is not a kit', { type: 'digital' }],
     ['no Creem product for this environment', { creemProductId: null }],
+    ['a whitespace-only repository', { githubRepo: '   ' }],
+    ['a numeric Creem product id', { creemProductId: 123 }],
+    ['an object Creem product id', { creemProductId: {} }],
+    ['a boolean Creem product id', { creemProductId: true }],
+    ['a blank Creem product id', { creemProductId: '  ' }],
+    ['a slug with a suffix', { slug: 'warekit-standard-pro-early' }],
+    ['another stack’s slug', { slug: 'warekit-next-netsuite-pro' }],
+    ['only a Whop plan id', { creemProductId: null, whopPlanId: 'plan_1' }],
   ])('does not sell a row with %s', (_name, over) => {
     expect(standardPresale([row(over)], 'production').pro.state).toBe('planned')
+  })
+
+  it('sells a row with both a Whop plan id and a Creem id', () => {
+    const state = standardPresale([row({ whopPlanId: 'plan_1' })], 'production')
+    expect(state.pro.state).toBe('ready')
+  })
+
+  it('rejects a wrong-typed sandbox id in the sandbox', () => {
+    const bad = row({ creemSandboxProductId: 5 })
+    expect(standardPresale([bad], 'sandbox').pro.state).toBe('planned')
+    expect(standardPresale([bad], 'production').pro.state).toBe('ready')
   })
 
   it('follows the Creem environment', () => {
@@ -123,10 +142,7 @@ describe('standardPresale', () => {
 
   it('reports the first ready row for a tier', () => {
     const state = standardPresale(
-      [
-        row({ price: 149, slug: 'warekit-standard-pro' }),
-        row({ price: 99, slug: 'warekit-standard-pro-early' }),
-      ],
+      [row({ price: 149, slug: 'warekit-standard-pro' }), row({ price: 99 })],
       'production'
     )
     expect(state.pro).toEqual({
