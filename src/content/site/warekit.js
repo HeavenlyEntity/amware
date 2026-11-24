@@ -421,6 +421,38 @@ export const STACKS = [
     cap: 'A whole backend in one YAML file, with a REST API and an admin panel.',
     files: ['manifest/backend.yml'],
   },
+  {
+    id: 'appwrite',
+    label: 'Appwrite',
+    sub: 'Open-source backend',
+    glyph: 'AW',
+    cap: 'An open-source backend with auth, databases and storage, hosted or your own.',
+    files: ['lib/appwrite/', 'appwrite.json'],
+  },
+]
+
+/* The payment providers the Standard kit can be built on, in picker order. */
+export const PAYMENTS = [
+  { id: 'creem', label: 'Creem' },
+  { id: 'stripe', label: 'Stripe' },
+  { id: 'dodo', label: 'Dodo Payments' },
+  { id: 'polar', label: 'Polar' },
+  { id: 'whop', label: 'Whop' },
+]
+
+/* The folders the presale picker draws for a chosen data layer and payment
+   provider. Only the two folders that depend on the picks are marked new. */
+export const KIT_TREE = (data, pay) => [
+  { path: 'apps/web/', isNew: false },
+  { path: 'apps/dev-tool/', isNew: false },
+  { path: 'apps/e2e/', isNew: false },
+  { path: 'packages/core/', isNew: false },
+  { path: `packages/data/${data}/`, isNew: true },
+  { path: `packages/billing/${pay}/`, isNew: true },
+  { path: 'packages/ai/', isNew: false },
+  { path: 'packages/ui/', isNew: false },
+  { path: 'packages/agent/', isNew: false },
+  { path: 'tooling/guards/', isNew: false },
 ]
 
 /* The files every data layer shares. The first two sit above the layer's own
