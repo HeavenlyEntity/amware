@@ -3356,3 +3356,270 @@
     transition: none;
   }
 }
+
+/* ---- hero: the promise, the command and the stack picker -------------------
+   The hero card is dark in both themes (.pj-dark pins its tokens). The
+   entrance is the shared .pj-rise; the tree lines reuse .ed-files' rise. */
+.st-hero-grid {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 40px 56px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .st-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.st-hero-copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+.st-hero-title {
+  max-width: 17ch;
+  font-size: clamp(34px, 4.4vw, 56px);
+}
+.st-hero-lede {
+  max-width: 36rem;
+}
+.st-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.st-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--pj-ring-2);
+  font-family: var(--pj-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  color: var(--pj-t2);
+}
+.st-chip[data-accent] {
+  background: rgba(60, 232, 206, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(60, 232, 206, 0.45);
+  color: var(--pj-accent-ink);
+}
+.st-chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--pj-accent);
+  box-shadow: 0 0 0 3px rgba(60, 232, 206, 0.2);
+}
+.st-term {
+  margin-top: 28px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(9, 9, 11, 0.72);
+  box-shadow: inset 0 0 0 1px var(--pj-ring-2);
+  font-family: var(--pj-mono);
+}
+.st-term-line {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--pj-t1);
+}
+.st-term-line code {
+  min-width: 0;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.st-term-sign {
+  color: var(--pj-accent);
+}
+.st-term-status {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: var(--pj-t3);
+}
+.st-hero-acts {
+  margin-top: 28px;
+}
+/* The label carries its own arrow, so the button has no dot. */
+.st-cta {
+  padding: 6px 20px;
+}
+.st-hero-note {
+  margin-top: 20px;
+  color: var(--pj-t3);
+}
+
+.st-picker {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(16, 16, 21, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px var(--pj-ring-2);
+}
+.st-picker-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--pj-t1);
+}
+.st-picker-copy {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--pj-t2);
+}
+.st-pick-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* The board's compact pills: icon and name on one line, wrapping. */
+.ed-pick.st-pick {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 0;
+}
+.ed-pick.st-pick button {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-family: var(--pj-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--pj-t1);
+}
+.ed-pick.st-pick button:hover {
+  color: var(--pj-accent-ink);
+}
+.ed-pick.st-pick button[aria-pressed='true'] {
+  background: rgba(60, 232, 206, 0.12);
+  color: var(--pj-accent-ink);
+}
+.st-pick-ico {
+  flex: none;
+}
+.st-tree {
+  margin-top: 0;
+}
+.st-tree .ed-files {
+  padding-bottom: 12px;
+}
+.st-tree .ed-files li {
+  align-items: center;
+  gap: 8px;
+}
+.st-lemon {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--pj-t3);
+}
+
+/* ---- numbered sections: the kicker with its aside ---------------------- */
+.st-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 24px;
+}
+.st-head-meta {
+  color: var(--pj-t3);
+}
+
+/* ---- 01 · the problems ---- */
+.st-pains {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+  margin: 40px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.st-pain p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--pj-t1);
+}
+
+/* ---- 02 · what ships ---- */
+.st-ships {
+  margin-top: 40px;
+}
+.st-caption {
+  margin-top: 20px;
+  color: var(--pj-t3);
+}
+
+/* ---- 03 · the guards ----
+   The drawings carry their own dark ground, so their frame stays dark in
+   both themes. A card only grows its drawing for a hovering pointer that
+   moves. */
+.st-guards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: 16px;
+  margin: 40px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.st-guard-art {
+  margin: 0 0 20px;
+  border-radius: 12px;
+  background: #101015;
+  overflow: hidden;
+}
+.st-guard-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .st-guard-img {
+    transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .st-guard:hover .st-guard-img {
+    transform: scale(1.03);
+  }
+}
+.st-guard-num {
+  font-family: var(--pj-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--pj-accent-ink);
+}
+.st-guard-title {
+  margin: 20px 0 0;
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--pj-t1);
+}
+.st-guard-copy {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--pj-t2);
+}

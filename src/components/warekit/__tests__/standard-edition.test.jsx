@@ -30,160 +30,240 @@ vi.mock('@/components/commerce/EmailCapture', () => {
 })
 
 import { StandardEdition } from '../standard-edition'
+import { PRESALE } from '@/content/site/standard-presale'
 
-const mount = (anyOnSale = false, liteFree = false) =>
-  render(<StandardEdition anyOnSale={anyOnSale} liteFree={liteFree} />)
-const layer = (name) =>
-  fireEvent.click(
-    within(screen.getByRole('group', { name: 'Data layer' })).getByRole(
-      'button',
-      { name: new RegExp(name) }
-    )
+/* Shaped like `standardPresale`'s result. */
+const open = {
+  open: true,
+  pro: { state: 'ready', price: 149, slug: 'warekit-standard-pro' },
+  team: { state: 'ready', price: 349, slug: 'warekit-standard-team' },
+}
+const closed = {
+  open: false,
+  pro: { state: 'planned', price: null, slug: null },
+  team: { state: 'planned', price: null, slug: null },
+}
+
+const mount = ({
+  presale = closed,
+  anyOnSale = false,
+  liteFree = false,
+} = {}) =>
+  render(
+    <StandardEdition
+      presale={presale}
+      anyOnSale={anyOnSale}
+      liteFree={liteFree}
+    />
   )
-const tree = () => screen.getByText(/planned structure/).closest('.ed-tree')
+const group = (name) => screen.getByRole('group', { name })
+const pick = (groupName, name) =>
+  fireEvent.click(within(group(groupName)).getByRole('button', { name }))
+const pressed = (groupName) =>
+  within(group(groupName))
+    .getAllByRole('button')
+    .filter((button) => button.getAttribute('aria-pressed') === 'true')
+    .map((button) => button.textContent)
+const tree = () =>
+  screen.getByText(PRESALE.picker.treeTitle).closest('[aria-live]')
+const added = () =>
+  within(tree())
+    .getAllByRole('listitem')
+    .filter((li) => li.dataset.new === 'true')
+    .map((li) => li.textContent.replace(/^\+?(Added: )?/, ''))
 
-describe('picking a data layer', () => {
-  it('starts on Supabase', () => {
+describe('the stack picker', () => {
+  it('starts on Supabase and Creem, and says so in the command and the tree', () => {
     mount()
+    expect(pressed('Data layer')).toEqual(['Supabase'])
+    expect(pressed('Payments')).toEqual(['Creem'])
     expect(
-      screen.getByRole('heading', { name: 'Get the Supabase kit first.' })
+      screen.getByText('warekit create my-app --data supabase --pay creem')
     ).toBeInTheDocument()
-    expect(tree()).toHaveTextContent('supabase/config.toml')
-    expect(screen.getByRole('button', { name: /Supabase/ })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-  })
-
-  it('moves the tree, the join heading and the subject to Drizzle', () => {
-    mount()
-    layer('Drizzle')
-
-    expect(
-      screen.getByRole('heading', { name: 'Get the Drizzle kit first.' })
-    ).toBeInTheDocument()
-    expect(tree()).toHaveTextContent('drizzle.config.ts')
-    expect(tree()).toHaveTextContent('db/schema.ts')
-    expect(tree()).not.toHaveTextContent('supabase/config.toml')
-    expect(screen.getByTestId('capture')).toHaveTextContent(
-      'WareKit waitlist · Standard · Drizzle'
-    )
-    expect(screen.getByTestId('capture')).toHaveTextContent(
-      'One email when the Drizzle kit ships. Nothing else.'
-    )
-    expect(screen.getByRole('button', { name: /Drizzle/ })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-    expect(screen.getByRole('button', { name: /Supabase/ })).toHaveAttribute(
-      'aria-pressed',
-      'false'
-    )
-  })
-
-  it('wraps the layer files in the shared ones and marks them new', () => {
-    mount()
-    layer('Prisma')
-    const lines = within(tree())
-      .getAllByRole('listitem')
-      .map((li) => li.textContent.replace(/^\+?(Added: )?/, ''))
-    expect(lines).toEqual([
-      'app/',
-      'components/',
-      'prisma/schema.prisma',
-      'prisma/migrations/',
-      'lib/prisma.ts',
-      '.env.example',
-      'package.json',
+    expect(added()).toEqual([
+      'packages/data/supabase/',
+      'packages/billing/creem/',
     ])
-    const fresh = within(tree())
-      .getAllByRole('listitem')
-      .filter((li) => li.dataset.new === 'true')
-    expect(fresh).toHaveLength(3)
+    expect(tree()).toHaveAttribute('aria-live', 'polite')
+    for (const li of within(tree()).getAllByRole('listitem')) {
+      const isNew = li.dataset.new === 'true'
+      expect(li.textContent.startsWith('+Added: ')).toBe(isNew)
+    }
   })
 
-  it('remounts the capture, so one layer’s success does not carry over', () => {
+  it('moves the command and the tree with each pick', () => {
     mount()
-    const before = screen.getByTestId('capture').dataset.mount
-    layer('Manifest')
-    expect(screen.getByTestId('capture').dataset.mount).not.toBe(before)
-    expect(tree()).toHaveTextContent('manifest/backend.yml')
+    pick('Data layer', 'Appwrite')
+    expect(
+      screen.getByText('warekit create my-app --data appwrite --pay creem')
+    ).toBeInTheDocument()
+    expect(added()).toEqual([
+      'packages/data/appwrite/',
+      'packages/billing/creem/',
+    ])
+
+    pick('Payments', 'Polar')
+    expect(
+      screen.getByText('warekit create my-app --data appwrite --pay polar')
+    ).toBeInTheDocument()
+    expect(added()).toEqual([
+      'packages/data/appwrite/',
+      'packages/billing/polar/',
+    ])
+    expect(pressed('Data layer')).toEqual(['Appwrite'])
+    expect(pressed('Payments')).toEqual(['Polar'])
+    expect(tree()).not.toHaveTextContent('packages/data/supabase/')
+    expect(tree()).not.toHaveTextContent('packages/billing/creem/')
   })
 
-  it('keeps the success message tied to the pick', () => {
+  it('offers all five of each', () => {
     mount()
-    layer('Prisma')
-    expect(screen.getByTestId('capture')).toHaveTextContent(
-      'when the Prisma kit ships'
-    )
+    const names = (groupName) =>
+      within(group(groupName))
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+    expect(names('Data layer')).toEqual([
+      'Supabase',
+      'Drizzle',
+      'Prisma',
+      'Manifest',
+      'Appwrite',
+    ])
+    expect(names('Payments')).toEqual([
+      'Creem',
+      'Stripe',
+      'Dodo Payments',
+      'Polar',
+      'Whop',
+    ])
+    for (const button of [
+      ...within(group('Data layer')).getAllByRole('button'),
+      ...within(group('Payments')).getAllByRole('button'),
+    ]) {
+      expect(button).toHaveAttribute('type', 'button')
+      expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    }
+  })
+
+  it('names Lemon Squeezy once, as not supported', () => {
+    const { container } = mount()
+    expect(screen.getAllByText(PRESALE.picker.lemon)).toHaveLength(1)
+    expect(container.textContent.match(/Lemon Squeezy/g)).toHaveLength(1)
   })
 })
 
-describe('with nothing on sale', () => {
-  // Review Focus 5
-  it('asserts no availability', () => {
-    const { container } = mount(false)
-    for (const text of ['Available now', 'Lite is free']) {
-      expect(container).not.toHaveTextContent(text)
-    }
+describe('the hero', () => {
+  it('sends the hero to the founding section while the presale is open', () => {
+    mount({ presale: open })
     expect(
-      screen.getByRole('link', { name: /On NetSuite\? See that edition/ })
-    ).toHaveAttribute('href', '/products')
-    expect(container).toHaveTextContent('NetSuite edition')
-    expect(container).toHaveTextContent(
+      screen.getByRole('link', { name: PRESALE.hero.cta })
+    ).toHaveAttribute('href', '#founding')
+    expect(screen.getByText('founding presale')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: PRESALE.hero.secondary.label })
+    ).toHaveAttribute('href', '#ships')
+    expect(screen.getByText(PRESALE.hero.note)).toBeInTheDocument()
+  })
+
+  it('sends the hero to the waitlist while it is closed, and claims no presale', () => {
+    const { container } = mount({ presale: closed })
+    expect(
+      screen.getByRole('link', { name: PRESALE.hero.ctaClosed })
+    ).toHaveAttribute('href', '#st-join')
+    expect(container).not.toHaveTextContent(/founding presale/i)
+    expect(
+      screen.queryByRole('link', { name: PRESALE.hero.cta })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(PRESALE.hero.noteClosed)).toBeInTheDocument()
+  })
+
+  it('treats a missing presale as closed', () => {
+    const { container } = render(<StandardEdition anyOnSale={false} />)
+    expect(
+      screen.getByRole('link', { name: PRESALE.hero.ctaClosed })
+    ).toHaveAttribute('href', '#st-join')
+    expect(container).not.toHaveTextContent(/founding presale/i)
+  })
+})
+
+describe('the sections', () => {
+  it('lists the six problems, the six parts and the six guards', () => {
+    mount()
+    const section = (id) => document.getElementById(id)
+
+    const pains = section('st-pains')
+    expect(pains).toHaveAttribute('aria-labelledby')
+    expect(
+      within(pains).getByRole('heading', {
+        level: 2,
+        name: PRESALE.pains.title,
+      })
+    ).toBeInTheDocument()
+    const painCards = within(pains).getAllByRole('listitem')
+    expect(painCards).toHaveLength(6)
+    painCards.forEach((card, i) =>
+      expect(card).toHaveTextContent(PRESALE.pains.items[i])
+    )
+
+    const ships = section('ships')
+    expect(
+      within(ships).getByRole('heading', {
+        level: 2,
+        name: PRESALE.ships.title,
+      })
+    ).toBeInTheDocument()
+    const parts = within(ships).getAllByRole('heading', { level: 3 })
+    expect(parts.map((h) => h.textContent)).toEqual(
+      PRESALE.ships.items.map((item) => item.title)
+    )
+    expect(ships).toHaveTextContent(PRESALE.ships.caption)
+
+    const guards = section('st-guards')
+    expect(
+      within(guards).getByRole('heading', {
+        level: 2,
+        name: PRESALE.guards.title,
+      })
+    ).toBeInTheDocument()
+    const rules = within(guards).getAllByRole('heading', { level: 3 })
+    expect(rules.map((h) => h.textContent)).toEqual(
+      PRESALE.guards.items.map((item) => item.title)
+    )
+
+    /* The three sections run in order after the hero. */
+    const order = [...document.querySelectorAll('section[id]')].map((s) => s.id)
+    expect(order).toEqual(['st-pains', 'ships', 'st-guards'])
+  })
+})
+
+describe('the way back to NetSuite', () => {
+  it('still offers the way back to the NetSuite edition, with the same two claims as before', () => {
+    /* Nothing on sale: no availability is asserted. */
+    let view = mount({ anyOnSale: false })
+    for (const text of ['Available now', 'Lite is free']) {
+      expect(view.container).not.toHaveTextContent(text)
+    }
+    expect(view.container).toHaveTextContent('NetSuite edition')
+    expect(view.container).toHaveTextContent(
       'React apps inside NetSuite or Next.js apps connected to it.'
     )
-  })
-
-  it('still asserts none after a pick', () => {
-    const { container } = mount(false)
-    layer('Prisma')
-    expect(container).not.toHaveTextContent('Available now')
-    expect(container).not.toHaveTextContent('Lite is free')
-  })
-})
-
-describe('with an edition on sale', () => {
-  it('says so in the hero link and the NetSuite card', () => {
-    const { container } = mount(true, true)
-    expect(
-      screen.getByRole('link', { name: /On NetSuite\? Available now/ })
-    ).toHaveAttribute('href', '/products')
-    expect(container).toHaveTextContent('Available now')
-    expect(container).toHaveTextContent('Lite is free.')
-  })
-
-  it('does not call Lite free when only a paid edition is on sale', () => {
-    const { container } = mount(true, false)
-    expect(container).toHaveTextContent('Available now')
-    expect(container).not.toHaveTextContent('Lite is free')
-    expect(container).not.toHaveTextContent('free')
-  })
-})
-
-describe('the page', () => {
-  it('links the NetSuite edition card to /products', () => {
-    mount()
     const card = screen.getByRole('link', {
       name: /Building on NetSuite\? WareKit NetSuite edition/,
     })
     expect(card).toHaveAttribute('href', '/products')
     expect(card).toHaveTextContent('See the NetSuite edition')
-  })
+    view.unmount()
 
-  it('walks the three steps and offers the jump to the join', () => {
-    mount()
-    expect(screen.getByText('01 · How it works')).toBeInTheDocument()
-    expect(screen.getByText('02 · Join the waitlist')).toBeInTheDocument()
-    const steps = screen
-      .getByRole('heading', { name: 'Your signup decides the build order.' })
-      .closest('section')
-      .querySelectorAll('ol > li')
-    expect(steps).toHaveLength(3)
-    expect(steps[0]).toHaveTextContent('Pick a data layer')
-    expect(
-      screen.getByRole('link', { name: /Join the waitlist/ })
-    ).toHaveAttribute('href', '#st-join')
-    expect(document.getElementById('st-join')).not.toBeNull()
+    /* A free edition on sale: both claims. */
+    view = mount({ anyOnSale: true, liteFree: true })
+    expect(view.container).toHaveTextContent('Available now')
+    expect(view.container).toHaveTextContent('Lite is free.')
+    view.unmount()
+
+    /* Only a paid edition on sale: available, but nothing is free. */
+    view = mount({ anyOnSale: true, liteFree: false })
+    expect(view.container).toHaveTextContent('Available now')
+    expect(view.container).not.toHaveTextContent('Lite is free')
+    expect(view.container).not.toHaveTextContent('free')
   })
 })

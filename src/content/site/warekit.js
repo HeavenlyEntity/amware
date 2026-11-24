@@ -375,9 +375,7 @@ export const SETUP_STEPS = [
 
 export const STANDARD_STACK = ['Supabase', 'Drizzle', 'Prisma', 'Manifest']
 
-/* The Standard edition's data layers, in picker order. `files` are the
-   standard layout of each tool, shown as planned structure: the kits are not
-   built yet, so nothing here describes shipped code. */
+/* The Standard edition's data layers, in picker order. */
 export const STACKS = [
   {
     id: 'supabase',
@@ -385,12 +383,6 @@ export const STACKS = [
     sub: 'Postgres as a service',
     glyph: 'SB',
     cap: 'Hosted Postgres with auth, storage and row-level security.',
-    files: [
-      'supabase/config.toml',
-      'supabase/migrations/',
-      'lib/supabase/server.ts',
-      'lib/supabase/client.ts',
-    ],
   },
   {
     id: 'drizzle',
@@ -398,12 +390,6 @@ export const STACKS = [
     sub: 'SQL-first ORM',
     glyph: 'DZ',
     cap: 'A SQL-first TypeScript ORM. Schema in code, migrations you can read.',
-    files: [
-      'drizzle.config.ts',
-      'db/schema.ts',
-      'db/migrations/',
-      'db/index.ts',
-    ],
   },
   {
     id: 'prisma',
@@ -411,7 +397,6 @@ export const STACKS = [
     sub: 'Schema-first ORM',
     glyph: 'PR',
     cap: 'A schema-first ORM with a generated, fully typed client.',
-    files: ['prisma/schema.prisma', 'prisma/migrations/', 'lib/prisma.ts'],
   },
   {
     id: 'manifest',
@@ -419,7 +404,6 @@ export const STACKS = [
     sub: 'One-file backend',
     glyph: 'YML',
     cap: 'A whole backend in one YAML file, with a REST API and an admin panel.',
-    files: ['manifest/backend.yml'],
   },
   {
     id: 'appwrite',
@@ -427,7 +411,6 @@ export const STACKS = [
     sub: 'Open-source backend',
     glyph: 'AW',
     cap: 'An open-source backend with auth, databases and storage, hosted or your own.',
-    files: ['lib/appwrite/', 'appwrite.json'],
   },
 ]
 
@@ -453,28 +436,4 @@ export const KIT_TREE = (data, pay) => [
   { path: 'packages/ui/', isNew: false },
   { path: 'packages/agent/', isNew: false },
   { path: 'tooling/guards/', isNew: false },
-]
-
-/* The files every data layer shares. The first two sit above the layer's own
-   files and the rest below them. */
-export const COMMON = ['app/', 'components/', '.env.example', 'package.json']
-
-export const STANDARD_STEPS = [
-  {
-    icon: 'database',
-    title: 'Pick a data layer',
-    copy: 'Supabase, Drizzle, Prisma or Manifest. Change it any time before you join.',
-  },
-  {
-    icon: 'mail',
-    title: 'Join the waitlist',
-    copy: 'One email when your kit ships. Nothing else.',
-  },
-  {
-    icon: 'rocket',
-    /* TODO(alec): a promise about build order, from the board. Confirm the
-       waitlist counts really set it. */
-    title: 'The top pick ships first',
-    copy: 'Waitlist signups per data layer set the order the kits get built.',
-  },
 ]
