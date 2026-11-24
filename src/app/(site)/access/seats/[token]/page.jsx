@@ -10,8 +10,10 @@ import {
 } from '@/lib/commerce/licenseRecord'
 import {
   creemEnvironment,
+  creemRenewalProductIdFor,
   creemUpgradeProductIdFor,
 } from '@/lib/commerce/creemEnv'
+import { nextUntil, termState } from '@/lib/commerce/licenseTerm'
 import { centsToValue } from '@/lib/analytics/whop'
 import {
   kitName,
@@ -141,6 +143,7 @@ export default async function LicensePage({ params, searchParams }) {
      tier a buyer just paid for, `attempt` counts the page's own re-checks. */
   const query = (await searchParams) ?? {}
   const upgraded = firstParam(query.upgraded) || null
+  const renewed = firstParam(query.renewed) || null
   const attempt = Math.max(0, parseInt(firstParam(query.attempt), 10) || 0)
 
   if (read.state === 'expired') {
@@ -206,6 +209,37 @@ export default async function LicensePage({ params, searchParams }) {
     accountsUsed: accounts.filter((row) => row.status !== 'over_limit').length,
     accountLimit: limits.accounts,
   })
+
+  /* When updates end and what renewing costs, from the license's own date and
+     the kit row for its stack and tier. Renew is offered only with a price and
+     a renewal product for this Creem environment: `startRenewal` would refuse
+     it otherwise, and a price that was not on the row would be made up. That
+     is logged with the license id and what is missing, because a buyer who
+     cannot find Renew is a fault here. No date, no term. */
+  const now = new Date()
+  const state = termState(license, now)
+  let term = null
+  if (state.until) {
+    const price = product?.renewalPrice ?? null
+    const hasPrice = Number.isFinite(price)
+    const hasProduct = Boolean(
+      creemRenewalProductIdFor(product, creemEnvironment())
+    )
+    const canRenew = state.renewOpen && hasPrice && hasProduct
+    if (state.renewOpen && !canRenew) {
+      console.error('No renewal to offer', {
+        license: license.id,
+        hasPrice,
+        hasRenewalProduct: hasProduct,
+      })
+    }
+    term = {
+      ...state,
+      nextUntil: nextUntil(state.until, now),
+      price: hasPrice ? price : null,
+      canRenew,
+    }
+  }
 
   /* What moving to Team costs, from the two kit rows: Team's price less
      this tier's. A failed read, a missing row, a price that is not a number
@@ -274,6 +308,8 @@ export default async function LicensePage({ params, searchParams }) {
           action={action}
           upgrade={upgrade}
           upgraded={upgraded}
+          term={term}
+          renewed={renewed}
           attempt={attempt}
           repo={product?.githubRepo || purchase?.githubRepo}
           refunded={purchase?.status === 'refunded'}

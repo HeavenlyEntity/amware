@@ -3,12 +3,18 @@ import { AccountList, SeatManager } from '@/components/commerce/SeatManager'
 import { LicenseKey } from '@/components/commerce/LicenseKey'
 import { PendingRefresh } from '@/components/commerce/PendingRefresh'
 import { UpgradeButton } from '@/components/commerce/UpgradeButton'
+import { RenewButton } from '@/components/commerce/RenewButton'
 import { TrackPurchase } from '@/components/analytics/TrackPurchase'
 /* From the plain module, never from PendingRefresh.jsx: on the server this
    file would get a client reference for the constant, not the number. */
 import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
 import { kitName, tierRank, upgradeReturn } from '@/lib/commerce/license'
 import { listSeats } from '@/lib/commerce/seats'
+import {
+  formatTermDate,
+  priceLabel,
+  renewalReturn,
+} from '@/lib/commerce/licenseTerm'
 
 /* The license page, for the whole license rather than one purchase.
  *
@@ -47,6 +53,18 @@ import { listSeats } from '@/lib/commerce/seats'
  * `upgraded` is read from the URL, which anyone can write. It only picks
  * wording, compared with the tier the database holds. It unlocks nothing.
  *
+ * `term` is the license's 12 months of updates, built by the page from
+ * `termState` and the kit row (null for Lite and for a license with no date,
+ * which shows nothing). It sits between the intro and the developers and says,
+ * in this order: when updates end, what a renewal costs, what renewing does.
+ * Renew is quiet while updates run and the one teal button once they have
+ * ended; then the upgrade and the add form are hidden (removing a developer,
+ * the key and the NetSuite accounts stay). With no price or no renewal
+ * product on the kit row there is no Renew button and the page says to get in
+ * touch. `renewed` is the `?renewed=` value, the end date before the buyer
+ * paid, read from the URL, which anyone can write: it only picks wording, by
+ * comparing it with the date the database holds. It unlocks nothing.
+ *
  * `refunded` says the purchase on this link was refunded. A license that began
  * as a free Lite claim falls back to `lite` on a Pro refund, not to no tier,
  * and its page says the same thing as any other refund.
@@ -70,6 +88,17 @@ import { listSeats } from '@/lib/commerce/seats'
  *     name?: string | null,
  *   } | null,
  *   upgraded?: string | null,
+ *   term?: {
+ *     until: string | null,
+ *     ended: boolean,
+ *     selfRenew: boolean,
+ *     renewOpen: boolean,
+ *     renewOpensOn: string | null,
+ *     nextUntil: string | null,
+ *     price: number | null,
+ *     canRenew: boolean,
+ *   } | null,
+ *   renewed?: string | null,
  *   refunded?: boolean,
  *   sale?: {
  *     eventId: string,
@@ -160,32 +189,39 @@ function EnterpriseQuote({ token, license, name }) {
 }
 
 /* Said while a payment is on its way and again once the checks run out, so a
-   buyer who has just paid is never invited to pay a second time. */
-function Confirming({ token, returned, attempt }) {
+   buyer who has just paid is never invited to pay a second time. `what` is
+   the payment, and `keep` is the URL parameter that names it, kept through
+   every re-check. */
+function Confirming({ token, what, keep, attempt }) {
   const checking = attempt < MAX_ATTEMPTS
+  const [param, value] = Object.entries(keep)[0]
   return (
     <div>
       <p
         role="status"
         className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
       >
-        Confirming your upgrade. You don&apos;t need to pay again.
+        {what === 'renewal' ? (
+          /* TODO(alec): confirm this wording. */
+          <>Confirming your renewal. You don&apos;t need to pay again.</>
+        ) : (
+          <>Confirming your upgrade. You don&apos;t need to pay again.</>
+        )}
       </p>
       {checking ? (
         <>
           <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
             This checks again automatically every few seconds.
           </p>
-          <PendingRefresh
-            attempt={attempt}
-            keepParams={{ upgraded: returned.target }}
-          />
+          <PendingRefresh attempt={attempt} keepParams={keep} />
         </>
       ) : (
         <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
           It can take a minute to show here.{' '}
           <Link
-            href={`/access/seats/${token}?upgraded=${returned.target}`}
+            href={`/access/seats/${token}?${param}=${encodeURIComponent(
+              value
+            )}`}
             className={linkClass}
           >
             Refresh the page
@@ -201,6 +237,132 @@ function Confirming({ token, returned, attempt }) {
   )
 }
 
+/* The reason shown in place of the add form once updates have ended. */
+// TODO(alec): confirm this wording.
+const ADD_LOCKED_REASON = 'Updates have ended. Renew to add developers.'
+
+const termTextClass = 'text-sm text-zinc-700 dark:text-zinc-300'
+
+/* Renewal is by hand when the kit row has nothing to charge, and for
+   Enterprise. */
+function GetInTouchToRenew() {
+  return (
+    <p className={termTextClass}>
+      {/* TODO(alec): confirm this wording. */}
+      <Link href="/contact" className={linkClass}>
+        Get in touch to renew.
+      </Link>
+    </p>
+  )
+}
+
+/* When updates end, what a renewal costs and what renewing does, in that
+   order, with Renew under them. Dates are UTC dates, the same ones the emails
+   use. */
+function TermNotice({ token, license, name, term, renewed, attempt }) {
+  const until = formatTermDate(term.until)
+  const nextUntil = formatTermDate(term.nextUntil)
+  const price = priceLabel(term.price)
+  const phase = renewalReturn(term.until, renewed)
+
+  if (phase === 'confirming') {
+    return (
+      <section className="mt-8" aria-label="Updates">
+        <Confirming
+          token={token}
+          what="renewal"
+          keep={{ renewed }}
+          attempt={attempt}
+        />
+      </section>
+    )
+  }
+  if (phase === 'done') {
+    return (
+      <section className="mt-8" aria-label="Updates">
+        {/* TODO(alec): confirm this wording. */}
+        <p
+          role="status"
+          className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
+        >{`Renewed. Updates now run until ${until}.`}</p>
+      </section>
+    )
+  }
+
+  const renewButton = (urgent) => (
+    <RenewButton
+      token={token}
+      urgent={urgent}
+      value={term.price}
+      contentId={`${license.stack}-${license.tier}-renewal`}
+      contentName={`${name} (renewal)`}
+    >
+      {/* TODO(alec): confirm this wording. */}
+      {`Renew · ${price}`}
+    </RenewButton>
+  )
+
+  return (
+    <section className="mt-8" aria-label="Updates">
+      {/* TODO(alec): confirm this wording. */}
+      <p className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+        {term.ended ? `Updates ended on ${until}.` : `Updates until ${until}.`}
+      </p>
+
+      {!term.selfRenew ? (
+        <div className="mt-3">
+          <GetInTouchToRenew />
+        </div>
+      ) : (
+        <>
+          {term.ended ? (
+            <>
+              {/* TODO(alec): confirm this wording. */}
+              <p className={`mt-2 ${termTextClass}`}>
+                {`${
+                  price ? `Renewing costs ${price} and gives` : 'Renewing gives'
+                } 12 months of updates from the day you pay, to ${nextUntil}, and repository access back for everyone on this license.`}
+              </p>
+              <div className="mt-4">
+                {term.canRenew ? renewButton(true) : <GetInTouchToRenew />}
+              </div>
+              {/* TODO(alec): confirm this wording. */}
+              <p className={`mt-3 ${termTextClass}`}>
+                Your code and your license key keep working either way.
+              </p>
+            </>
+          ) : (
+            <>
+              {/* TODO(alec): confirm this wording. */}
+              <p className={`mt-2 ${termTextClass}`}>
+                {price
+                  ? `Renewing costs ${price} and adds 12 months, to ${nextUntil}.`
+                  : `Renewing adds 12 months, to ${nextUntil}.`}
+              </p>
+              <div className="mt-4">
+                {term.canRenew ? (
+                  renewButton(false)
+                ) : term.renewOpen ? (
+                  <GetInTouchToRenew />
+                ) : (
+                  /* TODO(alec): confirm this wording. */
+                  <p className={termTextClass}>
+                    {`You can renew from ${formatTermDate(term.renewOpensOn)}.`}
+                  </p>
+                )}
+              </div>
+              {/* TODO(alec): confirm this wording. */}
+              <p className={`mt-3 ${termTextClass}`}>
+                Updates keep the kit working with every NetSuite release.
+              </p>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
 export function LicensePanel({
   token,
   license,
@@ -210,6 +372,8 @@ export function LicensePanel({
   action,
   upgrade,
   upgraded,
+  term = null,
+  renewed = null,
   attempt = 0,
   repo,
   refunded = false,
@@ -229,7 +393,12 @@ export function LicensePanel({
         <>
           <Heading kicker="license">{name}</Heading>
           <div className="mt-4">
-            <Confirming token={token} returned={returned} attempt={attempt} />
+            <Confirming
+              token={token}
+              what="upgrade"
+              keep={{ upgraded: returned.target }}
+              attempt={attempt}
+            />
           </div>
         </>
       )
@@ -270,7 +439,12 @@ export function LicensePanel({
   let upgradeAction = null
   if (returned?.phase === 'confirming') {
     upgradeAction = (
-      <Confirming token={token} returned={returned} attempt={attempt} />
+      <Confirming
+        token={token}
+        what="upgrade"
+        keep={{ upgraded: returned.target }}
+        attempt={attempt}
+      />
     )
   } else if (returned?.phase === 'done') {
     upgradeAction = (
@@ -307,7 +481,8 @@ export function LicensePanel({
   } else if (
     action?.kind === 'upgrade-team' &&
     license.tier === 'pro' &&
-    upgrade
+    upgrade &&
+    !term?.ended
   ) {
     upgradeAction = (
       <div>
@@ -339,12 +514,24 @@ export function LicensePanel({
           : 'The developers this license covers.'}
       </p>
 
+      {term && (
+        <TermNotice
+          token={token}
+          license={license}
+          name={name}
+          term={term}
+          renewed={renewed}
+          attempt={attempt}
+        />
+      )}
+
       <div className="mt-10">
         <SeatManager
           token={token}
           repo={repo ?? product?.githubRepo}
           initialSeats={{ used: seats, limit: limits.seats }}
           afterUsage={upgradeAction}
+          addLockedReason={term?.ended ? ADD_LOCKED_REASON : null}
           focusAdd={returned?.phase === 'done'}
         >
           {tracksAccounts && (

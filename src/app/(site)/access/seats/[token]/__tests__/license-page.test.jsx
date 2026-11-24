@@ -7,6 +7,8 @@ import { cleanup, render, screen } from '@testing-library/react'
    that lead nowhere, because a buyer must never meet a thrown error. */
 vi.mock('@/lib/getPayloadClient', () => ({ getPayloadClient: vi.fn() }))
 vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
+/* So the Renew button renders without Creem. */
+vi.mock('@/lib/commerce/licenseRenew', () => ({ startRenewal: vi.fn() }))
 
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { createAccessToken } from '@/lib/commerce/accessToken'
@@ -116,11 +118,16 @@ const renderPage = async (tok, searchParams) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2027-11-20T00:00:00.000Z'))
   process.env.ACCESS_LINK_SECRET = 'license-page-secret'
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('License page', () => {
   it('is titled "Your license" and stays out of search', () => {
@@ -771,5 +778,68 @@ describe('License page', () => {
         expect.objectContaining({ collection: 'purchases' })
       )
     })
+  })
+
+  it('shows the end date and the renewal price from the kit row', async () => {
+    mockDb({
+      license: license({
+        tier: 'pro',
+        updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+      }),
+      purchase: { id: 42, license: 9 },
+      product: {
+        ...proKit,
+        renewalPrice: 199,
+        creemRenewalProductId: 'prod_renew',
+      },
+    })
+    await renderPage(token())
+    expect(
+      screen.getByText('Updates until 10 December 2027.')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Renew · $199.00' })
+    ).toBeInTheDocument()
+  })
+
+  it('offers no Renew when the kit row has no renewal product for this Creem world', async () => {
+    mockDb({
+      license: license({
+        tier: 'pro',
+        updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+      }),
+      purchase: { id: 42, license: 9 },
+      product: { ...proKit, renewalPrice: 199 },
+    })
+    await renderPage(token())
+    expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
+    expect(screen.getByText('Get in touch to renew.')).toBeInTheDocument()
+    expect(console.error).toHaveBeenCalledWith(
+      'No renewal to offer',
+      expect.objectContaining({ license: 9 })
+    )
+  })
+
+  it('locks adding developers once updates have ended', async () => {
+    vi.setSystemTime(new Date('2027-12-11T00:00:00.000Z'))
+    mockDb({
+      license: license({
+        tier: 'pro',
+        updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+      }),
+      purchase: { id: 42, license: 9 },
+      product: {
+        ...proKit,
+        renewalPrice: 199,
+        creemRenewalProductId: 'prod_renew',
+      },
+    })
+    await renderPage(token())
+    expect(
+      screen.getByText('Updates ended on 10 December 2027.')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Updates have ended. Renew to add developers.')
+    ).toBeInTheDocument()
   })
 })

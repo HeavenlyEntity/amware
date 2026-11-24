@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -17,6 +18,13 @@ vi.mock('@/lib/commerce/githubInvite', () => ({ inviteToRepo: vi.fn() }))
 const startUpgrade = vi.fn()
 vi.mock('@/lib/commerce/licenseUpgrade', () => ({
   startUpgrade: (...args) => startUpgrade(...args),
+}))
+
+/* The renewal action is stubbed the same way, so the Renew button renders
+   without Creem. Its own behaviour is tested in licenseRenew.test.js. */
+const startRenewal = vi.fn()
+vi.mock('@/lib/commerce/licenseRenew', () => ({
+  startRenewal: (...args) => startRenewal(...args),
 }))
 
 /* The router is recorded so the page's own re-check URL can be read back. */
@@ -777,5 +785,132 @@ describe('LicensePanel Enterprise', () => {
       limits: { seats: 12, accounts: 4 },
     })
     expect(screen.queryByRole('button', { name: COMPLETE })).toBeNull()
+  })
+
+  describe('the update term', () => {
+    // No upgrade on offer unless a test asks for one, so a price on the page
+    // can only be the renewal's.
+    const renderPanel = (over = {}) =>
+      panel({ action: null, upgrade: null, ...over })
+    const open = {
+      until: '2027-12-10T15:00:00.000Z',
+      ended: false,
+      selfRenew: true,
+      renewOpen: true,
+      renewOpensOn: '2027-10-11T15:00:00.000Z',
+      nextUntil: '2028-12-10T15:00:00.000Z',
+      price: 199,
+      canRenew: true,
+    }
+
+    it('states the end date, the renewal price and what renewing does, in that order, before the developers', () => {
+      const { container } = renderPanel({ term: open })
+      const text = container.textContent
+      const order = [
+        'Updates until 10 December 2027.',
+        'Renewing costs $199.00 and adds 12 months, to 10 December 2028.',
+        // The usage card, not the intro, which also says "developers".
+        '1 / 1 developers',
+      ]
+      const at = order.map((s) => text.indexOf(s))
+      expect(at.every((i) => i >= 0)).toBe(true)
+      expect(at).toEqual([...at].sort((a, b) => a - b))
+      expect(
+        screen.getByRole('button', { name: 'Renew · $199.00' })
+      ).toBeInTheDocument()
+    })
+
+    it('offers Renew only from 60 days before', () => {
+      renderPanel({ term: { ...open, renewOpen: false, canRenew: false } })
+      expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
+      expect(
+        screen.getByText('You can renew from 11 October 2027.')
+      ).toBeInTheDocument()
+    })
+
+    it('says updates ended, keeps the key, offers Renew and hides Move to Team and the add form', () => {
+      renderPanel({
+        term: { ...open, ended: true },
+        action: { kind: 'upgrade-team', urgent: false },
+        upgrade: { cost: 500, seats: 5, accounts: 3 },
+      })
+      expect(
+        screen.getByText('Updates ended on 10 December 2027.')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Renew · $199.00' })
+      ).toHaveClass('amw-cta')
+      expect(screen.queryByRole('button', { name: /Move to Team/ })).toBeNull()
+      expect(
+        screen.queryByRole('button', { name: 'Add to the license' })
+      ).toBeNull()
+      expect(
+        screen.getByText('Updates have ended. Renew to add developers.')
+      ).toBeInTheDocument()
+      // Removing stays possible, and the key stays.
+      expect(
+        screen.getByRole('button', { name: 'Remove @owner' })
+      ).toBeInTheDocument()
+      expect(screen.getByText('••••1234')).toBeInTheDocument()
+    })
+
+    it('keeps the add form while updates are running', () => {
+      renderPanel({ term: open })
+      expect(
+        screen.getByRole('button', { name: 'Add to the license' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows no Renew and no invented price when the kit row has none', () => {
+      renderPanel({ term: { ...open, price: null, canRenew: false } })
+      expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
+      expect(screen.getByText('Get in touch to renew.')).toBeInTheDocument()
+      expect(document.body.textContent).not.toMatch(/\$\d/)
+    })
+
+    it('confirms a renewal until the date has moved, then says it is done', () => {
+      renderPanel({ term: open, renewed: open.until })
+      expect(
+        screen.getByText(
+          "Confirming your renewal. You don't need to pay again."
+        )
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
+      cleanup()
+      renderPanel({
+        term: { ...open, until: '2028-12-10T15:00:00.000Z' },
+        renewed: open.until,
+      })
+      expect(
+        screen.getByText('Renewed. Updates now run until 10 December 2028.')
+      ).toBeInTheDocument()
+    })
+
+    it('keeps the renewal parameter when it re-checks', () => {
+      renderPanel({ term: open, renewed: open.until })
+      expect(
+        screen.getByText(/checks again automatically/i)
+      ).toBeInTheDocument()
+    })
+
+    it('shows nothing about a term for Lite', () => {
+      renderPanel({ license: { tier: 'lite' }, term: null })
+      expect(screen.queryByText(/Updates until/)).toBeNull()
+    })
+
+    it('asks an Enterprise owner to get in touch to renew', () => {
+      renderPanel({
+        license: { tier: 'enterprise' },
+        term: {
+          ...open,
+          selfRenew: false,
+          renewOpen: false,
+          canRenew: false,
+          price: null,
+        },
+      })
+      expect(screen.getByText('Get in touch to renew.')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
+    })
   })
 })
