@@ -21,7 +21,11 @@ import {
   linkWindowOpen,
   releaseLinkWindow,
 } from '@/lib/commerce/licenseRecord'
-import { licenseLimits, upgradeReturn } from '@/lib/commerce/license'
+import {
+  licenseLimits,
+  tracksAccounts,
+  upgradeReturn,
+} from '@/lib/commerce/license'
 import {
   coveredByAnotherLicense,
   licenseRepo,
@@ -719,6 +723,7 @@ export async function emailFreshLicenseLink(
       itemName: product?.name || 'WareKit',
       url,
       reason: 'link',
+      usesKey: tracksAccounts(license.stack),
     })
   } catch (err) {
     console.error('Fresh license link email failed', license.id, err)

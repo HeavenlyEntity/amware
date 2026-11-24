@@ -135,4 +135,74 @@ describe('OnboardingSteps', () => {
       screen.queryByRole('link', { name: /open your license page/i })
     ).toBeNull()
   })
+
+  it('gives a Standard buyer no key step', () => {
+    const { container } = render(
+      <OnboardingSteps
+        {...base}
+        stack="standard"
+        usesKey={false}
+        delivered
+        licenseUrl="/access/seats/x"
+      />
+    )
+    expect(container.textContent).not.toMatch(
+      /WAREKIT_LICENSE_KEY|NS_ACCOUNT_ID|license key|WAREKIT…A1B2/
+    )
+    const numbers = [...container.querySelectorAll('ol > li > span')].map(
+      (n) => n.textContent
+    )
+    // The repository is done (a tick); the setup step is the second.
+    expect(numbers).toEqual(['✓', '2'])
+  })
+
+  it('shows a Standard buyer no command when none is set for it', () => {
+    const { container } = render(
+      <OnboardingSteps
+        {...base}
+        stack="standard"
+        usesKey={false}
+        cliCommand={null}
+        delivered
+      />
+    )
+    const lines = [...container.querySelectorAll('code')].map(
+      (c) => c.textContent
+    )
+    expect(lines).toEqual([
+      'git clone git@github.com:amwaredotdev/warekit-next-netsuite.git',
+    ])
+  })
+
+  it('links a Standard buyer to the license page without a numbered step', () => {
+    const { container } = render(
+      <OnboardingSteps
+        {...base}
+        stack="standard"
+        usesKey={false}
+        delivered
+        licenseUrl="/access/seats/tok"
+      />
+    )
+    expect(
+      screen.getByRole('link', { name: 'Manage your developers' })
+    ).toHaveAttribute('href', '/access/seats/tok')
+    expect(container.querySelectorAll('ol > li > span')).toHaveLength(2)
+  })
+
+  it('offers a Standard buyer with no fresh link the resend route, without the word key', () => {
+    const { container } = render(
+      <OnboardingSteps
+        {...base}
+        stack="standard"
+        usesKey={false}
+        delivered
+        licenseExpired
+      />
+    )
+    expect(
+      screen.getByRole('link', { name: /email me a new license link/i })
+    ).toHaveAttribute('href', '/access/resend')
+    expect(container.textContent).not.toMatch(/\bkey\b/i)
+  })
 })

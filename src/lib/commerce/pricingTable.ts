@@ -93,10 +93,16 @@ export function highlights(kit: PricingKit): string[] {
     .filter((h): h is string => Boolean(h && h.trim()))
 }
 
-/** Only the first popular kit wins, so marking everything marks nothing. */
+/** Only the first popular kit wins, so marking everything marks nothing.
+ *  Only a row on one of the table's stacks and tiers counts, so a kit sold
+ *  elsewhere (Standard) cannot move the badge. */
 export function popularId(kits: PricingKit[]): PricingKit['id'] | null {
-  return kits.find((k) => k.popular)?.id ?? null
+  return kits.find((k) => k.popular && inTable(k))?.id ?? null
 }
+
+const inTable = (kit: PricingKit) =>
+  (STACK_ORDER as readonly unknown[]).includes(kit.stack) &&
+  (TIER_ORDER as readonly unknown[]).includes(kit.tier)
 
 export type PricingStack = { stack: string; tiers: PricingKit[] }
 

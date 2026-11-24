@@ -9,6 +9,7 @@ import {
   nextAction,
   normalizeAccountId,
   tierRank,
+  tracksAccounts,
   upgradeCost,
   upgradeReturn,
 } from '../license'
@@ -394,5 +395,33 @@ describe('upgradeReturn', () => {
     expect(upgradeReturn('lite', ['team'])).toBeNull()
     expect(upgradeReturn('pro', 'constructor')).toBeNull()
     expect(upgradeReturn('pro', '__proto__')).toBeNull()
+  })
+})
+
+describe('a Standard license', () => {
+  it('counts developers and never accounts', () => {
+    expect(tracksAccounts('standard')).toBe(false)
+    expect(tracksAccounts('next-netsuite')).toBe(true)
+    expect(tracksAccounts(null)).toBe(true)
+    expect(
+      licenseLimits(
+        { tier: 'team', stack: 'standard' },
+        { seats: 5, netsuiteAccounts: 3 }
+      )
+    ).toEqual({ seats: 5, accounts: null })
+    expect(
+      licenseLimits({ tier: 'pro' }, { seats: 1, stack: 'standard' })
+    ).toEqual({ seats: 1, accounts: null })
+  })
+  it('leaves a NetSuite license as it was', () => {
+    expect(
+      licenseLimits(
+        { tier: 'team', stack: 'next-netsuite' },
+        { seats: 5, netsuiteAccounts: 3 }
+      )
+    ).toEqual({ seats: 5, accounts: 3 })
+  })
+  it('has a name', () => {
+    expect(kitName('standard')).toBe('WareKit Standard')
   })
 })

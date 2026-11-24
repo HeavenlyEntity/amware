@@ -2666,3 +2666,1066 @@
   transform: translate(3px, -3px);
   color: var(--pj-accent-ink);
 }
+
+/* Standard presale ------------------------------------------------------------
+   The "what ships" bento (MagicBento) and its six pictures (ship-visuals).
+   Everything sits inside the page's `.amw` scope and draws on its tokens, so
+   both themes follow. The grid is three columns from 960px up; below that it
+   is one column, the spans are dropped and each row is at least the row
+   height, so a 360px phone gets single tiles and no sideways scroll. */
+
+.st-bento {
+  display: grid;
+  grid-template-columns: repeat(var(--st-bento-cols, 3), minmax(0, 1fr));
+  grid-auto-rows: var(--st-bento-row, 270px);
+  gap: 12px;
+}
+@media (max-width: 959px) {
+  .st-bento {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: minmax(var(--st-bento-row, 270px), auto);
+  }
+  /* Beats the inline spans, which only make sense on the wide grid. */
+  .st-bento > .st-bento__card {
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+  .st-bento > .st-bento__card[data-rows] {
+    min-height: calc(var(--st-bento-row, 270px) * 1.7);
+  }
+}
+
+.st-bento__card {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--amw-card);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+.st-bento__card > :not(.st-bento__light, .st-bento__border) {
+  position: relative;
+  z-index: 1;
+}
+
+/* The spotlight lights the tile under the pointer; the border glow lights
+   every tile edge near it. Both are positioned by --mb-x / --mb-y. */
+.st-bento__light,
+.st-bento__border {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.st-bento__border {
+  z-index: 2;
+  padding: 1px;
+  -webkit-mask: linear-gradient(black, black) content-box,
+    linear-gradient(black, black);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(black, black) content-box exclude,
+    linear-gradient(black, black);
+}
+.st-bento__card[data-active] > .st-bento__light,
+.st-bento[data-near] .st-bento__border {
+  opacity: 1;
+}
+
+.st-bento__label {
+  font-family: var(--amw-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--amw-mut);
+}
+.st-bento__visual {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  container: st-visual / size;
+}
+.st-bento__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--amw-ink);
+}
+.st-bento__description {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--amw-mut);
+}
+
+/* ---- shared picture parts ---- */
+.st-vis {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--amw-mono);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--amw-mut);
+}
+.st-vis ul {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.st-vis-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--amw-line);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.st-vis-chip {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 1px var(--amw-line-strong);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.st-vis-log-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--amw-card-2);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+.st-vis-log-key {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--amw-ink);
+}
+.st-vis-log-status {
+  flex: none;
+  white-space: nowrap;
+}
+.st-vis-log-row[data-muted] .st-vis-log-key {
+  color: var(--amw-mut);
+  text-decoration: line-through;
+  text-decoration-color: var(--amw-line-strong);
+}
+.st-vis-log-row[data-flag] {
+  box-shadow: inset 0 0 0 1px var(--amw-accent);
+}
+.st-vis-log-row[data-flag] .st-vis-log-status {
+  padding: 0 6px;
+  border-radius: 9999px;
+  background: var(--amw-accent-soft);
+  color: var(--amw-accent-ink);
+}
+@container st-visual (max-height: 118px) {
+  .st-vis-head {
+    display: none;
+  }
+}
+
+/* ---- ai: the assistant panel (ported from the board's .mi-chat) ---- */
+.st-chat {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  max-height: 360px;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--amw-card-2);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--amw-ink);
+}
+.st-chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--amw-line);
+  font-family: var(--amw-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+}
+.st-chat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--amw-accent);
+  box-shadow: 0 0 0 3px var(--amw-accent-soft);
+}
+.st-chat-live {
+  margin-left: auto;
+  color: var(--amw-accent-ink);
+}
+.st-chat-thread {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.st-chat-user {
+  align-self: flex-end;
+  max-width: 82%;
+  padding: 7px 10px;
+  border-radius: 10px 10px 2px 10px;
+  background: var(--amw-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--amw-accent);
+}
+.st-chat-bot {
+  position: relative;
+  align-self: flex-start;
+  max-width: 88%;
+  min-height: 58px;
+  padding: 7px 10px;
+  border-radius: 10px 10px 10px 2px;
+  background: var(--amw-line);
+}
+.st-chat-line {
+  display: block;
+}
+.st-chat-typing {
+  position: absolute;
+  top: 9px;
+  left: 10px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+}
+.st-chat-typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--amw-mut);
+}
+.st-chat-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--amw-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amw-mut);
+}
+.st-chat-meter-row {
+  display: flex;
+  justify-content: space-between;
+}
+.st-chat-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--amw-line);
+}
+.st-chat-fill {
+  display: block;
+  width: 64%;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--amw-accent);
+}
+.st-chat-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  border-radius: 9999px;
+  background: var(--amw-card);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+  color: var(--amw-mut);
+}
+.st-chat-send {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--amw-accent);
+  color: var(--amw-card);
+}
+
+/* One 10s loop: the prompt rises in, the dots type, the reply streams word
+   by word (each word's delay is set inline), then everything fades and the
+   loop restarts cleanly. */
+@keyframes st-chat-user {
+  0%,
+  3% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  8%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  86%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes st-chat-bot {
+  0%,
+  10% {
+    opacity: 0;
+  }
+  14%,
+  76% {
+    opacity: 1;
+  }
+  82%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes st-chat-typing {
+  0%,
+  14% {
+    opacity: 0;
+  }
+  16%,
+  27% {
+    opacity: 1;
+  }
+  29%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes st-chat-word {
+  0% {
+    opacity: 0;
+  }
+  1%,
+  54% {
+    opacity: 1;
+  }
+  54.01%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes st-chat-fill {
+  0%,
+  30% {
+    width: 22%;
+  }
+  56%,
+  82% {
+    width: 64%;
+  }
+  100% {
+    width: 22%;
+  }
+}
+@keyframes st-chat-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+.st-chat:not([data-still]) .st-chat-user {
+  animation: st-chat-user 10s ease infinite;
+}
+.st-chat:not([data-still]) .st-chat-bot {
+  animation: st-chat-bot 10s ease infinite;
+}
+.st-chat:not([data-still]) .st-chat-typing {
+  animation: st-chat-typing 10s linear infinite;
+}
+.st-chat:not([data-still]) .st-chat-typing i {
+  animation: st-chat-bounce 0.9s ease-in-out infinite;
+}
+.st-chat:not([data-still]) .st-chat-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.st-chat:not([data-still]) .st-chat-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.st-chat:not([data-still]) .st-chat-w {
+  animation: st-chat-word 10s linear infinite backwards;
+}
+.st-chat:not([data-still]) .st-chat-fill {
+  animation: st-chat-fill 10s ease infinite;
+}
+
+/* ---- accounts: members by role and a pending invitation ---- */
+.st-acct {
+  max-width: 560px;
+}
+.st-acct-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--amw-card-2);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+.st-acct-avatar {
+  display: grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--amw-line-strong);
+}
+.st-acct-name {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(var(--amw-line-strong), var(--amw-line-strong))
+    left / var(--st-bar, 60%) 100% no-repeat;
+}
+.st-acct-invite {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed var(--amw-line-strong);
+  outline-offset: -1px;
+}
+.st-acct-invite .st-acct-avatar {
+  background: transparent;
+  outline: 1px dashed var(--amw-line-strong);
+  color: var(--amw-mut);
+}
+.st-acct-invite .st-acct-name {
+  background-image: linear-gradient(var(--amw-line), var(--amw-line));
+}
+.st-acct-sent {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: var(--amw-accent-soft);
+  color: var(--amw-accent-ink);
+  font-size: 10px;
+  white-space: nowrap;
+}
+@container st-visual (max-height: 96px) {
+  .st-acct-row:nth-child(3) {
+    display: none;
+  }
+}
+
+/* ---- payments: the plan and its webhook events ---- */
+.st-pay-plan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--amw-card-2);
+  box-shadow: inset 0 0 0 1px var(--amw-line-strong);
+}
+.st-pay-plan-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--amw-ink);
+}
+.st-pay-active {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: var(--amw-accent-soft);
+  color: var(--amw-accent-ink);
+  font-size: 10px;
+}
+.st-pay-active::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--amw-accent);
+}
+@container st-visual (max-height: 104px) {
+  .st-pay .st-vis-log-row:first-child {
+    display: none;
+  }
+}
+
+/* ---- dev-tool: the environment check ---- */
+.st-env-prompt {
+  color: var(--amw-ink);
+}
+
+/* ---- interface: a skeleton dashboard, shapes only ---- */
+.st-ui {
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--amw-card-2);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+  gap: 0;
+  justify-content: flex-start;
+}
+.st-ui-top {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--amw-line);
+}
+.st-ui-top i {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--amw-line-strong);
+}
+.st-ui-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+  padding: 8px;
+}
+.st-ui-rail {
+  display: flex;
+  flex: none;
+  width: clamp(36px, 16%, 88px);
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 8px;
+  border-right: 1px solid var(--amw-line);
+}
+.st-ui-logo {
+  width: 12px;
+  height: 12px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  background: var(--amw-line-strong);
+}
+.st-ui-nav {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--amw-line);
+}
+.st-ui-nav[data-current] {
+  background: var(--amw-line-strong);
+}
+.st-ui-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+.st-ui-cards {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.st-ui-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--amw-card);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+.st-ui-line {
+  width: 50%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--amw-line);
+}
+.st-ui-line--big {
+  width: 72%;
+  height: 7px;
+  background: var(--amw-line-strong);
+}
+.st-ui-chart {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--amw-card);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+}
+.st-ui-bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px 2px 0 0;
+  background: var(--amw-line-strong);
+}
+.st-ui-bar[data-on] {
+  background: var(--amw-accent);
+}
+@container st-visual (max-height: 84px) {
+  .st-ui-cards {
+    display: none;
+  }
+}
+
+/* ---- stack: five logo tiles ---- */
+.st-stack {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: 8px;
+}
+.st-stack-tile {
+  display: grid;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--amw-card-2);
+  box-shadow: inset 0 0 0 1px var(--amw-line);
+  color: var(--amw-ink);
+}
+.st-stack-tile[data-on] {
+  box-shadow: inset 0 0 0 1px var(--amw-accent);
+}
+@container st-visual (max-width: 240px) {
+  .st-stack {
+    gap: 6px;
+  }
+  .st-stack-tile {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+}
+
+/* Before JavaScript settles the reader's motion setting, and for anyone who
+   asks for less motion: the whole reply shows, nothing loops. */
+@media (prefers-reduced-motion: reduce) {
+  .st-chat *,
+  .st-chat *::after {
+    animation: none !important;
+  }
+  .st-chat-typing {
+    display: none;
+  }
+  .st-bento__light,
+  .st-bento__border {
+    transition: none;
+  }
+}
+
+/* ---- hero: the promise, the command and the stack picker -------------------
+   The hero card is dark in both themes (.pj-dark pins its tokens). The
+   entrance is the shared .pj-rise; the tree lines reuse .ed-files' rise. */
+.st-hero-grid {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 40px 56px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .st-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.st-hero-copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+.st-hero-title {
+  max-width: 17ch;
+  font-size: clamp(34px, 4.4vw, 56px);
+}
+.st-hero-lede {
+  max-width: 36rem;
+}
+.st-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.st-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--pj-ring-2);
+  font-family: var(--pj-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  color: var(--pj-t2);
+}
+.st-chip[data-accent] {
+  background: rgba(60, 232, 206, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(60, 232, 206, 0.45);
+  color: var(--pj-accent-ink);
+}
+.st-chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--pj-accent);
+  box-shadow: 0 0 0 3px rgba(60, 232, 206, 0.2);
+}
+.st-term {
+  margin-top: 28px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(9, 9, 11, 0.72);
+  box-shadow: inset 0 0 0 1px var(--pj-ring-2);
+  font-family: var(--pj-mono);
+}
+.st-term-line {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--pj-t1);
+}
+.st-term-line code {
+  min-width: 0;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.st-term-sign {
+  color: var(--pj-accent);
+}
+.st-term-status {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: var(--pj-t3);
+}
+.st-hero-acts {
+  margin-top: 28px;
+}
+/* The label carries its own arrow, so the button has no dot. */
+.st-cta {
+  padding: 6px 20px;
+}
+.st-hero-note {
+  margin-top: 20px;
+  color: var(--pj-t3);
+}
+
+.st-picker {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(16, 16, 21, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px var(--pj-ring-2);
+}
+.st-picker-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--pj-t1);
+}
+.st-picker-copy {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--pj-t2);
+}
+.st-pick-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* The board's compact pills: icon and name on one line, wrapping. */
+.ed-pick.st-pick {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 0;
+}
+.ed-pick.st-pick button {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-family: var(--pj-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--pj-t1);
+}
+.ed-pick.st-pick button:hover {
+  color: var(--pj-accent-ink);
+}
+.ed-pick.st-pick button[aria-pressed='true'] {
+  background: rgba(60, 232, 206, 0.12);
+  color: var(--pj-accent-ink);
+}
+.st-pick-ico {
+  flex: none;
+}
+.st-tree {
+  margin-top: 0;
+}
+.st-tree .ed-files {
+  padding-bottom: 12px;
+}
+.st-tree .ed-files li {
+  align-items: center;
+  gap: 8px;
+}
+.st-lemon {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--pj-t3);
+}
+
+/* ---- numbered sections: the kicker with its aside ---------------------- */
+.st-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 24px;
+}
+.st-head-meta {
+  color: var(--pj-t3);
+}
+
+/* ---- 01 · the problems ---- */
+.st-pains {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+  margin: 40px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.st-pain p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--pj-t1);
+}
+
+/* ---- 02 · what ships ---- */
+.st-ships {
+  margin-top: 40px;
+}
+.st-caption {
+  margin-top: 20px;
+  color: var(--pj-t3);
+}
+
+/* ---- 03 · the guards ----
+   The drawings carry their own dark ground, so their frame stays dark in
+   both themes. A card only grows its drawing for a hovering pointer that
+   moves. */
+.st-guards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: 16px;
+  margin: 40px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.st-guard-art {
+  margin: 0 0 20px;
+  border-radius: 12px;
+  background: #101015;
+  overflow: hidden;
+}
+.st-guard-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .st-guard-img {
+    transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .st-guard:hover .st-guard-img {
+    transform: scale(1.03);
+  }
+}
+.st-guard-num {
+  font-family: var(--pj-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--pj-accent-ink);
+}
+.st-guard-title {
+  margin: 20px 0 0;
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--pj-t1);
+}
+.st-guard-copy {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--pj-t2);
+}
+
+/* ---- 04 · the waves ---- */
+.st-waves {
+  margin-top: 48px;
+}
+
+/* ---- 05 · founding members: the question, then the table ----
+   The question is asked once above the table; its answers are the board's
+   compact pills, as radios. */
+.st-founding {
+  margin-top: 40px;
+}
+.st-building {
+  margin: 0 0 48px;
+  padding: 20px 24px;
+  border: 0;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px var(--pj-ring);
+}
+.st-building-label {
+  float: left;
+  width: 100%;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pj-t1);
+}
+.st-building-hint {
+  clear: both;
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--pj-t2);
+}
+.st-building-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.st-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--pj-ring);
+  font-family: var(--pj-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--pj-t1);
+  cursor: pointer;
+}
+.st-choice:hover {
+  color: var(--pj-accent-ink);
+}
+.st-choice:has(input:checked) {
+  background: rgba(60, 232, 206, 0.12);
+  color: var(--pj-accent-ink);
+}
+.st-choice:has(input:focus-visible) {
+  outline: 2px solid var(--pj-accent-ink);
+  outline-offset: 2px;
+}
+.st-choice input {
+  margin: 0;
+  accent-color: var(--pj-accent);
+}
+/* A waitlist link in a plan's slot looks like the buy button beside it. */
+.st-plan-link {
+  text-decoration: none;
+}
+.st-plan-link:hover {
+  color: #09090b;
+}
+
+/* ---- the closing band ---- */
+.st-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  padding: clamp(32px, 5vw, 56px) clamp(24px, 4vw, 40px);
+  border-radius: 24px;
+  background: var(--pj-panel);
+  box-shadow: inset 0 0 0 1px var(--pj-ring);
+}
+.st-band-copy {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+.st-band-title {
+  margin-top: 14px;
+}
+.st-band-acts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.st-band-acts .pj-kicker {
+  margin: 0;
+  color: var(--pj-t3);
+}

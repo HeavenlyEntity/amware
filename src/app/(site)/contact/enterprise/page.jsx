@@ -1,6 +1,7 @@
 import { withSocialImage } from '@/lib/social/metadata'
 import { kitEnterpriseSubject } from '@/lib/contact-intents'
 import { STACK_LABEL } from '@/lib/commerce/pricingTable'
+import { kitName } from '@/lib/commerce/license'
 import ContactForm from '../ContactForm'
 
 /* Where "Talk to me about Enterprise" on the license page lands.
@@ -16,8 +17,7 @@ export const metadata = {
   ...withSocialImage(
     {
       title: 'Talk about Enterprise',
-      description:
-        'Ask about WareKit Enterprise: more developers or NetSuite accounts than Team covers.',
+      description: 'A quote for a team that needs more than Team covers.',
     },
     'contact'
   ),
@@ -37,7 +37,11 @@ const known = (labels, id) =>
 
 export default async function EnterpriseContactPage({ searchParams }) {
   const query = (await searchParams) ?? {}
-  const kit = known(STACK_LABEL, firstParam(query.kit))
+  const kitId = firstParam(query.kit)
+  /* Standard is not a column on the pricing page, so it is not in
+     STACK_LABEL; it is named here from the kit's own name. */
+  const kit =
+    kitId === 'standard' ? kitName('standard') : known(STACK_LABEL, kitId)
   const tier = known(TIER_LABEL, firstParam(query.tier))
 
   return (

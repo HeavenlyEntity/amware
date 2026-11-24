@@ -12,6 +12,7 @@ import {
   START_WITH_PRO,
 } from '../../content/site/warekit'
 import { checkoutRoute } from './checkoutRoute'
+import { tracksAccounts } from './license'
 
 /*
  * What the NetSuite storefront may say about each kit.
@@ -66,12 +67,14 @@ function plannedEditions() {
 }
 
 /* What a license for this row allows, as plain counts. A missing value is 1,
-   the same rule the license page applies. Lite never has accounts. */
+   the same rule the license page applies. Lite and Standard never have accounts. */
 export function kitLimits(row, seats = 1) {
   return {
     seats: whole(row.seats) ?? seats,
     netsuiteAccounts:
-      row.tier === 'lite' ? null : whole(row.netsuiteAccounts) ?? 1,
+      row.tier === 'lite' || !tracksAccounts(row.stack)
+        ? null
+        : whole(row.netsuiteAccounts) ?? 1,
   }
 }
 

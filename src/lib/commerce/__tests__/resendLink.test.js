@@ -130,6 +130,26 @@ describe('resend for a kit buyer', () => {
     })
   })
 
+  it('tells the mail a Standard license has no key, and a NetSuite one has', async () => {
+    world({
+      purchases: [kitRow()],
+      licenses: [{ id: 9, ownerEmail: OWNER, tier: 'pro', stack: 'standard' }],
+    })
+    await submit(OWNER)
+    expect(sent().usesKey).toBe(false)
+
+    vi.clearAllMocks()
+    sendLicenseLinkEmail.mockResolvedValue(undefined)
+    world({
+      purchases: [kitRow()],
+      licenses: [
+        { id: 9, ownerEmail: OWNER, tier: 'pro', stack: 'next-netsuite' },
+      ],
+    })
+    await submit(OWNER)
+    expect(sent().usesKey).toBe(true)
+  })
+
   it('resend talks about upgrading with intent=upgrade', async () => {
     world({ purchases: [kitRow()] })
     await submit(OWNER, { intent: 'upgrade' })

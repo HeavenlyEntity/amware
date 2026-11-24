@@ -778,4 +778,53 @@ describe('LicensePanel Enterprise', () => {
     })
     expect(screen.queryByRole('button', { name: COMPLETE })).toBeNull()
   })
+
+  describe('a Standard license', () => {
+    const standard = {
+      license: { ...pro.license, stack: 'standard', accounts: [] },
+      product: { name: 'WareKit Standard (Pro)', githubRepo: 'amwaredotdev/s' },
+      limits: { seats: 1, accounts: null },
+      upgrade: { cost: 300, seats: 5, accounts: null },
+    }
+
+    it('shows a Standard license its developers and nothing about NetSuite', () => {
+      const { container } = panel(standard)
+      expect(container.textContent).not.toMatch(
+        /netsuite|NS_ACCOUNT_ID|license key/i
+      )
+      expect(screen.getByText('1 / 1 developers')).toBeInTheDocument()
+    })
+
+    it('offers a Standard Pro license Team in developers only', () => {
+      const { container } = panel(standard)
+      expect(container.textContent).toContain('You get 5 developers.')
+      expect(container.textContent).not.toMatch(/key/i)
+    })
+  })
+
+  it('shows no key section for a paid license with no stack and no accounts', () => {
+    const { container } = panel({
+      license: { ...pro.license, accounts: [] },
+      product: { name: 'WareKit Standard (Pro)' },
+      limits: { seats: 1, accounts: null },
+      upgrade: null,
+      action: { kind: null, urgent: false },
+    })
+    expect(container.textContent).not.toMatch(
+      /netsuite|NS_ACCOUNT_ID|license key/i
+    )
+  })
+
+  it('shows no key section when the stack comes from the product and has no accounts', () => {
+    const { container } = panel({
+      license: { ...pro.license, accounts: [] },
+      product: { name: 'WareKit Standard (Pro)', stack: 'standard' },
+      limits: { seats: 1, accounts: null },
+      upgrade: null,
+      action: { kind: null, urgent: false },
+    })
+    expect(container.textContent).not.toMatch(
+      /netsuite|NS_ACCOUNT_ID|license key/i
+    )
+  })
 })

@@ -3,7 +3,12 @@ import { getPayloadClient } from '@/lib/getPayloadClient'
 import { verifyCreemSignature } from '@/lib/commerce/creem'
 import { tryCreateAccessToken } from '@/lib/commerce/accessToken'
 import { creemEnvironment } from '@/lib/commerce/creemEnv'
-import { activeAccounts, licenseLimits, tierRank } from '@/lib/commerce/license'
+import {
+  activeAccounts,
+  licenseLimits,
+  tierRank,
+  tracksAccounts,
+} from '@/lib/commerce/license'
 import {
   attachPurchase,
   expectedProductIds,
@@ -864,6 +869,8 @@ async function handleCheckout(event) {
                 return path ? `${site}${path}` : null
               })()
             : null,
+        /* A Standard license has no key, so its mail does not offer one. */
+        usesKey: tracksAccounts(license?.stack || item?.stack),
       })
     } catch {
       console.error('Boilerplate confirmation email failed for order', orderId)

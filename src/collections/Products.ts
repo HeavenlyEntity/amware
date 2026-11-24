@@ -107,10 +107,11 @@ export const Products: CollectionConfig = {
       options: [
         { label: 'React in NetSuite', value: 'react-netsuite' },
         { label: 'Next.js + NetSuite', value: 'next-netsuite' },
+        { label: 'Standard', value: 'standard' },
       ],
       admin: {
         description:
-          'Which column of the pricing page this kit belongs to. Kits only.',
+          'Which kit family this is. NetSuite kits use it as their pricing column. Kits only.',
         position: 'sidebar',
       },
     },

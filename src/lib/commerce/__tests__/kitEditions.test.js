@@ -758,3 +758,32 @@ describe('recommendEdition', () => {
     })
   })
 })
+
+describe('a Standard kit row', () => {
+  it('gives a Standard row no NetSuite accounts, whatever the row says', () => {
+    expect(
+      kitLimits({
+        stack: 'standard',
+        tier: 'team',
+        seats: 5,
+        netsuiteAccounts: 3,
+      })
+    ).toEqual({ seats: 5, netsuiteAccounts: null })
+  })
+
+  it('keeps Standard rows out of the NetSuite editions', () => {
+    expect(
+      editionStates([
+        {
+          stack: 'standard',
+          tier: 'pro',
+          status: 'published',
+          type: 'boilerplate',
+          price: 149,
+          creemProductId: 'prod_x',
+          slug: 'warekit-standard-pro',
+        },
+      ])
+    ).toEqual(editionStates([]))
+  })
+})

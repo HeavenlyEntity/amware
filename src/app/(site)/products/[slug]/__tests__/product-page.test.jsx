@@ -18,7 +18,13 @@ vi.mock('@/components/commerce/ClaimFreeKit', () => ({
   ClaimFreeKit: () => <button type="button">Claim</button>,
 }))
 
-import ProductPage from '../page'
+const nav = vi.hoisted(() => ({ redirect: vi.fn() }))
+vi.mock('next/navigation', async (orig) => ({
+  ...(await orig()),
+  redirect: nav.redirect,
+}))
+
+import ProductPage, { generateMetadata, generateStaticParams } from '../page'
 
 const kit = {
   name: 'WareKit Next NetSuite (Pro)',
@@ -145,5 +151,37 @@ describe('/products/[slug]', () => {
   it('keeps Already on Pro off Pro', async () => {
     await show(kit)
     expect(screen.queryByText(/Already on Pro/)).not.toBeInTheDocument()
+  })
+
+  describe('a Standard kit', () => {
+    const standard = {
+      name: 'WareKit Standard Pro',
+      slug: 'warekit-standard-pro',
+      stack: 'standard',
+      type: 'boilerplate',
+      status: 'published',
+      price: 149,
+    }
+
+    it('sends a Standard kit to the presale page', async () => {
+      nav.redirect.mockReset()
+      payload.find.mockResolvedValue({ docs: [standard] })
+      await ProductPage({ params: Promise.resolve({ slug: standard.slug }) })
+      expect(nav.redirect).toHaveBeenCalledWith('/products/standard#founding')
+    })
+
+    it('builds no static page for a Standard kit', async () => {
+      payload.find.mockResolvedValue({ docs: [standard, kit] })
+      expect(await generateStaticParams()).toEqual([{ slug: kit.slug }])
+    })
+
+    it('describes no Standard kit in metadata', async () => {
+      payload.find.mockResolvedValue({ docs: [standard] })
+      expect(
+        await generateMetadata({
+          params: Promise.resolve({ slug: standard.slug }),
+        })
+      ).toEqual({})
+    })
   })
 })

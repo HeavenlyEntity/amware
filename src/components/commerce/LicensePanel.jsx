@@ -7,7 +7,12 @@ import { TrackPurchase } from '@/components/analytics/TrackPurchase'
 /* From the plain module, never from PendingRefresh.jsx: on the server this
    file would get a client reference for the constant, not the number. */
 import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
-import { kitName, tierRank, upgradeReturn } from '@/lib/commerce/license'
+import {
+  kitName,
+  tierRank,
+  tracksAccounts as stackTracksAccounts,
+  upgradeReturn,
+} from '@/lib/commerce/license'
 import { listSeats } from '@/lib/commerce/seats'
 
 /* The license page, for the whole license rather than one purchase.
@@ -128,19 +133,21 @@ const gains = ({ seats, accounts }) =>
 
 /* The terms of a quote, from the license's own overrides. Said only when both
    numbers are there, since half a quote is not one. */
-const quoteTerms = (license) =>
-  Number.isFinite(license?.seatOverride) &&
-  Number.isFinite(license?.accountOverride)
+const quoteTerms = (license, product) => {
+  const counts = stackTracksAccounts(license?.stack ?? product?.stack)
+  return Number.isFinite(license?.seatOverride) &&
+    (!counts || Number.isFinite(license?.accountOverride))
     ? `Your quote covers ${gains({
         seats: license.seatOverride,
-        accounts: license.accountOverride,
+        accounts: counts ? license.accountOverride : null,
       })}.`
     : null
+}
 
 /* The Enterprise payment. It is the page's one action, so it is always the
    teal one. */
-function EnterpriseQuote({ token, license, name }) {
-  const terms = quoteTerms(license)
+function EnterpriseQuote({ token, license, product, name }) {
+  const terms = quoteTerms(license, product)
   return (
     <div>
       <UpgradeButton
@@ -240,7 +247,12 @@ export function LicensePanel({
         <>
           <Heading kicker="Enterprise quote">{name}</Heading>
           <div className="mt-6">
-            <EnterpriseQuote token={token} license={license} name={name} />
+            <EnterpriseQuote
+              token={token}
+              license={license}
+              product={product}
+              name={name}
+            />
           </div>
         </>
       )
@@ -261,7 +273,11 @@ export function LicensePanel({
 
   const seats = listSeats(license.seatMembers)
   const tracksAccounts = limits.accounts != null
-  const showsKey = license.tier !== 'lite'
+  /* The same source `licenseLimits` reads, so the key can never show where
+     the accounts it sits beside are not counted. */
+  const stack = license.stack ?? product?.stack
+  const showsKey =
+    license.tier !== 'lite' && stackTracksAccounts(stack) && tracksAccounts
 
   /* One action at most. A payment on its way hides the button entirely
      rather than disabling it, and so does a missing price: with no number to
@@ -296,7 +312,12 @@ export function LicensePanel({
     license.tier !== 'enterprise'
   ) {
     upgradeAction = (
-      <EnterpriseQuote token={token} license={license} name={name} />
+      <EnterpriseQuote
+        token={token}
+        license={license}
+        product={product}
+        name={name}
+      />
     )
   } else if (action?.kind === 'enterprise-contact' && license.tier === 'team') {
     upgradeAction = (
@@ -322,7 +343,9 @@ export function LicensePanel({
           {`Move to Team · $${upgrade.cost.toFixed(2)}`}
         </UpgradeButton>
         <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-          {`Your code, repo and key stay the same. You get ${gains(upgrade)}.`}
+          {`${
+            showsKey ? 'Your code, repo and key' : 'Your code and repo'
+          } stay the same. You get ${gains(upgrade)}.`}
         </p>
       </div>
     )

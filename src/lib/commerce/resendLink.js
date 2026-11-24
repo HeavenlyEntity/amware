@@ -3,7 +3,7 @@
 import { getPayloadClient } from '../getPayloadClient'
 import { tryCreateAccessToken } from './accessToken'
 import { sendAccessLinkEmail, sendLicenseLinkEmail } from './fulfillment'
-import { tierRank } from './license'
+import { tierRank, tracksAccounts } from './license'
 import {
   claimLinkWindow,
   linkWindowOpen,
@@ -117,6 +117,7 @@ async function mailLicense(payload, license, reason) {
       itemName: 'WareKit',
       url: `${site}/access/seats/${signed.token}`,
       reason,
+      usesKey: tracksAccounts(license.stack),
     })
   } catch (err) {
     // Nothing went out, so the ten minutes are not spent.

@@ -478,10 +478,14 @@ describe('Onboarding page while no row has arrived, which could be either outcom
     expect(text).not.toMatch(/on its way/i)
     expect(text).not.toMatch(/email|receipt/i)
     expect(text).not.toMatch(/did not go through|nothing was charged/i)
-    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
-      'href',
-      '/pricing'
+    /* The page cannot know which kit this was, and /pricing does not sell
+       every kit, so the sentence names no page and links to none. */
+    expect(text).toContain(
+      'Try again from the page you bought from, refresh the page to check once more, or get in touch and I will sort it by hand.'
     )
+    expect(text).not.toMatch(/pricing page/i)
+    expect(screen.queryByRole('link', { name: /try again/i })).toBeNull()
+    expect(container.querySelector('a[href="/pricing"]')).toBeNull()
     expect(
       screen.getByRole('link', { name: /refresh the page/i })
     ).toHaveAttribute('href', `/checkout/onboarding?ref=${REF}`)
@@ -663,6 +667,48 @@ describe('Onboarding page for a Creem kit buyer', () => {
     ).toBeInTheDocument()
     // Nothing is claimed delivered, and no clone command is shown yet.
     expect(container.textContent).not.toMatch(/git clone/i)
+  })
+
+  it('shows a Standard buyer no key step and the Standard command, never the NetSuite one', async () => {
+    vi.stubEnv('WAREKIT_CLI_COMMAND', 'npx warekit-netsuite-cli init')
+    vi.stubEnv('WAREKIT_STANDARD_CLI_COMMAND', 'npx warekit-standard-cli init')
+    try {
+      const standardKit = {
+        id: 41,
+        name: 'WareKit Standard (Pro)',
+        slug: 'warekit-standard-pro',
+        type: 'boilerplate',
+        stack: 'standard',
+        tier: 'pro',
+        seats: 1,
+        githubRepo: 'amwaredotdev/warekit-standard',
+      }
+      purchases = [
+        creemRow({
+          githubUsername: 'octocat',
+          githubRepo: 'amwaredotdev/warekit-standard',
+          fulfillmentStatus: 'sent',
+          grantsTier: 'pro',
+          // Even a key on the row is never shown for a kit without one.
+          licenseKey: KEY,
+          item: { relationTo: 'products', value: standardKit },
+        }),
+      ]
+      database({ licenseDoc: { id: 5, stack: 'standard', tier: 'pro' } })
+      const { container } = await renderPage(link())
+      const text = container.textContent
+
+      expect(text).toContain('npx warekit-standard-cli init')
+      expect(text).not.toContain('npx warekit-netsuite-cli init')
+      expect(text).not.toMatch(/license key|WAREKIT_LICENSE_KEY/i)
+      expect(text).not.toMatch(/NS_ACCOUNT_ID|netsuite/i)
+      expect(text).not.toContain('WXYZ')
+      expect(
+        screen.queryByRole('heading', { name: /add your key/i })
+      ).toBeNull()
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('shows "Confirming your payment" for a signed link with no row yet', async () => {

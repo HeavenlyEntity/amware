@@ -17,7 +17,7 @@ import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
 import { validCheckoutRef } from '@/lib/commerce/whop'
 import { licenseLinkFor } from '@/lib/commerce/licenseLink'
 import { hasSeat, listSeats, seatLimit } from '@/lib/commerce/seats'
-import { licenseLimits } from '@/lib/commerce/license'
+import { licenseLimits, tracksAccounts } from '@/lib/commerce/license'
 import { currentKey, licenseFromClaims } from '@/lib/commerce/licenseRecord'
 import { verifyOnboardingLink } from '@/lib/commerce/onboardingLink'
 import type { Purchase } from '@/payload-types'
@@ -306,11 +306,10 @@ export default async function OnboardingPage({
           </>
         ) : (
           <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-            If your bank or card step did not finish, nothing was taken.{' '}
-            <Link href="/pricing" className={linkClass}>
-              Try again
-            </Link>{' '}
-            from the pricing page,{' '}
+            {/* No link: the page cannot know which kit this was, and
+                /pricing does not sell every kit. */}
+            If your bank or card step did not finish, nothing was taken. Try
+            again from the page you bought from,{' '}
             <Link href={manualHref} className={linkClass}>
               refresh the page
             </Link>{' '}
@@ -340,6 +339,7 @@ export default async function OnboardingPage({
     githubRepo?: string | null
     seats?: number | null
     id?: number | string
+    stack?: string | null
   } | null
 
   const tier = tierFromSlug(itemDoc?.slug)
@@ -365,6 +365,13 @@ export default async function OnboardingPage({
   const itemName = itemDoc?.name || 'Your kit'
   const repo = purchase.githubRepo || itemDoc?.githubRepo || null
   const delivered = purchase.fulfillmentStatus === 'sent'
+  /* The NetSuite kits share one command. Standard has its own, and never
+     borrows that one: it would run a NetSuite setup. */
+  const usesKey = tracksAccounts(itemDoc?.stack)
+  const cliCommand =
+    (usesKey
+      ? process.env.WAREKIT_CLI_COMMAND
+      : process.env.WAREKIT_STANDARD_CLI_COMMAND) || null
 
   /* The Whop route is unchanged: the purchase row says everything. */
   if (!link) {
@@ -384,7 +391,9 @@ export default async function OnboardingPage({
           /* Only when a server actually exists. Everything on this page is
              either real or absent. */
           discordUrl={process.env.DISCORD_INVITE_URL || null}
-          cliCommand={process.env.WAREKIT_CLI_COMMAND || null}
+          cliCommand={cliCommand}
+          usesKey={usesKey}
+          stack={itemDoc?.stack}
           tier={tier}
           delivered={delivered}
           /* The product's own limit, the same one the seat page enforces. */
@@ -460,6 +469,7 @@ export default async function OnboardingPage({
             requestId={link.r}
             signature={link.s}
             initialUsername={setup.liteUsername}
+            usesKey={usesKey}
           />
         </>
       ) : canRetry ? (
@@ -471,6 +481,7 @@ export default async function OnboardingPage({
             requestId={link.r}
             signature={link.s}
             retryUsername={stored}
+            usesKey={usesKey}
           />
         </>
       ) : (
@@ -482,7 +493,9 @@ export default async function OnboardingPage({
           )}
           githubUsername={purchase.githubUsername || null}
           discordUrl={process.env.DISCORD_INVITE_URL || null}
-          cliCommand={process.env.WAREKIT_CLI_COMMAND || null}
+          cliCommand={cliCommand}
+          usesKey={usesKey}
+          stack={itemDoc?.stack}
           tier={tier}
           delivered={delivered}
           seats={setup.seats}

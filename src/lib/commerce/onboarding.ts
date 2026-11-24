@@ -3,7 +3,7 @@
 import { getPayloadClient } from '@/lib/getPayloadClient'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
 import { attachPurchase, licenseFromClaims } from '@/lib/commerce/licenseRecord'
-import { licenseLimits } from '@/lib/commerce/license'
+import { licenseLimits, tracksAccounts } from '@/lib/commerce/license'
 import { licenseLinkFor } from '@/lib/commerce/licenseLink'
 import { hasSeat, listSeats } from '@/lib/commerce/seats'
 import { reserveSeat, setSeatInvite } from '@/lib/commerce/licenseSeats'
@@ -375,6 +375,7 @@ export async function completeOnboarding(
       repo,
       inviteUrl: invite.ok ? invite.url : null,
       alreadyHadAccess,
+      usesKey: tracksAccounts(productDoc?.stack),
     })
   } catch {
     console.error('Onboarding email failed', purchase.id)

@@ -52,10 +52,13 @@ export async function readCatalog(payload, collection, page = 1) {
       ],
     },
     select: Object.fromEntries(
-      [...publicFields[collection], 'status', 'updatedAt'].map((key) => [
-        key,
-        true,
-      ])
+      [
+        ...publicFields[collection],
+        'status',
+        'updatedAt',
+        /* Read only to filter on; never projected below. */
+        ...(collection === 'products' ? ['stack'] : []),
+      ].map((key) => [key, true])
     ),
     sort: collection === 'articles' ? '-publishedDate' : 'order',
     limit: 30,
@@ -70,7 +73,9 @@ export async function readCatalog(payload, collection, page = 1) {
           doc.status === 'published' &&
           !(collection === 'articles' && doc.mdxSlug) &&
           /* Its services row only takes a deposit; it is not an engagement. */
-          !(collection === 'services' && doc.slug === DIAGNOSTIC_SLUG)
+          !(collection === 'services' && doc.slug === DIAGNOSTIC_SLUG) &&
+          /* Standard kits are sold only from /products/standard. */
+          !(collection === 'products' && doc.stack === 'standard')
       )
       .map((doc) => ({
         title: doc.name ?? doc.title,

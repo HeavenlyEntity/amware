@@ -5,8 +5,13 @@ import { redirect } from 'next/navigation'
 import { getPayloadClient } from '../getPayloadClient'
 import { CreemError, createCheckoutSession } from './creem'
 import { checkoutRoute } from './checkoutRoute'
-import { creemProductIdFor } from './creemEnv'
+import { creemEnvironment, creemProductIdFor } from './creemEnv'
 import { onboardingPath } from './onboardingLink'
+import {
+  STANDARD_STACK,
+  buildingAnswer,
+  standardRowReady,
+} from './standardPresale'
 
 /* A 'use server' module may only export async functions, so the initial state
  * lives with the component that owns it. Types are erased, so the type export
@@ -55,9 +60,18 @@ export async function startCreemCheckout(
   })
   const item = docs[0]
   // The same gate the product page used to show the button, so a stale page
-  // cannot buy what the server would not have offered.
-  const productId = creemProductIdFor(item)
-  if (!item || checkoutRoute(item) !== 'creem' || !productId) {
+  // cannot buy what the server would not have offered. One environment is
+  // resolved here and used for every check below, so they cannot disagree.
+  const env = creemEnvironment()
+  const productId = creemProductIdFor(item, env)
+  if (!item || checkoutRoute(item, env) !== 'creem' || !productId) {
+    return NOT_ON_SALE
+  }
+  // A Standard row must also be deliverable: a repository to invite the
+  // buyer to, a real price and the exact slug. The presale page offers the
+  // button with the same check, so a stale page or a hand-posted slug cannot
+  // buy what the site could not fulfil. Every other row is unaffected.
+  if (item.stack === STANDARD_STACK && !standardRowReady(item, env)) {
     return NOT_ON_SALE
   }
 
@@ -71,6 +85,11 @@ export async function startCreemCheckout(
   }
 
   const requestId = crypto.randomUUID()
+
+  /* The optional "What are you building?" answer from the founding presale.
+     The form value is the buyer's to set, so only an id from the listed
+     choices is passed on; anything else is treated as if it was never sent. */
+  const building = buildingAnswer(formData.get('building'))
 
   /* A kit buyer lands on the onboarding page, where the signed link proves
      they paid and collects the GitHub username for the repo invite. The link
@@ -99,7 +118,12 @@ export async function startCreemCheckout(
       productId,
       requestId,
       successUrl,
-      metadata: { itemType: 'product', itemId: String(item.id), slug },
+      metadata: {
+        itemType: 'product',
+        itemId: String(item.id),
+        slug,
+        ...(building ? { building } : {}),
+      },
     }))
   } catch (err) {
     /* Creem not knowing the product is the same situation as the CMS not

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 
-import { STANDARD_STACK } from '@/content/site/warekit'
+import { STACKS } from '@/content/site/warekit'
 import { Reveal } from './reveal'
 
 /* One quiet card, so the NetSuite funnel keeps the focus. */
@@ -15,24 +15,20 @@ export function OtherEditions() {
           className="oe-card"
           aria-labelledby="pr-oe-title"
         >
-          <span className="ed-badge">
-            <i />
-            In development
-          </span>
           <span className="oe-main">
             <b id="pr-oe-title">Not on NetSuite? WareKit Standard edition.</b>
             <span className="oe-copy">
-              For SaaS products and internal tools. Pick your data layer and get
-              notified when that kit ships.
+              For SaaS products and internal tools. Pick your data layer and
+              your payment provider.
             </span>
             <span className="oe-stack">
-              {STANDARD_STACK.map((name) => (
-                <span key={name}>{name}</span>
+              {STACKS.map((stack) => (
+                <span key={stack.id}>{stack.label}</span>
               ))}
             </span>
           </span>
           <span className="oe-go">
-            Get notified
+            See the Standard edition
             <i aria-hidden="true">
               <ChevronRight width={14} height={14} strokeWidth={2.5} />
             </i>

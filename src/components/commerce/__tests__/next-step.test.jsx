@@ -40,4 +40,27 @@ describe('NextStep', () => {
     )
     expect(screen.queryByText(/working with a team|built-out kit/i)).toBeNull()
   })
+
+  it('sends a Standard Pro buyer to the presale for Team, not to pricing', () => {
+    render(<NextStep tier="pro" stack="standard" />)
+    expect(screen.getByRole('link', { name: /compare team/i })).toHaveAttribute(
+      'href',
+      '/products/standard#founding'
+    )
+    expect(
+      screen.getByText(
+        'Team covers five developers on the same repository, with the same updates.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('does not call a Standard build a NetSuite build', () => {
+    const { container } = render(<NextStep tier="pro" stack="standard" />)
+    expect(container.textContent).not.toMatch(/netsuite/i)
+    expect(
+      screen.getByText(
+        'The kit is where the build starts. If you want help taking it to production, that is what an engagement is for.'
+      )
+    ).toBeInTheDocument()
+  })
 })

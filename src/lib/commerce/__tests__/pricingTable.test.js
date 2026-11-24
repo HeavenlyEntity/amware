@@ -144,6 +144,32 @@ describe('popularId', () => {
   it('is null when nothing is marked', () => {
     expect(popularId([kit()])).toBeNull()
   })
+
+  it('ignores a popular row the table does not show, such as a Standard kit', () => {
+    const standard = kit({
+      id: 9,
+      stack: 'standard',
+      slug: 'warekit-standard-pro',
+      popular: true,
+    })
+    expect(popularId([standard, kit({ id: 2, popular: true })])).toBe(2)
+    expect(popularId([standard, kit({ id: 2 })])).toBeNull()
+  })
+
+  it('ignores a row with no stack or tier, which the table leaves out', () => {
+    expect(
+      popularId([kit({ id: 3, tier: null, popular: true }), kit({ id: 4 })])
+    ).toBeNull()
+  })
+
+  it('keeps the first popular shown row in the order the rows arrived', () => {
+    expect(
+      popularId([
+        kit({ id: 5, tier: 'team', popular: true }),
+        kit({ id: 6, tier: 'pro', popular: true }),
+      ])
+    ).toBe(5)
+  })
 })
 
 describe('buildPricingTable', () => {
@@ -194,5 +220,19 @@ describe('buildPricingTable', () => {
 
   it('returns nothing for an empty catalogue', () => {
     expect(buildPricingTable([])).toEqual([])
+  })
+})
+
+describe('Standard kits', () => {
+  it('leaves Standard kits off the pricing page', () => {
+    expect(
+      buildPricingTable([
+        kit({
+          stack: 'standard',
+          status: 'published',
+          slug: 'warekit-standard',
+        }),
+      ])
+    ).toEqual(buildPricingTable([]))
   })
 })

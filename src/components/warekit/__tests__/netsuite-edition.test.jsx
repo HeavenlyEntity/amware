@@ -287,6 +287,27 @@ describe('the sections', () => {
     ).toHaveAttribute('href', '/products/standard')
   })
 
+  it('describes the Standard edition as the presale page does', () => {
+    mount()
+    const card = screen.getByRole('link', { name: /Not on NetSuite/ })
+    expect(card).not.toHaveTextContent(/in development/i)
+    expect(card).not.toHaveTextContent(/get notified/i)
+    expect(card).toHaveTextContent(
+      'For SaaS products and internal tools. Pick your data layer and your payment provider.'
+    )
+    expect(card).toHaveTextContent('See the Standard edition')
+    const chips = [...card.querySelectorAll('.oe-stack > span')].map(
+      (chip) => chip.textContent
+    )
+    expect(chips).toEqual([
+      'Supabase',
+      'Drizzle',
+      'Prisma',
+      'Manifest',
+      'Appwrite',
+    ])
+  })
+
   it('takes the quiz out of the tab order while closed', () => {
     const { container } = mount()
     const drawer = container.querySelector('#pr-quiz')
