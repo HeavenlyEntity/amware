@@ -16,6 +16,9 @@ import {
   sendBoilerplateConfirmationEmail,
   sendLicenseLinkEmail,
   sendOverLimitEmail,
+  sendRenewalReminderEmail,
+  sendUpdatesEndedEmail,
+  sendRenewalConfirmationEmail,
   notifyManualFulfilment,
 } from '../fulfillment'
 
@@ -511,5 +514,77 @@ describe('over-limit email', () => {
       error: { name: 'rate_limit_exceeded', message: 'Slow down' },
     })
     await expect(sendOverLimitEmail(args)).rejects.toThrow(/refused/)
+  })
+})
+
+describe('renewal emails', () => {
+  const base = {
+    to: 'owner@example.com',
+    kitName: 'WareKit Next NetSuite (Pro)',
+    until: '2027-12-10T15:00:00.000Z',
+    price: 199,
+    url: 'https://example.com/access/seats/tok',
+  }
+
+  it('first reminder names the date, the price, the new date and the link', async () => {
+    await sendRenewalReminderEmail({ ...base, which: 'first' })
+    const mail = send.mock.calls.at(-1)[0]
+    expect(mail.to).toBe('owner@example.com')
+    expect(mail.subject).toBe(
+      'Your WareKit Next NetSuite (Pro) updates end on 10 December 2027'
+    )
+    expect(body()).toContain('$199.00')
+    expect(body()).toContain('10 December 2028')
+    expect(body()).toContain('every NetSuite release')
+    expect(body()).toContain(base.url)
+  })
+  it('last reminder is shorter and says the same date and price', async () => {
+    await sendRenewalReminderEmail({ ...base, which: 'first' })
+    const first = body()
+    await sendRenewalReminderEmail({ ...base, which: 'last' })
+    expect(body().length).toBeLessThan(first.length)
+    expect(body()).toContain('10 December 2027')
+    expect(body()).toContain('$199.00')
+  })
+  it('never invents a price the kit row does not have', async () => {
+    await sendRenewalReminderEmail({ ...base, price: null, which: 'first' })
+    expect(body()).toContain('Get in touch for your renewal price.')
+    expect(body()).not.toMatch(/\$\d/)
+    await sendUpdatesEndedEmail({ ...base, endedOn: base.until, price: null })
+    expect(body()).not.toMatch(/\$\d/)
+  })
+  it('ended notice says access ended and the code keeps working', async () => {
+    await sendUpdatesEndedEmail({ ...base, endedOn: base.until })
+    expect(send.mock.calls.at(-1)[0].subject).toBe(
+      'Your WareKit Next NetSuite (Pro) updates ended on 10 December 2027'
+    )
+    expect(body()).toContain('Your code keeps working')
+    expect(body()).toContain('$199.00')
+  })
+  it('confirmation repeats the new date and the price, and mentions invitations only when access came back', async () => {
+    await sendRenewalConfirmationEmail({
+      ...base,
+      until: '2028-12-10T15:00:00.000Z',
+      restored: false,
+    })
+    expect(send.mock.calls.at(-1)[0].subject).toBe(
+      'Your WareKit Next NetSuite (Pro) updates now run until 10 December 2028'
+    )
+    expect(body()).toContain('$199.00')
+    expect(body()).not.toContain('invitation')
+    await sendRenewalConfirmationEmail({
+      ...base,
+      until: '2028-12-10T15:00:00.000Z',
+      restored: true,
+    })
+    expect(body()).toContain('new invitation')
+  })
+  it('throws when Resend refuses', async () => {
+    send.mockResolvedValueOnce({
+      error: { name: 'rate_limit', message: 'slow' },
+    })
+    await expect(
+      sendRenewalConfirmationEmail({ ...base, restored: false })
+    ).rejects.toThrow(/Resend refused/)
   })
 })
