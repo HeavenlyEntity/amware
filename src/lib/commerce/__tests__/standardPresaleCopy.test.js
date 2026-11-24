@@ -59,4 +59,13 @@ describe('Standard presale copy', () => {
       for (const icon of col.icons ?? [])
         expect(BRAND_ICONS[icon.icon]).toBeDefined()
   })
+  it('makes no price-lock or popularity claim', () => {
+    expect(JSON.stringify(PRESALE)).not.toMatch(
+      /kept for good|keep that price|most pick/i
+    )
+  })
+  it('marks only the Manifest icon as a stroke icon', () => {
+    const stroked = Object.entries(BRAND_ICONS).filter(([, v]) => v.stroke)
+    expect(stroked.map(([k]) => k)).toEqual(['file'])
+  })
 })

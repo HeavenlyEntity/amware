@@ -1,6 +1,6 @@
 /* Brand and line icons for the Standard presale page, as SVG path data.
    Paths are copied from the approved board. `card` stands in for Creem and
-   `file` for Manifest. `file` is a line icon (draw it with a stroke); the
+   `file` for Manifest. `file` is a line icon and carries `stroke: true`; the
    rest are filled glyphs. */
 
 export const BRAND_ICONS = {
@@ -43,6 +43,7 @@ export const BRAND_ICONS = {
   file: {
     d: 'M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2zM14 2v5a1 1 0 0 0 1 1h5m-10 4.5L8 15l2 2.5m4-5l2 2.5l-2 2.5',
     viewBox: '0 0 24 24',
+    stroke: true,
   },
   nextjs: {
     d: 'M18.665 21.978A11.94 11.94 0 0 1 12 24C5.377 24 0 18.623 0 12S5.377 0 12 0s12 5.377 12 12c0 3.583-1.574 6.801-4.067 9.001L9.219 7.2H7.2v9.596h1.615V9.251zm-3.332-8.533l1.6 2.061V7.2h-1.6z',

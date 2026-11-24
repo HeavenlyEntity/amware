@@ -255,7 +255,7 @@ export const PRESALE = {
     eyebrow: 'FOUNDING MEMBERS',
     meta: '50 seats · one payment',
     title: 'Pay once. Get every wave.',
-    copy: 'Founding members pay half and keep that price. If the kit isn’t for you, ask for a refund any time before v1.0.',
+    copy: 'Founding members pay half. If the kit isn’t for you, ask for a refund any time before v1.0.',
     seats: 50,
     fallback: { pro: 149, team: 299 },
     regular: { pro: 299, team: 599 },
@@ -279,7 +279,7 @@ export const PRESALE = {
         name: 'Pro',
         description: 'For one developer and their agent.',
         featured: true,
-        badge: 'Most pick this',
+        badge: 'Recommended',
       },
       {
         id: 'team',
@@ -383,7 +383,7 @@ export const PRESALE = {
   band: {
     eyebrow: '// START HERE',
     title: 'Start the build you won’t have to rescue.',
-    copy: '50 founding seats. Half price, kept for good.',
+    copy: '50 founding seats. Half price.',
     cta: 'become a founding member →',
     ctaClosed: 'join the waitlist →',
     note: 'refund on request until v1.0',
