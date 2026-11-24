@@ -23,7 +23,9 @@ import { DiagnosticCta } from './diagnostic-cta'
  *
  * Each numbered section is a plain `.svc-wrap` section on the page's normal
  * surface (the steps rail's colours assume it), labelled by its
- * SectionHeader title.
+ * SectionHeader title. The board rules every section off with a dashed
+ * line; SectionHeader's own dashed rule is that line here, so only the
+ * closing band, which has no SectionHeader, draws one of its own.
  */
 
 /* `review.items[].icon` names a lucide-react export; only these eight. */
@@ -62,26 +64,40 @@ export function Arrowed({ text }) {
   )
 }
 
-function Mark({ kind }) {
+function Mark() {
   return (
-    <span aria-hidden="true" className={`svc-mark svc-mark--${kind}`}>
-      {kind === 'yes' ? '✓' : '×'}
+    <span aria-hidden="true" className="svc-mark svc-mark--yes">
+      ✓
     </span>
   )
 }
 
-function Section({ id, content, children }) {
+/* `split` puts the header in one column and the content beside it from
+   `lg`, as the board draws "What you get"; stacked below that. */
+function Section({ id, content, split = false, children }) {
+  const header = (
+    <SectionHeader
+      id={id}
+      index={content.index}
+      eyebrow={content.eyebrow}
+      meta={content.meta}
+      title={content.title}
+      copy={content.copy}
+    />
+  )
   return (
     <section className="svc-wrap dg-section" aria-labelledby={id}>
-      <SectionHeader
-        id={id}
-        index={content.index}
-        eyebrow={content.eyebrow}
-        meta={content.meta}
-        title={content.title}
-        copy={content.copy}
-      />
-      {children}
+      {split ? (
+        <div className="dg-split">
+          {header}
+          {children}
+        </div>
+      ) : (
+        <>
+          {header}
+          {children}
+        </>
+      )}
     </section>
   )
 }
@@ -130,13 +146,13 @@ export function ReviewGrid() {
 export function ReportPanel() {
   const { items, specs } = DIAGNOSTIC.report
   return (
-    <Section id="report" content={DIAGNOSTIC.report}>
+    <Section id="report" content={DIAGNOSTIC.report} split>
       <div className="svc-cv-card dg-report">
         <div className="svc-cv-grid">
           <ul role="list" className="svc-cv-list">
             {items.map((item) => (
               <li key={item} className="svc-cv-item">
-                <Mark kind="yes" />
+                <Mark />
                 <span>{item}</span>
               </li>
             ))}
@@ -160,29 +176,45 @@ export function ReportPanel() {
   )
 }
 
+/* The board draws the two columns differently: "For you if" is a filled
+   card with an accent kicker and ticks; "Not for you if" has no fill, a
+   dashed edge, muted text and a plain mono ×, so it reads as the quieter
+   of the two. */
 export function PromiseFit() {
   const { forYou, notForYou } = DIAGNOSTIC.promise
-  const column = (label, items, kind) => (
-    <div className="svc-cv-card">
-      <h3 className="svc-eyebrow">
-        <span aria-hidden="true">{'// '}</span>
-        {label}
-      </h3>
-      <ul role="list" className="svc-cv-list">
-        {items.map((item) => (
-          <li key={item} className="svc-cv-item">
-            <Mark kind={kind} />
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
   return (
     <Section id="dg-promise" content={DIAGNOSTIC.promise}>
       <div className="svc-cv-grid">
-        {column(PROMISE_LABELS.forYou, forYou, 'yes')}
-        {column(PROMISE_LABELS.notForYou, notForYou, 'no')}
+        <div className="svc-cv-card">
+          <h3 className="svc-eyebrow">
+            <span aria-hidden="true">{'// '}</span>
+            {PROMISE_LABELS.forYou}
+          </h3>
+          <ul role="list" className="svc-cv-list">
+            {forYou.map((item) => (
+              <li key={item} className="svc-cv-item">
+                <Mark />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="svc-cv-card dg-fit-not">
+          <h3 className="svc-eyebrow">
+            <span aria-hidden="true">{'// '}</span>
+            {PROMISE_LABELS.notForYou}
+          </h3>
+          <ul role="list" className="svc-cv-list">
+            {notForYou.map((item) => (
+              <li key={item} className="svc-cv-item">
+                <span aria-hidden="true" className="dg-fit-x">
+                  ×
+                </span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </Section>
   )
@@ -216,7 +248,10 @@ export function ClosingBand({ booking }) {
   const { eyebrow, title, copy, cta } = DIAGNOSTIC.band
   const action = <DiagnosticCta booking={booking} label={cta} />
   return (
-    <section aria-labelledby="dg-band-title" className="svc-wrap svc-cv">
+    <section
+      aria-labelledby="dg-band-title"
+      className="svc-wrap svc-cv dg-band"
+    >
       <div className="svc-promise">
         <SlashEyebrow text={eyebrow} />
         <h2 id="dg-band-title" className="svc-h2 svc-cv-title">

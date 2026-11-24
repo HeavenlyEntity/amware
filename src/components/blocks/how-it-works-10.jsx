@@ -5,8 +5,8 @@
    section chrome (padding, heading, background) are gone, and the neutrals
    are the `.amw` tokens. The page supplies the heading. */
 
-import { useState } from 'react'
-import { motion } from 'motion/react'
+import { useRef, useState } from 'react'
+import { motion, useInView } from 'motion/react'
 import { Check } from 'lucide-react'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
 import { cn } from '@/lib/utils'
@@ -224,6 +224,36 @@ const KINDS = {
   meter: MeterArtifact,
 }
 
+/* An artifact card's fade-and-rise. useReducedMotion says "reduced" on the
+   server and on the first client render, and only then settles on the
+   reader's setting, so `initial` -- read once, at mount -- cannot decide
+   this. As gap-figure does, the target is worked out on every render: hidden
+   only while motion is allowed and the card has not been reached yet, so a
+   reduced-motion reader never sees it hidden at all. Hiding is instant,
+   since it only happens before the card has been seen. */
+function RailArtifact({ reduce, children }) {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, margin: '-80px' })
+  const hidden = !reduce && !inView
+  return (
+    <motion.div
+      ref={ref}
+      data-rail-artifact=""
+      initial={reduce ? false : { opacity: 0, y: 16 }}
+      animate={hidden ? { opacity: 0, y: 16 } : { opacity: 1, y: 0 }}
+      transition={
+        hidden || reduce
+          ? { duration: 0 }
+          : { duration: 0.6, ease: EASE, delay: 0.06 }
+      }
+      aria-hidden="true"
+      className="mt-6 lg:col-span-5 lg:col-start-6 lg:mt-0"
+    >
+      {children}
+    </motion.div>
+  )
+}
+
 export function StepsRail({ steps = [], className }) {
   const reduce = useReducedMotion()
   const [reached, setReached] = useState(-1)
@@ -313,17 +343,9 @@ export function StepsRail({ steps = [], className }) {
                 </p>
               </div>
               {Artifact ? (
-                <motion.div
-                  data-rail-artifact=""
-                  initial={reduce ? false : { opacity: 0, y: 16 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-80px' }}
-                  transition={{ duration: 0.6, ease: EASE, delay: 0.06 }}
-                  aria-hidden="true"
-                  className="mt-6 lg:col-span-5 lg:col-start-6 lg:mt-0"
-                >
+                <RailArtifact reduce={reduce}>
                   <Artifact {...step.artifact} />
-                </motion.div>
+                </RailArtifact>
               ) : null}
             </motion.div>
           </li>

@@ -27,6 +27,48 @@
 .dg .dg-report {
   margin-top: 32px;
 }
+/* "What you get": the header in one column and the panel beside it from
+   lg, as the board draws it; stacked, with the usual gap, below that. */
+.dg .dg-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+.dg .dg-split .dg-report {
+  margin-top: 0;
+}
+@media (min-width: 1024px) {
+  .dg .dg-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 56px;
+  }
+}
+
+/* "Not for you if": no fill, a dashed edge, muted text and a plain mono
+   ×. The "For you if" card keeps its fill and accent kicker. */
+.dg .dg-fit-not {
+  background: none;
+  box-shadow: none;
+  border: 1px dashed var(--amw-line-strong);
+}
+.dg .dg-fit-not .svc-eyebrow,
+.dg .dg-fit-not .svc-cv-item {
+  color: var(--amw-mut);
+}
+.dg .dg-fit-x {
+  flex-shrink: 0;
+  font-family: var(--amw-mono);
+}
+
+/* The closing band has no SectionHeader, so it draws the board's dashed
+   section rule itself, at the content's width like the headers' rules. */
+.dg .dg-band::before {
+  content: '';
+  display: block;
+  margin-bottom: 48px;
+  border-top: 1px dashed var(--amw-line);
+}
 .dg .dg-report .svc-cv-grid,
 .dg .dg-report .svc-cv-list {
   margin-top: 0;
