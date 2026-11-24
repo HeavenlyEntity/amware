@@ -54,6 +54,8 @@ function Step({ n, title, done, children }) {
  *   seats?: number,
  *   licenseUrl?: string | null,
  *   licenseExpired?: boolean,
+ *   usesKey?: boolean,
+ *   stack?: string | null,
  * }} props
  */
 export function OnboardingSteps({
@@ -68,7 +70,12 @@ export function OnboardingSteps({
   seats = 1,
   licenseUrl,
   licenseExpired,
+  usesKey = true,
+  stack,
 }) {
+  /* A kit with no license key has no key step, so the steps after the
+     optional Discord one are numbered from what is actually shown. */
+  const setupN = discordUrl ? 3 : 2
   return (
     <>
       <ol className="mt-12">
@@ -114,8 +121,8 @@ export function OnboardingSteps({
               </Step>
             )}
 
-            <Step n={discordUrl ? '3' : '2'} title="Set up your copy">
-              {maskedLicenseKey && (
+            <Step n={String(setupN)} title="Set up your copy">
+              {usesKey && maskedLicenseKey && (
                 <>
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">
                     {licenseUrl || licenseExpired
@@ -144,8 +151,8 @@ export function OnboardingSteps({
             {/* The last thing between a buyer and a working kit. Rendered only
                 when there is a license page to send them to, or, once the purchase is too
                 old for a fresh link, the route that emails one. */}
-            {(licenseUrl || licenseExpired) && (
-              <Step n={discordUrl ? '4' : '3'} title="Add your key to .env">
+            {usesKey && (licenseUrl || licenseExpired) && (
+              <Step n={String(setupN + 1)} title="Add your key to .env">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   Your license page has the full key. Copy{' '}
                   <code className="amw-mono">WAREKIT_LICENSE_KEY=…</code> into
@@ -186,7 +193,7 @@ export function OnboardingSteps({
         </p>
       )}
 
-      <NextStep tier={tier} />
+      <NextStep tier={tier} stack={stack} />
     </>
   )
 }

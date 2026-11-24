@@ -7,7 +7,12 @@ import { TrackPurchase } from '@/components/analytics/TrackPurchase'
 /* From the plain module, never from PendingRefresh.jsx: on the server this
    file would get a client reference for the constant, not the number. */
 import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
-import { kitName, tierRank, upgradeReturn } from '@/lib/commerce/license'
+import {
+  kitName,
+  tierRank,
+  tracksAccounts as stackTracksAccounts,
+  upgradeReturn,
+} from '@/lib/commerce/license'
 import { listSeats } from '@/lib/commerce/seats'
 
 /* The license page, for the whole license rather than one purchase.
@@ -128,14 +133,16 @@ const gains = ({ seats, accounts }) =>
 
 /* The terms of a quote, from the license's own overrides. Said only when both
    numbers are there, since half a quote is not one. */
-const quoteTerms = (license) =>
-  Number.isFinite(license?.seatOverride) &&
-  Number.isFinite(license?.accountOverride)
+const quoteTerms = (license) => {
+  const counts = stackTracksAccounts(license?.stack)
+  return Number.isFinite(license?.seatOverride) &&
+    (!counts || Number.isFinite(license?.accountOverride))
     ? `Your quote covers ${gains({
         seats: license.seatOverride,
-        accounts: license.accountOverride,
+        accounts: counts ? license.accountOverride : null,
       })}.`
     : null
+}
 
 /* The Enterprise payment. It is the page's one action, so it is always the
    teal one. */
@@ -261,7 +268,7 @@ export function LicensePanel({
 
   const seats = listSeats(license.seatMembers)
   const tracksAccounts = limits.accounts != null
-  const showsKey = license.tier !== 'lite'
+  const showsKey = license.tier !== 'lite' && stackTracksAccounts(license.stack)
 
   /* One action at most. A payment on its way hides the button entirely
      rather than disabling it, and so does a missing price: with no number to
@@ -322,7 +329,9 @@ export function LicensePanel({
           {`Move to Team · $${upgrade.cost.toFixed(2)}`}
         </UpgradeButton>
         <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-          {`Your code, repo and key stay the same. You get ${gains(upgrade)}.`}
+          {`${
+            showsKey ? 'Your code, repo and key' : 'Your code and repo'
+          } stay the same. You get ${gains(upgrade)}.`}
         </p>
       </div>
     )

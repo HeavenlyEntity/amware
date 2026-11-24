@@ -135,4 +135,42 @@ describe('OnboardingSteps', () => {
       screen.queryByRole('link', { name: /open your license page/i })
     ).toBeNull()
   })
+
+  it('gives a Standard buyer no key step', () => {
+    const { container } = render(
+      <OnboardingSteps
+        {...base}
+        stack="standard"
+        usesKey={false}
+        delivered
+        licenseUrl="/access/seats/x"
+      />
+    )
+    expect(container.textContent).not.toMatch(
+      /WAREKIT_LICENSE_KEY|NS_ACCOUNT_ID|license key|WAREKIT…A1B2/
+    )
+    const numbers = [...container.querySelectorAll('ol > li > span')].map(
+      (n) => n.textContent
+    )
+    // The repository is done (a tick); the setup step is the second.
+    expect(numbers).toEqual(['✓', '2'])
+  })
+
+  it('shows a Standard buyer no command when none is set for it', () => {
+    const { container } = render(
+      <OnboardingSteps
+        {...base}
+        stack="standard"
+        usesKey={false}
+        cliCommand={null}
+        delivered
+      />
+    )
+    const lines = [...container.querySelectorAll('code')].map(
+      (c) => c.textContent
+    )
+    expect(lines).toEqual([
+      'git clone git@github.com:amwaredotdev/warekit-next-netsuite.git',
+    ])
+  })
 })

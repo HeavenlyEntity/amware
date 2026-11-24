@@ -26,8 +26,18 @@ const UPGRADE = {
   },
 }
 
-export function NextStep({ tier }) {
-  const upgrade = tier ? UPGRADE[tier] : null
+/* WareKit Standard has no NetSuite packages and no Lite tier. Its Pro buyer is
+   shown Team on the presale page, since /pricing sells the NetSuite kits. */
+const STANDARD_UPGRADE = { pro: UPGRADE.pro }
+const STANDARD_ENGAGEMENT =
+  'The kit is where the build starts. If you want help taking it to production, that is what an engagement is for.'
+const ENGAGEMENT =
+  'The kit is where a NetSuite build starts. If you want help taking it to production, that is what an engagement is for.'
+
+/** @param {{ tier: string | null, stack?: string | null }} props */
+export function NextStep({ tier, stack }) {
+  const standard = stack === 'standard'
+  const upgrade = tier ? (standard ? STANDARD_UPGRADE : UPGRADE)[tier] : null
   return (
     <aside className="mt-12 space-y-6 border-t border-zinc-200 pt-8 dark:border-zinc-800">
       {upgrade && (
@@ -37,7 +47,7 @@ export function NextStep({ tier }) {
             {upgrade.body}
           </p>
           <Link
-            href="/pricing"
+            href={standard ? '/products/standard#founding' : '/pricing'}
             className="mt-3 inline-block text-sm font-medium underline"
           >
             {upgrade.cta}
@@ -47,8 +57,7 @@ export function NextStep({ tier }) {
       <div>
         <h2 className="text-base font-semibold">Want it built with you?</h2>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          The kit is where a NetSuite build starts. If you want help taking it
-          to production, that is what an engagement is for.
+          {standard ? STANDARD_ENGAGEMENT : ENGAGEMENT}
         </p>
         <Link
           href="/services"
