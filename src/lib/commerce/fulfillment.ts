@@ -129,10 +129,12 @@ You get this notice once for each account.
  * A price is never invented: when the kit row has none, the sentence that
  * would carry it says to get in touch instead, and no dollar figure appears.
  * A failed send throws, and the caller decides what that means. */
+// TODO(alec): confirm this wording.
 const GET_IN_TOUCH = 'Get in touch for your renewal price.'
 
 function renewalLapse(): string {
   const SITE = site()
+  // TODO(alec): confirm this wording.
   return `This link is personal to you and expires in 30 days. If it has lapsed, open it and I will email a new one${
     SITE ? `, or ask for one at ${SITE}/access/resend` : ''
   }.`
@@ -152,7 +154,8 @@ export async function sendRenewalReminderEmail(args: {
   const next = formatTermDate(nextUntil(args.until, args.until) ?? '')
   const price = priceLabel(args.price)
   const offer = price
-    ? `Renew for ${price} to add 12 months, to ${next}.`
+    ? // TODO(alec): confirm this wording.
+      `Renew for ${price} to add 12 months, to ${next}.`
     : GET_IN_TOUCH
   const lapse = renewalLapse()
   // TODO(alec): confirm this wording.
@@ -164,7 +167,7 @@ export async function sendRenewalReminderEmail(args: {
 
 ${offer}
 
-If you do not renew, the developers on your license lose access to the kit's repository on ${date}. The code you already have keeps working, and so does everything you built with it.
+If you do not renew, repository access through this license ends on ${date}. The code you already have keeps working, and so does everything you built with it.
 
 Renew from your license page:
 ${args.url}
@@ -174,7 +177,7 @@ ${lapse}
 — Alec`
       : `A reminder: your WareKit updates end on ${date}. ${offer}
 
-If you do not renew, repository access ends that day. Your code keeps working.
+If you do not renew, repository access through this license ends on ${date}. The code you already have keeps working, and so does everything you built with it.
 
 ${args.url}
 
@@ -198,7 +201,8 @@ export async function sendUpdatesEndedEmail(args: {
   const price = priceLabel(args.price)
   const lapse = renewalLapse()
   const offer = price
-    ? `Renew for ${price} to get 12 months of updates from the day you pay, and repository access back for everyone on your license:`
+    ? // TODO(alec): confirm this wording.
+      `Renew for ${price} to get 12 months of updates from the day you pay, and repository access back for everyone on your license:`
     : GET_IN_TOUCH
   // TODO(alec): confirm this wording.
   const subject = `Your ${args.kitName} updates ended on ${date}`
@@ -230,16 +234,17 @@ export async function sendRenewalConfirmationEmail(args: {
   const price = priceLabel(args.price)
   // TODO(alec): confirm this wording.
   const subject = `Your ${args.kitName} updates now run until ${date}`
+  const thanks = price
+    ? // TODO(alec): confirm this wording.
+      `Thanks for renewing. Your ${price} renewal is in, and your WareKit updates now run until ${date}.`
+    : // TODO(alec): confirm this wording.
+      `Thanks for renewing. Your WareKit updates now run until ${date}.`
+  const back = args.restored
+    ? // TODO(alec): confirm this wording.
+      '\n\nRepository access is back for everyone on your license. GitHub sends each of them a new invitation to accept.'
+    : ''
   // TODO(alec): confirm this wording.
-  const text = `${
-    price
-      ? `Thanks for renewing. Your ${price} renewal is in, and your WareKit updates now run until ${date}.`
-      : `Thanks for renewing. Your WareKit updates now run until ${date}.`
-  }${
-    args.restored
-      ? '\n\nRepository access is back for everyone on your license. GitHub sends each of them a new invitation to accept.'
-      : ''
-  }
+  const text = `${thanks}${back}
 
 — Alec`
   await deliver({ from: FROM, to: args.to, subject, text })

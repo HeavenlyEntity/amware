@@ -546,6 +546,15 @@ describe('renewal emails', () => {
     expect(body()).toContain('10 December 2027')
     expect(body()).toContain('$199.00')
   })
+  it('says access ends through this license, never that every developer loses it', async () => {
+    for (const which of ['first', 'last']) {
+      await sendRenewalReminderEmail({ ...base, which })
+      expect(body()).toContain(
+        'If you do not renew, repository access through this license ends on 10 December 2027. The code you already have keeps working, and so does everything you built with it.'
+      )
+      expect(body()).not.toContain('lose access')
+    }
+  })
   it('never invents a price the kit row does not have', async () => {
     await sendRenewalReminderEmail({ ...base, price: null, which: 'first' })
     expect(body()).toContain('Get in touch for your renewal price.')
