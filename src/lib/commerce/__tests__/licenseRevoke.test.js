@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../githubInvite', () => ({ removeFromRepo: vi.fn() }))
 
 import { removeFromRepo } from '../githubInvite'
-import { revokeLicenseAccess } from '../licenseRevoke'
+import { planRevocation, revokeLicenseAccess } from '../licenseRevoke'
 
 const REPO = 'amwaredotdev/warekit-next-netsuite'
 const INVITE = 'https://github.com/o/r/invitations'
@@ -278,9 +278,9 @@ describe('revokeLicenseAccess', () => {
     const payload = fakePayload()
     payload.update.mockRejectedValue(new Error('db down'))
 
-    await expect(
-      revokeLicenseAccess(payload, refunded())
-    ).resolves.toBeUndefined()
+    await expect(revokeLicenseAccess(payload, refunded())).resolves.toEqual(
+      expect.objectContaining({ live: false })
+    )
   })
 
   it('keeps a username out of the log when the coverage query fails', async () => {
@@ -309,5 +309,109 @@ describe('revokeLicenseAccess', () => {
       41,
       'DrizzleQueryError'
     )
+  })
+})
+
+describe('a license whose updates have ended', () => {
+  const NOW = new Date('2027-12-11T06:00:00.000Z')
+  const ended = (over = {}) =>
+    refunded({
+      tier: 'pro',
+      updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+      ...over,
+    })
+
+  it('acts on a paid license whose updates have ended', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    const report = await revokeLicenseAccess(fakePayload(), ended(), {
+      now: NOW,
+    })
+    expect(removeFromRepo).toHaveBeenCalledTimes(2)
+    expect(report).toMatchObject({
+      state: 'checked',
+      live: true,
+      removed: 2,
+      failed: 0,
+      complete: true,
+    })
+  })
+  it('does nothing for a paid license whose updates have not ended', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    const report = await revokeLicenseAccess(fakePayload(), ended(), {
+      now: new Date('2027-12-01T00:00:00.000Z'),
+    })
+    expect(removeFromRepo).not.toHaveBeenCalled()
+    expect(report).toMatchObject({ state: 'not-ended', complete: false })
+  })
+  it('is complete with an unproven seat left in place, and flags it', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    const payload = fakePayload()
+    const report = await revokeLicenseAccess(
+      payload,
+      ended({
+        seatMembers: [
+          { githubUsername: 'Buyer', inviteUrl: INVITE },
+          { githubUsername: 'typed-in' },
+        ],
+      }),
+      { now: NOW }
+    )
+    expect(report).toMatchObject({ removed: 1, unproven: 1, complete: true })
+    expect(flagged(payload)).toBe(true)
+  })
+  it('is not complete when GitHub cannot be reached', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    removeFromRepo.mockResolvedValue({ ok: false, reason: 'unreachable' })
+    expect(
+      await revokeLicenseAccess(fakePayload(), ended(), { now: NOW })
+    ).toMatchObject({ failed: 2, complete: false })
+  })
+  it('is not complete when a coverage check fails', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    const payload = fakePayload()
+    const find = payload.find.getMockImplementation()
+    payload.find.mockImplementation(async (args) => {
+      if (args.collection === 'licenses') throw new Error('db down')
+      return find(args)
+    })
+    expect(
+      await revokeLicenseAccess(payload, ended(), { now: NOW })
+    ).toMatchObject({ checkFailed: 2, complete: false })
+  })
+  it('is never complete while the flag is off', async () => {
+    expect(
+      await revokeLicenseAccess(fakePayload(), ended(), { now: NOW })
+    ).toMatchObject({ live: false, wouldRemove: 2, complete: false })
+  })
+  it('plans without writing or calling GitHub', async () => {
+    const payload = fakePayload()
+    const plan = await planRevocation(payload, ended(), NOW)
+    expect(plan).toMatchObject({
+      state: 'checked',
+      repo: REPO,
+      seats: 2,
+      covered: 0,
+      unproven: 0,
+      checkFailed: 0,
+    })
+    expect(plan.toRemove).toEqual(['Buyer', 'teammate'])
+    expect(payload.update).not.toHaveBeenCalled()
+    expect(removeFromRepo).not.toHaveBeenCalled()
+  })
+  it('keeps a person another license with updates in force covers', async () => {
+    process.env.WAREKIT_REVOKE_ON_DEACTIVATE = '1'
+    const payload = fakePayload({
+      others: [
+        {
+          id: 99,
+          tier: 'pro',
+          updatesComputedUntil: '2028-06-01T00:00:00.000Z',
+          seatMembers: [{ githubUsername: 'teammate' }],
+        },
+      ],
+    })
+    const report = await revokeLicenseAccess(payload, ended(), { now: NOW })
+    expect(removeFromRepo).toHaveBeenCalledTimes(1)
+    expect(report).toMatchObject({ removed: 1, covered: 1 })
   })
 })

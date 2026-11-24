@@ -1,17 +1,21 @@
 /*
- * Taking repository access back from a license that has no paid tier left.
+ * Taking repository access back from a license that no longer earns it.
  *
- * A plain module, never a server action. The refund webhook passes in the
- * Payload client and a fresh read of the license, after `recomputeTier` has
- * run, so the tier here is what the license holds now.
+ * A plain module, never a server action. Two callers use it: the refund
+ * webhook, and the daily job that cuts off a license whose updates have ended.
+ * It acts on a license that holds no paid tier (a refund; the webhook passes
+ * in a fresh read of the license after `recomputeTier` has run, so the tier
+ * here is what the license holds now), or on a paid license whose updates
+ * have ended at `now`. For any other license it does nothing.
  *
  * It follows the rule `removeSeat` follows, for the same reason. GitHub is
  * touched only for a seat row with a stored `inviteUrl`, because that is the
  * only proof this license created the access: a row with no link may be an
  * existing collaborator, perhaps another customer, that an owner typed in.
  * Without that rule a buyer could add anyone, ask for a refund, and have the
- * refund revoke them. A person another paid license still covers keeps what
- * that license gives, in either Creem environment.
+ * refund revoke them. A person another paid license still covers, one whose
+ * updates are in force, keeps what that license gives, in either Creem
+ * environment.
  *
  * Whatever it cannot or may not touch is counted, never named: the log never
  * carries a GitHub username. Those rows, and any removal GitHub refuses, set
@@ -19,13 +23,17 @@
  *
  * Behind WAREKIT_REVOKE_ON_DEACTIVATE === '1', as on the Whop route. While
  * the flag is off nothing is removed from GitHub and the log says what would
- * have been. Nothing here throws: it runs inside a webhook, where an
- * exception makes Creem redeliver an order that is already recorded.
+ * have been. Nothing here throws: the webhook runs it where an exception
+ * makes Creem redeliver an order that is already recorded.
+ *
+ * `planRevocation` only reads. `revokeLicenseAccess` plans, then acts, logs
+ * and flags, and returns counts the daily job can record.
  *
  * Imports are relative so the engine test project can load it.
  */
 
 import { removeFromRepo } from './githubInvite'
+import { termState } from './licenseTerm'
 import { coveredByAnotherLicense, licenseRepo, PAID_TIERS } from './repoAccess'
 
 async function flagForReview(payload, license) {
@@ -41,13 +49,31 @@ async function flagForReview(payload, license) {
   }
 }
 
+const emptyPlan = (state, repo = null, seats = 0) => ({
+  state,
+  repo,
+  seats,
+  toRemove: [],
+  covered: 0,
+  unproven: 0,
+  checkFailed: 0,
+})
+
+/* Whether this license is one the module acts on at `now`. */
+function actsOn(license, now) {
+  if (!license?.id) return false
+  if (!PAID_TIERS.includes(license.tier ?? '')) return true
+  return termState(license, now).ended
+}
+
 /**
- * Remove the repository access a refunded license created.
+ * Work out whom a withdrawal would remove, without touching anything.
  *
- * Does nothing while the license still holds a paid tier, whoever calls it.
+ * Reads only: never writes, never calls GitHub, never throws. A repository
+ * lookup that fails is reported as `'no-repo'`.
  */
-export async function revokeLicenseAccess(payload, license) {
-  if (!license?.id || PAID_TIERS.includes(license.tier ?? '')) return
+export async function planRevocation(payload, license, now = new Date()) {
+  if (!actsOn(license, now)) return emptyPlan('not-ended')
 
   /* One person, however many rows. GitHub names are not case-sensitive, and
      a row that carries an invitation link is the one that proves anything. */
@@ -61,9 +87,7 @@ export async function revokeLicenseAccess(payload, license) {
     }
   }
   const seats = [...byName.values()]
-  if (!seats.length) return
-
-  const live = process.env.WAREKIT_REVOKE_ON_DEACTIVATE === '1'
+  if (!seats.length) return emptyPlan('no-seats')
 
   let repo = null
   try {
@@ -71,29 +95,22 @@ export async function revokeLicenseAccess(payload, license) {
   } catch (err) {
     console.error('Revocation could not read the repository', license.id, err)
   }
-  if (!repo) {
-    console.warn('Revocation skipped: no repository found for the license', {
-      license: license.id,
-      seats: seats.length,
-    })
-    await flagForReview(payload, license)
-    return
-  }
+  if (!repo) return emptyPlan('no-repo', null, seats.length)
 
-  /* Pass one decides, pass two acts, so the log can say what would happen
-     even with the flag off. `unproven` is every seat this license cannot
-     show it created; `covered` is accounted for by another license. */
-  const toRemove = []
-  let covered = 0
-  let unproven = 0
+  /* `unproven` is every seat this license cannot show it created, plus any
+     whose coverage could not be checked; `covered` is accounted for by
+     another license. */
+  const plan = emptyPlan('checked', repo, seats.length)
   for (const row of seats) {
     if (!row.inviteUrl) {
-      unproven += 1
+      plan.unproven += 1
       continue
     }
     try {
-      if (await coveredByAnotherLicense(payload, license, row.githubUsername)) {
-        covered += 1
+      if (
+        await coveredByAnotherLicense(payload, license, row.githubUsername, now)
+      ) {
+        plan.covered += 1
         continue
       }
     } catch (err) {
@@ -105,54 +122,114 @@ export async function revokeLicenseAccess(payload, license) {
         license.id,
         err?.code ?? err?.name
       )
-      unproven += 1
+      plan.unproven += 1
+      plan.checkFailed += 1
       continue
     }
-    toRemove.push(row.githubUsername)
+    plan.toRemove.push(row.githubUsername)
   }
+  return plan
+}
 
-  let failed = 0
-  let removed = 0
-  if (live) {
-    for (const username of toRemove) {
-      const result = await removeFromRepo({ repo, username })
-      if (result.ok) {
-        removed += 1
-        continue
-      }
-      failed += 1
-      console.error('Revoke failed', {
-        license: license.id,
-        repo,
-        reason: result.reason,
-      })
+/**
+ * Remove the repository access a license no longer earns.
+ *
+ * Does nothing (state `'not-ended'`) while the license holds a paid tier and
+ * its updates have not ended, whoever calls it. Never throws.
+ */
+export async function revokeLicenseAccess(
+  payload,
+  license,
+  { now = new Date() } = {}
+) {
+  const live = process.env.WAREKIT_REVOKE_ON_DEACTIVATE === '1'
+  const report = (plan, counts = {}) => {
+    const out = {
+      state: plan.state,
+      live,
+      repo: plan.repo,
+      seats: plan.seats,
+      wouldRemove: plan.toRemove.length,
+      removed: 0,
+      covered: plan.covered,
+      unproven: plan.unproven,
+      failed: 0,
+      checkFailed: plan.checkFailed,
+      ...counts,
     }
+    out.complete =
+      live &&
+      (out.state === 'no-seats' ||
+        (out.state === 'checked' && out.failed === 0 && out.checkFailed === 0))
+    return out
   }
 
-  const summary = {
-    license: license.id,
-    repo,
-    seats: seats.length,
-    removed,
-    covered,
-    unproven,
-    failed,
-  }
-  if (!live) {
-    console.warn('Would revoke repo access (flag off)', {
-      ...summary,
-      wouldRemove: toRemove.length,
-    })
-  } else if (unproven || failed) {
-    console.warn('Revocation left repo access in place', summary)
-  } else {
-    console.info('Revoked repo access', summary)
-  }
+  try {
+    const plan = await planRevocation(payload, license, now)
+    if (plan.state === 'not-ended' || plan.state === 'no-seats') {
+      return report(plan)
+    }
+    if (plan.state === 'no-repo') {
+      console.warn('Revocation skipped: no repository found for the license', {
+        license: license.id,
+        seats: plan.seats,
+      })
+      await flagForReview(payload, license)
+      return report(plan)
+    }
 
-  /* A person looks whenever someone still has the repository and nothing
-     here accounts for them: a seat we could not vouch for, a removal that
-     failed, or every removal while the flag is off. */
-  if (unproven || failed || (!live && toRemove.length)) {
-    await flagForReview(payload, license)
+    let failed = 0
+    let removed = 0
+    if (live) {
+      for (const username of plan.toRemove) {
+        let result
+        try {
+          result = await removeFromRepo({ repo: plan.repo, username })
+        } catch {
+          result = { ok: false, reason: 'threw' }
+        }
+        if (result.ok) {
+          removed += 1
+          continue
+        }
+        failed += 1
+        console.error('Revoke failed', {
+          license: license.id,
+          repo: plan.repo,
+          reason: result.reason,
+        })
+      }
+    }
+
+    const summary = {
+      license: license.id,
+      repo: plan.repo,
+      seats: plan.seats,
+      removed,
+      covered: plan.covered,
+      unproven: plan.unproven,
+      failed,
+    }
+    if (!live) {
+      console.warn('Would revoke repo access (flag off)', {
+        ...summary,
+        wouldRemove: plan.toRemove.length,
+      })
+    } else if (plan.unproven || failed) {
+      console.warn('Revocation left repo access in place', summary)
+    } else {
+      console.info('Revoked repo access', summary)
+    }
+
+    /* A person looks whenever someone still has the repository and nothing
+       here accounts for them: a seat we could not vouch for, a removal that
+       failed, or every removal while the flag is off. */
+    if (plan.unproven || failed || (!live && plan.toRemove.length)) {
+      await flagForReview(payload, license)
+    }
+    return report(plan, { removed, failed })
+  } catch (err) {
+    console.error('Revocation failed', license?.id, err?.code ?? err?.name)
+    return report(emptyPlan('no-repo'))
   }
 }

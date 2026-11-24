@@ -10,6 +10,7 @@
  */
 
 import { teamProductFor } from './licenseRecord'
+import { termState } from './licenseTerm'
 import { hasSeat } from './seats'
 
 /* Tiers that are paid for. Lite is free and has its own repository, so a seat
@@ -73,8 +74,17 @@ export async function licenseRepo(payload, license) {
    whichever of the two licenses the owner opens.
 
    `like` only narrows the search (it is a case-insensitive contains); the
-   decision is made on the exact name here. */
-export async function coveredByAnotherLicense(payload, license, username) {
+   decision is made on the exact name here.
+
+   Another license covers only while its updates are in force: a paid tier
+   whose end date has passed no longer gives anyone the repository. A paid
+   license with no date in force still covers. */
+export async function coveredByAnotherLicense(
+  payload,
+  license,
+  username,
+  now = new Date()
+) {
   const found = await payload.find({
     collection: 'licenses',
     where: {
@@ -93,6 +103,7 @@ export async function coveredByAnotherLicense(payload, license, username) {
     (other) =>
       other.id !== license.id &&
       PAID_TIERS.includes(other.tier ?? '') &&
+      !termState(other, now).ended &&
       hasSeat(other.seatMembers, username)
   )
 }

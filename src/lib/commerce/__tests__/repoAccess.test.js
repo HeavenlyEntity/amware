@@ -56,6 +56,41 @@ describe('coveredByAnotherLicense', () => {
     const where = JSON.stringify(payload.find.mock.calls[0][0].where)
     expect(where).not.toContain('creemEnvironment')
   })
+
+  it('does not count another license whose updates have ended', async () => {
+    const other = {
+      id: 99,
+      tier: 'pro',
+      stack: 'next-netsuite',
+      updatesComputedUntil: '2027-01-01T00:00:00.000Z',
+      seatMembers: [{ githubUsername: 'teammate' }],
+    }
+    await expect(
+      coveredByAnotherLicense(
+        payloadWith([other]),
+        { id: 41, stack: 'next-netsuite' },
+        'teammate',
+        new Date('2027-06-01T00:00:00.000Z')
+      )
+    ).resolves.toBe(false)
+  })
+
+  it('still counts a paid license with no end date', async () => {
+    const other = {
+      id: 99,
+      tier: 'enterprise',
+      stack: 'next-netsuite',
+      seatMembers: [{ githubUsername: 'teammate' }],
+    }
+    await expect(
+      coveredByAnotherLicense(
+        payloadWith([other]),
+        { id: 41, stack: 'next-netsuite' },
+        'teammate',
+        new Date('2027-06-01T00:00:00.000Z')
+      )
+    ).resolves.toBe(true)
+  })
 })
 
 describe('licenseRepo', () => {
