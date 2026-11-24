@@ -235,6 +235,32 @@ export const Products: CollectionConfig = {
         description: 'The test-mode id of the upgrade product.',
       },
     },
+    {
+      name: 'creemRenewalProductId',
+      type: 'text',
+      admin: {
+        description:
+          'On a Pro or Team row: the one-time Creem product that renews ' +
+          'this tier for 12 months. It issues no license key.',
+      },
+    },
+    {
+      name: 'creemRenewalSandboxProductId',
+      type: 'text',
+      admin: {
+        description: 'The test-mode id of the renewal product.',
+      },
+    },
+    {
+      name: 'renewalPrice',
+      type: 'number',
+      min: 0,
+      admin: {
+        description:
+          'What renewing this tier costs, in dollars, as the buyer sees it. ' +
+          'Must match the Creem renewal product.',
+      },
+    },
     { name: 'currency', type: 'text', defaultValue: 'USD' },
     {
       name: 'priceLabel',

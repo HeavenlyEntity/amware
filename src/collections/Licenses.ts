@@ -6,6 +6,7 @@ import {
   overrideError,
 } from '@/lib/commerce/licenseRecord'
 import { lockLicenseBeforeUpdate } from '@/lib/commerce/licenseLock'
+import { dateInForce } from '@/lib/commerce/licenseTerm'
 
 /* For a field no one writes and only an admin reads. The hooks behind these
    fields check the user themselves, as this is skipped by a Local API call
@@ -57,6 +58,7 @@ export const Licenses: CollectionConfig = {
       'ownerEmail',
       'stack',
       'tier',
+      'updatesUntil',
       'seatsUsage',
       'accountsUsage',
       'needsReview',
@@ -298,6 +300,97 @@ export const Licenses: CollectionConfig = {
         position: 'sidebar',
         date: { pickerAppearance: 'dayAndTime' },
         description: 'When the license page link was last emailed.',
+      },
+    },
+    {
+      name: 'updatesUntil',
+      type: 'date',
+      virtual: true,
+      hooks: {
+        afterRead: [
+          ({ data }) =>
+            dateInForce(data?.updatesComputedUntil, data?.updatesUntilOverride),
+        ],
+      },
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description:
+          'When updates end: the later of the worked-out date and the ' +
+          'override. Empty means no end date, so no reminder and no cut-off.',
+      },
+    },
+    {
+      name: 'updatesComputedUntil',
+      type: 'date',
+      access: { update: () => false },
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description:
+          'Worked out from the paid purchases: 12 months from the first Pro ' +
+          'or Team sale, plus 12 for each renewal. Written by the server.',
+      },
+    },
+    {
+      name: 'updatesUntilOverride',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description:
+          'Set by hand to give more time, or to give an Enterprise license ' +
+          'an end date. It can only add time: a date earlier than the ' +
+          'worked-out one changes nothing. Clear it to go back to the ' +
+          'worked-out date.',
+      },
+    },
+    {
+      name: 'firstReminderSentFor',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description: 'The end date the 30-day reminder was sent for.',
+      },
+    },
+    {
+      name: 'lastReminderSentFor',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description: 'The end date the 7-day reminder was sent for.',
+      },
+    },
+    {
+      name: 'endedNoticeSentFor',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description: 'The end date the "updates ended" email was sent for.',
+      },
+    },
+    {
+      name: 'accessWithdrawnAt',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description:
+          'When the daily job removed this license’s repository access. Empty while access is in place.',
+      },
+    },
+    {
+      name: 'accessWithdrawnFor',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description: 'The end date that withdrawal was for.',
       },
     },
     {

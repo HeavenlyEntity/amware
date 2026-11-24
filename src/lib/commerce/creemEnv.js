@@ -41,3 +41,13 @@ export function creemUpgradeProductIdFor(item, env = creemEnvironment()) {
       : item.creemUpgradeProductId
   return id || null
 }
+
+/** The one-time product that renews this item's updates in this environment. */
+export function creemRenewalProductIdFor(item, env = creemEnvironment()) {
+  if (!item) return null
+  const id =
+    env === 'sandbox'
+      ? item.creemRenewalSandboxProductId
+      : item.creemRenewalProductId
+  return id || null
+}

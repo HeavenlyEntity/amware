@@ -458,6 +458,18 @@ export interface Product {
    * The test-mode id of the upgrade product.
    */
   creemUpgradeSandboxProductId?: string | null
+  /**
+   * On a Pro or Team row: the one-time Creem product that renews this tier for 12 months. It issues no license key.
+   */
+  creemRenewalProductId?: string | null
+  /**
+   * The test-mode id of the renewal product.
+   */
+  creemRenewalSandboxProductId?: string | null
+  /**
+   * What renewing this tier costs, in dollars, as the buyer sees it. Must match the Creem renewal product.
+   */
+  renewalPrice?: number | null
   currency?: string | null
   /**
    * e.g. "one-time", "from"
@@ -744,6 +756,10 @@ export interface Purchase {
    */
   grantsTier?: ('lite' | 'pro' | 'team' | 'enterprise') | null
   /**
+   * A sale starts a license’s 12 months of updates. An upgrade changes the tier, not the date. A renewal adds 12 months and grants no tier. Empty reads as a sale.
+   */
+  kind?: ('sale' | 'upgrade' | 'renewal') | null
+  /**
    * Sandbox rows are Creem test-mode payments. They are kept so the whole flow can be checked, and left out of the revenue figures.
    */
   creemEnvironment?: ('production' | 'sandbox') | null
@@ -851,6 +867,38 @@ export interface License {
    * When the license page link was last emailed.
    */
   lastLinkSentAt?: string | null
+  /**
+   * When updates end: the later of the worked-out date and the override. Empty means no end date, so no reminder and no cut-off.
+   */
+  updatesUntil?: string | null
+  /**
+   * Worked out from the paid purchases: 12 months from the first Pro or Team sale, plus 12 for each renewal. Written by the server.
+   */
+  updatesComputedUntil?: string | null
+  /**
+   * Set by hand to give more time, or to give an Enterprise license an end date. It can only add time: a date earlier than the worked-out one changes nothing. Clear it to go back to the worked-out date.
+   */
+  updatesUntilOverride?: string | null
+  /**
+   * The end date the 30-day reminder was sent for.
+   */
+  firstReminderSentFor?: string | null
+  /**
+   * The end date the 7-day reminder was sent for.
+   */
+  lastReminderSentFor?: string | null
+  /**
+   * The end date the "updates ended" email was sent for.
+   */
+  endedNoticeSentFor?: string | null
+  /**
+   * When the daily job removed this license’s repository access. Empty while access is in place.
+   */
+  accessWithdrawnAt?: string | null
+  /**
+   * The end date that withdrawal was for.
+   */
+  accessWithdrawnFor?: string | null
   /**
    * Sandbox licenses come from Creem test-mode purchases and are deleted when the test ends.
    */
@@ -1214,6 +1262,9 @@ export interface ProductsSelect<T extends boolean = true> {
   creemUpgradeProductId?: T
   creemSandboxProductId?: T
   creemUpgradeSandboxProductId?: T
+  creemRenewalProductId?: T
+  creemRenewalSandboxProductId?: T
+  renewalPrice?: T
   currency?: T
   priceLabel?: T
   heroImage?: T
@@ -1350,6 +1401,7 @@ export interface PurchasesSelect<T extends boolean = true> {
       }
   license?: T
   grantsTier?: T
+  kind?: T
   creemEnvironment?: T
   accessTokenJti?: T
   status?: T
@@ -1394,6 +1446,14 @@ export interface LicensesSelect<T extends boolean = true> {
   needsReview?: T
   tierChangedAt?: T
   lastLinkSentAt?: T
+  updatesUntil?: T
+  updatesComputedUntil?: T
+  updatesUntilOverride?: T
+  firstReminderSentFor?: T
+  lastReminderSentFor?: T
+  endedNoticeSentFor?: T
+  accessWithdrawnAt?: T
+  accessWithdrawnFor?: T
   creemEnvironment?: T
   updatedAt?: T
   createdAt?: T

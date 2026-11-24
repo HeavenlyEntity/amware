@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   creemEnvironment,
   creemProductIdFor,
+  creemRenewalProductIdFor,
   creemUpgradeProductIdFor,
 } from '../creemEnv'
 
@@ -90,5 +91,20 @@ describe('creemUpgradeProductIdFor', () => {
 
   it('returns null for no item', () => {
     expect(creemUpgradeProductIdFor(null)).toBeNull()
+  })
+})
+
+describe('creemRenewalProductIdFor', () => {
+  const row = {
+    creemRenewalProductId: 'prod_renew_live',
+    creemRenewalSandboxProductId: 'prod_renew_test',
+  }
+  it('picks the renewal product of the Creem world in use', () => {
+    expect(creemRenewalProductIdFor(row, 'production')).toBe('prod_renew_live')
+    expect(creemRenewalProductIdFor(row, 'sandbox')).toBe('prod_renew_test')
+  })
+  it('is null for a missing row or id', () => {
+    expect(creemRenewalProductIdFor(null, 'production')).toBeNull()
+    expect(creemRenewalProductIdFor({}, 'sandbox')).toBeNull()
   })
 })

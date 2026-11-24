@@ -261,6 +261,22 @@ export const Purchases: CollectionConfig = {
       },
     },
     {
+      name: 'kind',
+      type: 'select',
+      options: [
+        { label: 'Sale', value: 'sale' },
+        { label: 'Upgrade', value: 'upgrade' },
+        { label: 'Renewal', value: 'renewal' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description:
+          'A sale starts a license’s 12 months of updates. An upgrade ' +
+          'changes the tier, not the date. A renewal adds 12 months and ' +
+          'grants no tier. Empty reads as a sale.',
+      },
+    },
+    {
       name: 'creemEnvironment',
       type: 'select',
       options: [
