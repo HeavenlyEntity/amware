@@ -61,9 +61,12 @@ The new fields:
   back to the order's `amount`. It never uses the row's current `renewalPrice`,
   so a discount or a later price change does not misstate the receipt. If
   neither amount can be read, the receipt names no price.
-- **No price is ever invented.** If a kit row has no `renewalPrice`, the two
-  reminders and the ended email say `Get in touch for your renewal price.` and
-  the license page shows no Renew button.
+- **No price is ever invented.** If a kit row has no `renewalPrice`, or one
+  that is not a number greater than 0, the two reminders and the ended email
+  say `Get in touch for your renewal price.`, the license page shows no Renew
+  button, and `startRenewal` refuses to open a checkout. The one rule for a
+  real renewal price is `isRenewalPrice` in `licenseTerm.js`; `priceLabel`
+  there applies it too.
 - **While updates have ended**, three things are refused, each with a returned
   sentence that says nothing was charged. Adding a developer is refused by
   `addSeat`: `Updates for this license ended on <date>, so developers can be
@@ -153,25 +156,34 @@ never touches a live license). For each, on a live run, it first calls
 one. Then it asks `dueAction` what to do. At most one thing happens per license
 per run:
 
-| `dueAction`      | When                                                                             | What the job does                                                                                                   |
-| ---------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `last-reminder`  | 7 days or less to the end, and the 7-day reminder not yet sent for this end date | Sends the 7-day email                                                                                               |
-| `first-reminder` | 30 days or less to the end, and neither reminder sent for this end date          | Sends the 30-day email. A missed reminder sends only the nearest one that still applies.                            |
-| `withdraw`       | The end instant has passed and `accessWithdrawnAt` is empty                      | Removes the people the license invited, records `accessWithdrawnAt` and `accessWithdrawnFor`, sends the ended email |
-| `notify-ended`   | Ended and withdrawn, but the ended email was not sent for this end date          | Sends the ended email (a retry after a failed send)                                                                 |
-| `restore`        | `accessWithdrawnAt` is set but the license is in force again                     | Invites the developers again with `restoreLicenseAccess` and clears the marks                                       |
+| `dueAction`      | When                                                                                                                 | What the job does                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `last-reminder`  | 7 days or less to the end, and the 7-day reminder not yet sent for this end date                                     | Sends the 7-day email                                                                                               |
+| `first-reminder` | 30 days or less to the end, and neither reminder sent for this end date                                              | Sends the 30-day email. A missed reminder sends only the nearest one that still applies.                            |
+| `withdraw`       | The end instant has passed and `accessWithdrawnAt` is empty                                                          | Removes the people the license invited, records `accessWithdrawnAt` and `accessWithdrawnFor`, sends the ended email |
+| `notify-ended`   | Ended and withdrawn, but the ended email was not sent for this end date                                              | Sends the ended email (a retry after a failed send)                                                                 |
+| `restore`        | `accessWithdrawnAt` is set and the license is in force again, or it is Pro, Team or Enterprise with no date in force | Invites the developers again with `restoreLicenseAccess` and clears the marks                                       |
 
 Cut-off is on the day: the first daily run after the end instant has passed, in
 UTC. There is no grace period. Each email is claimed (its `...SentFor` field is
 written) before it is sent, and the mark is given back if the send fails, so
 the next run sends it once.
 
-If a withdrawal is not complete (a removal GitHub refused, a coverage check that
-failed, no repository found), the job counts it as `failed`, writes no marks
-(`accessWithdrawnAt` and `accessWithdrawnFor` stay empty) and tries again the
-next day. `revokeLicenseAccess` may already have flagged the license
-`needsReview`, in the no-repository and failed-removal cases. The ended email goes only after a complete
-withdrawal.
+If a withdrawal is not complete, the job counts it as `failed`, writes no marks
+(`accessWithdrawnAt` and `accessWithdrawnFor` stay empty), sends no ended email
+and tries again the next day. There are three such cases, and in each
+`revokeLicenseAccess` sets `needsReview` on the license, again on every run
+that fails:
+
+- **No repository was found.** Nobody is removed.
+- **A removal GitHub refused or could not reach.** That person keeps access;
+  every other removal in the run still goes ahead.
+- **A coverage check that failed** (whether another license in force also
+  holds the person could not be read). That person is left in place, counted
+  as one the license cannot vouch for; every other removal in the run still
+  goes ahead.
+
+The ended email goes only after a complete withdrawal.
 
 The job never throws past one license: that license counts as `failed` and the
 run goes on. It never names a person in a log: no line carries a GitHub
@@ -299,19 +311,22 @@ cause. These are all the places the system sets it, renewals first.
 
 ### Renewals
 
-| Cause                                                                                                                                                                                                                                                                                                                                    | What it means                                                                                          | What to do                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A renewal was paid but refused.** The webhook answers 200, records the purchase with `kind` `renewal` and `fulfillmentStatus` `failed`, attaches nothing, and flags the license. Reasons: the license is not Pro or Team, the renewal product is for another tier than the license holds, or the payment is also marked as an upgrade. | Money is in and no date moved.                                                                         | Find the purchase (Purchases, `fulfillmentStatus` `failed`, `kind` `renewal`). If it should count, fix the cause, set its `license` to the right license and confirm the `kind`, then check `updatesUntil`. Otherwise refund it in Creem.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **A renewal was paid but could not be attached.** `attachRenewal` threw (a database failure). The webhook answers 200 (a redelivery would stop at the duplicate check), marks the purchase `fulfillmentStatus` `failed` and flags the license.                                                                                           | Money is in, the 12 months are not on the license, and no receipt was sent.                            | Find the purchase as above. Attach it by hand: set its `license` and make sure `kind` is `renewal` and `status` is `paid`. Saving the row runs the recompute only when its `license`, `status`, `kind` or `grantsTier` changes. If the attach failed after the row was already updated, saving it again changes nothing. A live run of the job recomputes every license anyway, or you can make a real change to the row and save it. Check `updatesUntil`. The row's `fulfillmentStatus` stays `failed` after your fix unless you change it, so it keeps appearing in a scan for failed rows. Access is not restored by hand: if it had ended, the next live run gives it back. Tell the owner, since no receipt went. |
-| **`restoreLicenseAccess` returned `retry`** after a renewal, in the daily job: GitHub could not be reached or was rate limited, no token is configured, or no repository was found. The job retries every day and flags the license once.                                                                                                | The renewal is recorded, but the developers have no access yet.                                        | Check the token (`docs/github-token.md`) and that a repository can be found for the license (`licenseRepo`). The job completes the restore on a later run. If you clear the flag while it is still failing, the next run sets it again.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **GitHub refused an invitation on restore** (not a connection problem: for example the username no longer exists).                                                                                                                                                                                                                       | The other developers were invited and the withdrawn marks were cleared, so the job will not try again. | Invite that developer by hand in GitHub, or ask the owner to correct the username.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Cause                                                                                                                                                                                                                                                                                                                                                                                                                                                              | What it means                                                                                                                                                                                                       | What to do                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A renewal was paid but refused.** The webhook answers 200, records the purchase with `kind` `renewal` and `fulfillmentStatus` `failed`, attaches nothing, and flags the license. Reasons: the license is not Pro or Team, the renewal product is for another tier than the license holds, or the payment is also marked as an upgrade.                                                                                                                           | Money is in and no date moved.                                                                                                                                                                                      | Find the purchase (Purchases, `fulfillmentStatus` `failed`, `kind` `renewal`). If it should count, fix the cause, set its `license` to the right license and confirm the `kind`, then check `updatesUntil`. Otherwise refund it in Creem.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **A renewal was paid but could not be attached.** `attachRenewal` threw (a database failure). The webhook answers 200 (a redelivery would stop at the duplicate check), marks the purchase `fulfillmentStatus` `failed` and flags the license.                                                                                                                                                                                                                     | Money is in, the 12 months are not on the license, and no receipt was sent.                                                                                                                                         | Find the purchase as above. Attach it by hand: set its `license` and make sure `kind` is `renewal` and `status` is `paid`. Saving the row runs the recompute only when its `license`, `status`, `kind` or `grantsTier` changes. If the attach failed after the row was already updated, saving it again changes nothing. A live run of the job recomputes every license anyway, or you can make a real change to the row and save it. Check `updatesUntil`. The row's `fulfillmentStatus` stays `failed` after your fix unless you change it, so it keeps appearing in a scan for failed rows. Access is not restored by hand: if it had ended, the next live run gives it back. Tell the owner, since no receipt went. |
+| **A renewal was paid but the date did not move.** `attachRenewal` succeeded, but the end date in force is no later than before (for example the original sale was refunded while an upgrade stays paid, so the stored date is kept and renewals are ignored). The webhook answers 200, logs `Renewal did not move the end date for order`, marks the purchase `fulfillmentStatus` `failed` and flags the license. No receipt is sent and access is not given back. | The money is in and no time was added.                                                                                                                                                                              | Set `updatesUntilOverride` to the date the buyer paid for (section 6), or refund the renewal in Creem. Tell the owner, since no receipt went.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **`restoreLicenseAccess` returned `retry`** after a renewal, in the daily job: GitHub could not be reached or was rate limited, no token is configured, or no repository was found. The job retries every day and flags the license once.                                                                                                                                                                                                                          | The renewal is recorded, but the developers have no access yet.                                                                                                                                                     | Check the token (`docs/github-token.md`) and that a repository can be found for the license (`licenseRepo`). The job completes the restore on a later run. If you clear the flag while it is still failing, the next run sets it again.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **GitHub refused an invitation on restore** (not a connection problem: for example the username no longer exists).                                                                                                                                                                                                                                                                                                                                                 | The other developers were invited and the withdrawn marks were cleared, so the job will not try again. When this happens in the webhook, the receipt leaves out the sentence that says access is back for everyone. | Invite that developer by hand in GitHub, or ask the owner to correct the username.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
-Three more paid renewals are recorded with `fulfillmentStatus` `failed` and
-are **not** flagged on the license: one that names no license that exists, one
-whose license is on another stack or Creem environment, and one whose Creem
-product does not match the kit row's renewal product. Nothing attaches and no
-date moves. Look for failed rows in Purchases from time to time, and refund
-them in Creem or fix them by hand as above.
+A paid renewal is also refused, recorded with `fulfillmentStatus` `failed` and
+flagged on the license it names, when that license is on another stack or
+Creem environment, or when its Creem product does not match the kit row's
+renewal product. Handle it as a refused renewal above. Only a renewal that
+names no license that exists is recorded `failed` and **not** flagged, because
+there is no license to flag. Nothing attaches and no date moves. Look for
+failed rows in Purchases from time to time, and refund them in Creem or fix
+them by hand as above.
 
 ### Withdrawal
 
@@ -349,14 +364,12 @@ you quote the renewal yourself. When the renewal is paid, move
 `updatesUntilOverride` forward. If access had ended, the next live run gives it
 back.
 
-**If access was already withdrawn when the quote was paid, and no override is
-set, nothing restores it.** With no date, `dueAction` returns nothing for the
-license, so the job never acts on it. Set `updatesUntilOverride` to the deal's
-end date, which must be in the future. On the next live run the license is in
-force and `accessWithdrawnAt` is set, so `dueAction` answers `restore` and the
-developers are invited again. If the deal has no end date yet, set the override
-to a date far enough ahead, and correct it when the deal is fixed. With the flag
-off nothing is restored.
+**If access was already withdrawn when the quote was paid, the next live run
+gives it back on its own.** The license is Enterprise with no date in force and
+`accessWithdrawnAt` is set, so `dueAction` answers `restore` and the developers
+are invited again. No override is needed for that. When the deal has an end
+date, set `updatesUntilOverride` as above. With the flag off nothing is
+restored.
 
 ## 9. Before any paid kit goes on sale
 
@@ -387,11 +400,15 @@ Do these in order.
    the site copy and the product rows state the same term (12 months) and the
    same renewal price. The legal pages (branch `legal-pages`) say the same.
 8. **Confirm the wording.** Every line a buyer reads in the renewal code carries
-   a `TODO(alec): confirm this wording.` comment. Search only the files that hold this feature's buyer copy:
-   `grep -n "TODO(alec)" src/lib/commerce/fulfillment.ts
-src/lib/commerce/licenseRenew.js src/lib/commerce/addSeat.ts
-src/lib/commerce/licenseUpgrade.js src/components/commerce/LicensePanel.jsx
-src/content/site/warekit.js`. The four emails are in `fulfillment.ts`, the
-   refusals in `licenseRenew.js`, `addSeat.ts` and `licenseUpgrade.js`, the
-   license page in `LicensePanel.jsx`, and the storefront lines in
-   `src/content/site/warekit.js` (which also holds older, unrelated markers).
+   a `TODO(alec): confirm this wording.` comment. Search only the files that
+   hold this feature's buyer copy:
+
+   ```bash
+   grep -n "TODO(alec)" src/lib/commerce/fulfillment.ts src/lib/commerce/licenseRenew.js src/lib/commerce/addSeat.ts src/lib/commerce/licenseUpgrade.js src/components/commerce/LicensePanel.jsx src/content/site/warekit.js src/lib/commerce/kitEditions.js
+   ```
+
+   The four emails are in `fulfillment.ts`, the refusals in `licenseRenew.js`,
+   `addSeat.ts` and `licenseUpgrade.js`, the license page in
+   `LicensePanel.jsx`, and the storefront lines in `src/content/site/warekit.js`
+   and `src/lib/commerce/kitEditions.js` (the term line). Both storefront files
+   also hold older, unrelated markers.
