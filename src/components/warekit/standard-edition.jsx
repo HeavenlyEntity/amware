@@ -8,8 +8,16 @@ import { MagicBento } from '@/components/react-bits/magic-bento'
 import { PRESALE } from '@/content/site/standard-presale'
 import { standardPresale } from '@/lib/commerce/standardPresale'
 import { Reveal } from './reveal'
+import { FoundingTable, needsWaitlist } from './standard/founding-table'
 import { GuardCards } from './standard/guard-cards'
 import { PresaleHero } from './standard/presale-hero'
+import {
+  ClosingBand,
+  Questions,
+  SectionHead,
+  Waitlist,
+  Waves,
+} from './standard/presale-sections'
 import { SHIP_VISUALS } from './standard/ship-visuals'
 
 /* What the page shows until it is handed the presale: closed, so the hero
@@ -21,25 +29,6 @@ const SHIP_ITEMS = PRESALE.ships.items.map((item) => {
   const Visual = SHIP_VISUALS[item.id]
   return { ...item, visual: <Visual /> }
 })
-
-/* A numbered section's opening: the kicker and its aside, the heading and
-   the lead, from one block of PRESALE. */
-function SectionHead({ titleId, block }) {
-  return (
-    <>
-      <div className="st-head">
-        <p className="pj-kicker">
-          {block.index} · {block.eyebrow}
-        </p>
-        <p className="pj-kicker st-head-meta">{block.meta}</p>
-      </div>
-      <h2 id={titleId} className="pj-h2">
-        {block.title}
-      </h2>
-      <p className="pj-lead">{block.copy}</p>
-    </>
-  )
-}
 
 /* 01: the six problems, one sentence each. */
 function Pains() {
@@ -98,6 +87,26 @@ function Guards() {
   )
 }
 
+/* 05: the founding prices. The section is always on the page, since every
+   "become a founding member" link lands here; while nothing is on sale its
+   actions point at the waitlist. */
+function Founding({ presale }) {
+  return (
+    <section
+      id="founding"
+      aria-labelledby="st-founding-title"
+      className="pj-wrap pj-section"
+    >
+      <Reveal>
+        <SectionHead titleId="st-founding-title" block={PRESALE.founding} />
+      </Reveal>
+      <div className="st-founding">
+        <FoundingTable presale={presale} />
+      </div>
+    </section>
+  )
+}
+
 /* Back to the NetSuite edition. The kicker is a claim that holds while any
    edition is on sale; the free-Lite line holds only while a free edition is. */
 function NetsuiteCard({ anyOnSale, liteFree }) {
@@ -146,12 +155,13 @@ function NetsuiteCard({ anyOnSale, liteFree }) {
 /* WareKit Standard's founding-presale page, from the approved board
    (docs/design/2026-11-24-two-ladders/boards/Presale.dc.html): the hero
    with the stack picker, the problems, the parts that ship and the guards,
-   then the way back to NetSuite. Styles: the "Standard presale" block of
-   styles/products.css.
+   the waves, the founding prices, the questions, the closing band, the
+   waitlist while a tier is still to come, then the way back to NetSuite.
+   Styles: the "Standard presale" block of styles/products.css.
 
-   `presale` is `standardPresale`'s result and decides what the hero may
-   claim; without it the page reads as closed. `anyOnSale` and `liteFree`
-   are the only NetSuite product data allowed this far: whether any NetSuite
+   `presale` is `standardPresale`'s result and decides what the page may
+   claim and sell; without it the page reads as closed. `anyOnSale` and
+   `liteFree` are the only NetSuite product data allowed this far: whether any NetSuite
    edition can be reached today, and whether one of them is free. Both are
    false when the read fails. */
 export function StandardEdition({
@@ -173,6 +183,13 @@ export function StandardEdition({
       <Pains />
       <Ships />
       <Guards />
+      <Waves open={presale.open} />
+      <Founding presale={presale} />
+      <Questions />
+      <ClosingBand open={presale.open} />
+      {needsWaitlist(presale) ? (
+        <Waitlist data={picks.data} pay={picks.pay} />
+      ) : null}
       <NetsuiteCard anyOnSale={anyOnSale} liteFree={liteFree} />
     </>
   )

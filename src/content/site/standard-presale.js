@@ -155,6 +155,9 @@ export const PRESALE = {
     title: 'Built in the open, one wave at a time.',
     copy: 'You get the repository at wave 1 and every wave after it. The price goes up as each wave lands.',
     pin: 'Today',
+    /* Every wave 1 item's status while the presale is closed: the columns
+       below describe the page once wave 1 is in the repository. */
+    closedStatus: 'Building now',
     columns: [
       {
         label: 'Wave 1',
