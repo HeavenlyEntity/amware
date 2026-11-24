@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { legalHref } from '@/content/legal/sets'
 import { REFUND_NOTE, UPGRADE_HREF, UPGRADE_NOTE } from '@/content/site/warekit'
 
 /* Utilities, not a stylesheet class: this renders on the board card, which
@@ -18,6 +19,11 @@ export function KitBuyNotes({ paid, tier, className }) {
   return (
     <div className={className}>
       <p>{REFUND_NOTE}</p>
+      <p>
+        <Link href={legalHref('warekit', 'refund')} className={LINK}>
+          Refund policy and terms
+        </Link>
+      </p>
       {tier === 'team' && (
         <p>
           <Link href={UPGRADE_HREF} className={LINK}>

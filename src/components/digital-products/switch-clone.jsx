@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { ArrowRight, Check } from 'lucide-react'
 
+import { legalHref } from '@/content/legal/sets'
 import { CreemBuyButton } from '@/components/commerce/CreemBuyButton'
 import { useReducedMotion } from '@/components/AccessibilityProvider'
 import {
@@ -197,17 +199,36 @@ function BuyBlock({ guide }) {
           </span>
         </div>
         {onSale && (
-          <CreemBuyButton
-            slug={slug}
-            name={GUIDE_NAME}
-            price={amount}
-            className="gd-buy-form"
-          >
-            <span>Buy the guide</span>
-            <span className="pj-btn-dot">
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </span>
-          </CreemBuyButton>
+          <>
+            <CreemBuyButton
+              slug={slug}
+              name={GUIDE_NAME}
+              price={amount}
+              className="gd-buy-form"
+            >
+              <span>Buy the guide</span>
+              <span className="pj-btn-dot">
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </span>
+            </CreemBuyButton>
+            {/* Primary ink, not the muted sub-line grey, so the links keep
+                their contrast on both themes. */}
+            <p className="gd-price-sub w-full text-zinc-900 dark:text-zinc-100">
+              <Link
+                href={legalHref('products', 'terms')}
+                className="min-h-11 inline-flex items-center underline underline-offset-2"
+              >
+                Terms
+              </Link>
+              {' · '}
+              <Link
+                href={legalHref('products', 'refund')}
+                className="min-h-11 inline-flex items-center underline underline-offset-2"
+              >
+                Refund policy
+              </Link>
+            </p>
+          </>
         )}
       </div>
     </Reveal>

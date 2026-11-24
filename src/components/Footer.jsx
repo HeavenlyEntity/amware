@@ -2,6 +2,7 @@
 
 import { MotionToggle } from '@/components/AccessibilityProvider'
 import { identity } from '@/content/site/identity'
+import { legalHref } from '@/content/legal/sets'
 import { ChevronRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import Link from 'next/link'
@@ -37,6 +38,15 @@ const companyLinks = [
   { label: 'About', href: '/about' },
   { label: 'Uses', href: '/uses' },
   { label: 'Contact', href: '/contact' },
+]
+
+/* One entry per line's policy set; each lands on that set's terms, which
+   tab across to its privacy and refund policies. */
+const legalLinks = [
+  { label: 'WareKit terms', href: legalHref('warekit', 'terms') },
+  { label: 'Services terms', href: legalHref('services', 'terms') },
+  { label: 'Product terms', href: legalHref('products', 'terms') },
+  { label: 'All policies', href: '/legal' },
 ]
 
 const socialLinks = [
@@ -104,9 +114,10 @@ function FooterCard() {
             </Link>
           </motion.div>
 
-          <div className="grid grid-cols-2 gap-8 lg:justify-items-end">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:justify-items-end">
             <LinkColumn title="Catalog" links={catalogLinks} delay={0.1} />
             <LinkColumn title="Company" links={companyLinks} delay={0.2} />
+            <LinkColumn title="Legal" links={legalLinks} delay={0.3} />
           </div>
         </div>
 
