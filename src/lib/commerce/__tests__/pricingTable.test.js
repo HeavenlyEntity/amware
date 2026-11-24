@@ -196,3 +196,17 @@ describe('buildPricingTable', () => {
     expect(buildPricingTable([])).toEqual([])
   })
 })
+
+describe('Standard kits', () => {
+  it('leaves Standard kits off the pricing page', () => {
+    expect(
+      buildPricingTable([
+        kit({
+          stack: 'standard',
+          status: 'published',
+          slug: 'warekit-standard',
+        }),
+      ])
+    ).toEqual(buildPricingTable([]))
+  })
+})

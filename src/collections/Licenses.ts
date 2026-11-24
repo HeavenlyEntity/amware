@@ -99,6 +99,7 @@ export const Licenses: CollectionConfig = {
       options: [
         { label: 'React in NetSuite', value: 'react-netsuite' },
         { label: 'Next.js + NetSuite', value: 'next-netsuite' },
+        { label: 'Standard', value: 'standard' },
       ],
       admin: { description: 'Which kit family this license is for.' },
     },

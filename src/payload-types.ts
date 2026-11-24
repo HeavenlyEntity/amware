@@ -386,7 +386,7 @@ export interface Product {
   /**
    * Which column of the pricing page this kit belongs to. Kits only.
    */
-  stack?: ('react-netsuite' | 'next-netsuite') | null
+  stack?: ('react-netsuite' | 'next-netsuite' | 'standard') | null
   /**
    * Which row. Sets the order the cards appear in.
    */
@@ -782,7 +782,7 @@ export interface License {
   /**
    * Which kit family this license is for.
    */
-  stack: 'react-netsuite' | 'next-netsuite'
+  stack: 'react-netsuite' | 'next-netsuite' | 'standard'
   /**
    * Derived: the highest tier among this license’s paid purchases, recomputed whenever one changes. Empty means nothing is paid.
    */

@@ -55,15 +55,25 @@ function count(value) {
   return Number.isFinite(value) ? value : null
 }
 
+/** Whether a stack counts NetSuite accounts. Standard has no NetSuite, so it
+    counts developers only. A missing stack counts them, as before. */
+export function tracksAccounts(stack) {
+  return stack !== 'standard'
+}
+
 /**
  * What a license may use: the override if it has one, otherwise the value on
  * the product for its stack and tier. `product` is null for Enterprise.
- * Lite and a refunded license do not track accounts, so `accounts` is null.
+ * Lite, a refunded license and a Standard
+ * license do not track accounts, so `accounts` is null.
  */
 export function licenseLimits(license, product) {
   const seats = count(license?.seatOverride) ?? count(product?.seats) ?? 1
 
-  if (tierRank(license?.tier) < tierRank('pro'))
+  if (
+    tierRank(license?.tier) < tierRank('pro') ||
+    !tracksAccounts(license?.stack ?? product?.stack)
+  )
     return { seats, accounts: null }
 
   const accounts =
@@ -74,6 +84,7 @@ export function licenseLimits(license, product) {
 const KIT_NAMES = {
   'react-netsuite': 'WareKit React NetSuite',
   'next-netsuite': 'WareKit Next NetSuite',
+  standard: 'WareKit Standard',
 }
 
 /** The kit's name, without a tier: what a license with no kit row is called.
