@@ -203,7 +203,7 @@ export async function sendUpdatesEndedEmail(args: {
   // TODO(alec): confirm this wording.
   const subject = `Your ${args.kitName} updates ended on ${date}`
   // TODO(alec): confirm this wording.
-  const text = `Your WareKit license's 12 months of updates ended on ${date}, so the developers on your license no longer have access to the kit's repository.
+  const text = `Your WareKit license's 12 months of updates ended on ${date}, so repository access through this license has ended.
 
 Your code keeps working, and so does everything you built with it. Your license key still works.
 

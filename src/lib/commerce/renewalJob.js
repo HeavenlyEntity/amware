@@ -16,6 +16,10 @@
  * withdrawal with `planRevocation` (read-only) and never calls
  * `revokeLicenseAccess`, which writes `needsReview` even with the flag off.
  *
+ * `revokeLicenseAccess` reads WAREKIT_REVOKE_ON_DEACTIVATE itself, so a caller
+ * passing `live: true` with the variable unset would send reminders and remove
+ * nobody. The route never passes `live`.
+ *
  * It never names anyone in a log: license ids, counts and an error's code or
  * name only. It never throws past one license: that license counts as
  * `failed` and the run goes on. Only a failure to read the licenses at all

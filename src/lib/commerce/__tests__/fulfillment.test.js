@@ -560,6 +560,10 @@ describe('renewal emails', () => {
     )
     expect(body()).toContain('Your code keeps working')
     expect(body()).toContain('$199.00')
+    expect(body()).toContain(
+      'so repository access through this license has ended.'
+    )
+    expect(body()).not.toContain('no longer have access')
   })
   it('confirmation repeats the new date and the price, and mentions invitations only when access came back', async () => {
     await sendRenewalConfirmationEmail({

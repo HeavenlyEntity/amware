@@ -271,7 +271,10 @@ it('never reminds or cuts off a license with no end date', async () => {
     grantsTier: 'enterprise',
     kind: 'quote',
   })
-  await run(p, '2030-01-01T00:00:00.000Z')
+  expect(await run(p, '2030-01-01T00:00:00.000Z')).toMatchObject({
+    checked: 1,
+    failed: 0,
+  })
   expect(removeFromRepo).not.toHaveBeenCalled()
   expect(sendRenewalReminderEmail).not.toHaveBeenCalled()
 })
@@ -306,6 +309,66 @@ it('gives the reminder mark back when the email fails, so the next run sends it 
   expect(sendRenewalReminderEmail).toHaveBeenCalledTimes(2)
   expect(license41(p).firstReminderSentFor).toBe(UNTIL)
 })
+it('does not throw when the reminder mark cannot be given back either', async () => {
+  sendRenewalReminderEmail.mockRejectedValueOnce(new Error('Resend refused'))
+  const p = world()
+  const real = p.update.getMockImplementation()
+  p.update.mockImplementation(async (arg) => {
+    if (arg.data.firstReminderSentFor === null) {
+      throw new Error('db down for owner@example.com')
+    }
+    return real(arg)
+  })
+  const counts = await run(p, '2027-11-10T16:00:00.000Z')
+  expect(counts).toMatchObject({ failed: 1, firstReminders: 0 })
+  const logged = JSON.stringify(
+    [console.info, console.warn, console.error].flatMap((s) => s.mock.calls)
+  )
+  expect(logged).not.toMatch(/owner@example\.com|buyer|teammate/i)
+})
+it('goes on to the next license when one throws, logging only ids', async () => {
+  const p = world({
+    others: [
+      {
+        id: 50,
+        ownerEmail: 'second@example.com',
+        stack: 'next-netsuite',
+        tier: 'pro',
+        creemEnvironment: 'production',
+        seatMembers: [{ githubUsername: 'Other', inviteUrl: INVITE }],
+      },
+    ],
+  })
+  p.tables.purchases.push({
+    id: 2,
+    license: 50,
+    status: 'paid',
+    grantsTier: 'pro',
+    kind: 'sale',
+    createdAt: '2026-12-10T15:00:00.000Z',
+    githubRepo: REPO,
+  })
+  const real = p.findByID.getMockImplementation()
+  p.findByID.mockImplementation(async (arg) => {
+    if (arg.id === 41) throw new Error('boom for owner@example.com Buyer')
+    return real(arg)
+  })
+  const counts = await run(p, '2027-12-11T06:00:00.000Z')
+  expect(counts).toMatchObject({ checked: 2, failed: 1, withdrawn: 1 })
+  expect(removeFromRepo).toHaveBeenCalledWith({ repo: REPO, username: 'Other' })
+  const logged = JSON.stringify(
+    [console.info, console.warn, console.error].flatMap((s) => s.mock.calls)
+  )
+  expect(logged).toContain('41')
+  expect(logged).not.toMatch(/example\.com|buyer|teammate|other"/i)
+})
+it('sends the ended notice with no price when the kit row has none', async () => {
+  const p = world({ kitRow: { renewalPrice: null } })
+  await run(p, '2027-12-11T06:00:00.000Z')
+  expect(sendUpdatesEndedEmail).toHaveBeenCalledWith(
+    expect.objectContaining({ price: null })
+  )
+})
 it('still sends the reminder, with no price, when the kit row has none', async () => {
   const p = world({ kitRow: { renewalPrice: null } })
   await run(p, '2027-11-10T16:00:00.000Z')
@@ -338,6 +401,17 @@ describe('handleRenewalJob', () => {
       (await handleRenewalJob(req('GET', 'Bearer wrong'), getPayload)).status
     ).toBe(401)
     expect(getPayload).not.toHaveBeenCalled()
+  })
+  it('answers 500 with a fixed body and no details when the licenses cannot be read', async () => {
+    process.env.CRON_SECRET = 's3cret'
+    const getPayload = async () => ({
+      find: async () => {
+        throw new Error('connection to db.internal:6543 refused')
+      },
+    })
+    const res = await handleRenewalJob(req('GET', 'Bearer s3cret'), getPayload)
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ status: 'error' })
   })
   it('answers 405 to anything but GET', async () => {
     process.env.CRON_SECRET = 's3cret'
