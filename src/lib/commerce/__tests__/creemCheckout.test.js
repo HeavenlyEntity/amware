@@ -261,3 +261,41 @@ describe('startCreemCheckout', () => {
     })
   })
 })
+
+describe('startCreemCheckout building answer', () => {
+  it('adds a listed building answer to the checkout metadata', async () => {
+    withDoc(guide)
+    await run({ slug: guide.slug, building: 'team-saas' }).catch(() => {})
+    const args = createCheckoutSession.mock.calls[0][0]
+    expect(args.metadata).toEqual({
+      itemType: 'product',
+      itemId: '12',
+      slug: 'key-rotation-guide',
+      building: 'team-saas',
+    })
+  })
+
+  it('drops an answer that is not listed and still starts the checkout', async () => {
+    withDoc(guide)
+    await run({ slug: guide.slug, building: '<script>' }).catch(() => {})
+    const args = createCheckoutSession.mock.calls[0][0]
+    expect(args.metadata).not.toHaveProperty('building')
+    expect(args.metadata).toEqual({
+      itemType: 'product',
+      itemId: '12',
+      slug: 'key-rotation-guide',
+    })
+    expect(JSON.stringify(createCheckoutSession.mock.calls[0])).not.toContain(
+      '<script>'
+    )
+    expect(redirect).toHaveBeenCalledWith('https://creem.io/pay/abc')
+  })
+
+  it('treats an empty answer as absent', async () => {
+    withDoc(guide)
+    await run({ slug: guide.slug, building: '' }).catch(() => {})
+    expect(createCheckoutSession.mock.calls[0][0].metadata).not.toHaveProperty(
+      'building'
+    )
+  })
+})

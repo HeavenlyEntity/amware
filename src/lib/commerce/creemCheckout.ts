@@ -7,6 +7,7 @@ import { CreemError, createCheckoutSession } from './creem'
 import { checkoutRoute } from './checkoutRoute'
 import { creemProductIdFor } from './creemEnv'
 import { onboardingPath } from './onboardingLink'
+import { buildingAnswer } from './standardPresale'
 
 /* A 'use server' module may only export async functions, so the initial state
  * lives with the component that owns it. Types are erased, so the type export
@@ -72,6 +73,11 @@ export async function startCreemCheckout(
 
   const requestId = crypto.randomUUID()
 
+  /* The optional "What are you building?" answer from the founding presale.
+     The form value is the buyer's to set, so only an id from the listed
+     choices is passed on; anything else is treated as if it was never sent. */
+  const building = buildingAnswer(formData.get('building'))
+
   /* A kit buyer lands on the onboarding page, where the signed link proves
      they paid and collects the GitHub username for the repo invite. The link
      is signed with our own secret. Without it the buyer would pay and land on
@@ -99,7 +105,12 @@ export async function startCreemCheckout(
       productId,
       requestId,
       successUrl,
-      metadata: { itemType: 'product', itemId: String(item.id), slug },
+      metadata: {
+        itemType: 'product',
+        itemId: String(item.id),
+        slug,
+        ...(building ? { building } : {}),
+      },
     }))
   } catch (err) {
     /* Creem not knowing the product is the same situation as the CMS not

@@ -213,6 +213,32 @@ describe('Creem checkout.completed for a kit', () => {
     )
   })
 
+  it('records a kit sale whose metadata carries a building answer', async () => {
+    const payload = withItem(pro)
+
+    const res = await POST(
+      completed(kit({ metadata: { building: 'team-saas' } }))
+    )
+
+    expect(res.status).toBe(200)
+    expect(payload.create).toHaveBeenCalledTimes(1)
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'purchases',
+        data: expect.objectContaining({ creemOrderId: 'ord_1' }),
+      })
+    )
+    expect(attachPurchase).toHaveBeenCalledWith(payload, {
+      purchase: { id: 99 },
+      email: 'buyer@example.com',
+      stack: 'next-netsuite',
+      grantsTier: 'pro',
+      licenseId: undefined,
+      environment: 'production',
+    })
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledTimes(1)
+  })
+
   it('stores nothing on the purchase’s old seat list', async () => {
     const payload = withItem(pro, {
       license: { id: 77, seatMembers: [{ githubUsername: 'someone' }] },
