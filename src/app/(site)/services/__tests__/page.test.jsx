@@ -195,4 +195,26 @@ describe('ServicesPage', () => {
     )
     expect(shown).toContain('What if the call isn’t worth it?')
   })
+
+  it('does not list the Codebase Diagnostic as an engagement', async () => {
+    payload.find.mockResolvedValueOnce({
+      docs: [
+        tier({ slug: 'advisor', whopPlanId: 'plan_a' }),
+        tier({ slug: 'fractional-cto', whopPlanId: 'plan_f' }),
+        tier({
+          slug: 'codebase-diagnostic',
+          name: 'Codebase Diagnostic',
+          whopPlanId: 'plan_d',
+        }),
+      ],
+    })
+    const { container } = render(await ServicesPage())
+    const panel = container.querySelector('#engagements')
+    expect(container.querySelector('li#codebase-diagnostic')).toBeNull()
+    expect(
+      within(panel).queryByRole('heading', { name: 'Codebase Diagnostic' })
+    ).toBeNull()
+    // Nor in the structured data's list of offers.
+    expect(container.innerHTML).not.toContain('#codebase-diagnostic')
+  })
 })

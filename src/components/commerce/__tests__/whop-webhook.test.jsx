@@ -177,6 +177,27 @@ describe('Whop webhook', () => {
     )
   })
 
+  it('sends the Diagnostic receipt wording for a Diagnostic deposit', async () => {
+    verifyWhopWebhook.mockReturnValue(event(payment()))
+    db({
+      services: [
+        {
+          ...service,
+          slug: 'codebase-diagnostic',
+          name: 'Codebase Diagnostic',
+        },
+      ],
+    })
+    const res = await POST(request())
+    expect(res.status).toBe(200)
+    expect(sendDepositReceivedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceName: 'Codebase Diagnostic',
+        serviceSlug: 'codebase-diagnostic',
+      })
+    )
+  })
+
   it('answers 200 and writes nothing for a payment it already has', async () => {
     verifyWhopWebhook.mockReturnValue(event(payment()))
     db({ existing: [{ id: 5 }] })

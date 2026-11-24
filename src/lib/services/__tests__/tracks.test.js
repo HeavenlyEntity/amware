@@ -26,6 +26,16 @@ describe('groupServices', () => {
     expect(technical).toEqual([])
   })
 
+  it('leaves the Codebase Diagnostic out of both tracks', () => {
+    const { consulting, technical } = groupServices([
+      { slug: 'advisor', category: 'consulting' },
+      { slug: 'codebase-diagnostic', category: 'consulting' },
+      { slug: 'cto', category: 'consulting' },
+    ])
+    expect(consulting.map((d) => d.slug)).toEqual(['advisor', 'cto'])
+    expect(technical).toEqual([])
+  })
+
   it('copes with no services', () => {
     expect(groupServices()).toEqual({ consulting: [], technical: [] })
   })

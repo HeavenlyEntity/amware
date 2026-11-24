@@ -97,4 +97,21 @@ describe('public catalog boundary', () => {
     payload.find.mockRejectedValue(new Error('Unavailable'))
     await expect(allCatalog(payload, 'courses')).rejects.toThrow('Unavailable')
   })
+  it('leaves the Codebase Diagnostic out of the services catalog', async () => {
+    const payload = {
+      find: vi.fn().mockResolvedValue({
+        docs: [
+          { name: 'Advisor', slug: 'advisor', status: 'published' },
+          {
+            name: 'Codebase Diagnostic',
+            slug: 'codebase-diagnostic',
+            status: 'published',
+          },
+        ],
+        hasNextPage: false,
+      }),
+    }
+    const docs = await allCatalog(payload, 'services')
+    expect(docs.map((d) => d.slug)).toEqual(['advisor'])
+  })
 })

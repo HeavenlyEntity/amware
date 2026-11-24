@@ -120,4 +120,36 @@ describe('AsciiField', () => {
     expect(fx.mount).not.toHaveBeenCalled()
     expect(container.querySelector('canvas')).toBeNull()
   })
+
+  it('runs the panel field on a wide screen once it is near the viewport', async () => {
+    env.phone = false
+    const { container } = render(<AsciiField variant="panel" />)
+    await waitFor(() => expect(fx.mount).toHaveBeenCalledTimes(1))
+    expect(fx.mount.mock.calls[0][2]).toMatchObject({
+      shape: 'rise',
+      cellSize: 14,
+      maxDpr: 1.5,
+    })
+    expect(container.firstChild).toHaveClass('svc-ascii--panel')
+  })
+
+  it('runs the panel field on a phone', async () => {
+    env.desk = false
+    render(<AsciiField variant="panel" />)
+    await waitFor(() => expect(fx.mount).toHaveBeenCalledTimes(1))
+    expect(fx.mount.mock.calls[0][2]).toMatchObject({
+      shape: 'rise',
+      maxDpr: 1.5,
+    })
+  })
+
+  it('keeps the panel a poster under reduced motion', async () => {
+    env.reduced = true
+    const { container } = render(<AsciiField variant="panel" />)
+    await settle()
+    expect(fx.mount).not.toHaveBeenCalled()
+    expect(container.querySelector('canvas')).toBeNull()
+    expect(container.firstChild).toHaveAttribute('data-field', 'poster')
+    expect(container.querySelector('.svc-ascii-poster')).not.toBeNull()
+  })
 })

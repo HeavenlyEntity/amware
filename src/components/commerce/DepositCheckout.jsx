@@ -12,6 +12,7 @@ import {
 import { WHOP_EVENT, whopTrack } from '@/lib/analytics/whop'
 import { usd } from '@/lib/commerce/money'
 import { whopEnvironment } from '@/lib/commerce/whopEnv'
+import { depositTerms } from '@/lib/services/deposit-terms'
 
 /* The deposit that starts an engagement, paid without leaving the page.
    Whop's checkout mounts in a side sheet from the service's plan id; there
@@ -36,6 +37,7 @@ import { whopEnvironment } from '@/lib/commerce/whopEnv'
 export function DepositCheckout({
   planId,
   serviceName,
+  serviceSlug,
   amount = 1500,
   bookingUrl,
   className,
@@ -46,6 +48,9 @@ export function DepositCheckout({
      a tester with a real card cannot mistake it for the live thing, and
      vice versa. */
   const environment = whopEnvironment()
+  /* The wording follows the service: a retainer credits the deposit, the
+     Diagnostic refunds it. */
+  const terms = depositTerms(serviceSlug)
 
   const onOpenChange = (next) => {
     setOpen(next)
@@ -79,11 +84,10 @@ export function DepositCheckout({
             style={{ fontFamily: 'Layer, sans-serif' }}
             className="text-2xl font-bold tracking-tight"
           >
-            Reserve your start
+            {terms.sheetTitle}
           </SheetTitle>
           <SheetDescription>
-            {usd(amount)} deposit for {serviceName}, credited in full against
-            your first month.
+            {terms.sheetLine(usd(amount), serviceName)}
           </SheetDescription>
           {environment === 'sandbox' && (
             <p className="amw-chip amw-chip--accent self-start">
@@ -96,11 +100,17 @@ export function DepositCheckout({
             a fresh checkout with its own reference. The service name and
             booking link ride on the return URL; /checkout/deposit treats
             the booking link as untrusted and only a Cal.com one becomes the
-            popup. */}
+            popup. Given a slug, the checkout adds it as ?from=, so the
+            return page can send a buyer whose payment did not finish back
+            to this service's own pages before any row exists. */}
         <WhopCheckout
           planId={planId}
           returnPath="/checkout/deposit"
-          returnParams={{ service: serviceName, booking: bookingUrl }}
+          returnParams={
+            serviceSlug
+              ? { service: serviceName, booking: bookingUrl, from: serviceSlug }
+              : { service: serviceName, booking: bookingUrl }
+          }
           className="mt-2 min-h-[28rem]"
         />
       </SheetContent>

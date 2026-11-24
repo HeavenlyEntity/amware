@@ -143,4 +143,49 @@ describe('DepositCheckout', () => {
     )
     expect(screen.getByText(/sandbox: test cards only/i)).toBeInTheDocument()
   })
+
+  it('uses the Diagnostic wording when given its slug', () => {
+    render(
+      <DepositCheckout
+        planId="plan_x"
+        serviceName="Codebase Diagnostic"
+        serviceSlug="codebase-diagnostic"
+        amount={1500}
+      >
+        Reserve your start
+      </DepositCheckout>
+    )
+    open()
+    expect(
+      screen.getByRole('heading', { name: 'Reserve your Diagnostic' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Fully refunded if I can’t help/)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/first month/i)).toBeNull()
+  })
+})
+
+describe('DepositCheckout return hint', () => {
+  /* The return page cannot look up a row that has not landed yet, so the
+     Diagnostic's checkout tells it, on the URL, which pages to send its
+     buyer back to. Only a checkout given a slug adds one. */
+  it('adds the service slug to the return URL when given one', () => {
+    render(
+      <DepositCheckout
+        planId="plan_x"
+        serviceName="Codebase Diagnostic"
+        serviceSlug="codebase-diagnostic"
+        bookingUrl={CAL}
+      >
+        Reserve your start
+      </DepositCheckout>
+    )
+    open()
+    expect(checkoutProps.returnParams).toEqual({
+      service: 'Codebase Diagnostic',
+      booking: CAL,
+      from: 'codebase-diagnostic',
+    })
+  })
 })

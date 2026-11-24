@@ -5,6 +5,7 @@ import { getPayloadClient } from '@/lib/getPayloadClient'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { faqSchema } from '@/lib/seo/schema'
 import { faqs } from '@/content/site/faq'
+import { DIAGNOSTIC_SLUG } from '@/lib/services/deposit-terms'
 
 export const revalidate = 60
 
@@ -71,6 +72,8 @@ export default async function HomePage() {
         where: {
           status: { equals: 'published' },
           category: { equals: 'consulting' },
+          /* Its row exists only to take a deposit; it is not an offer card. */
+          slug: { not_equals: DIAGNOSTIC_SLUG },
         },
         sort: 'order',
         depth: 0,

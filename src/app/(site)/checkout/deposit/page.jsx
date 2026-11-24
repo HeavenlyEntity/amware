@@ -10,6 +10,7 @@ import { firstParam } from '@/lib/commerce/onboardingDisplay'
    number, and every attempt would compare as done. */
 import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
 import { validCheckoutRef } from '@/lib/commerce/whop'
+import { DIAGNOSTIC_SLUG, depositTerms } from '@/lib/services/deposit-terms'
 
 export const dynamic = 'force-dynamic'
 export const metadata = {
@@ -58,7 +59,17 @@ export const metadata = {
  * DepositCheckout still puts one on the return URL, but that is untrusted
  * query input, and the page no longer reads it: the service's own link is
  * the owner's, so calLinkFromUrl only decides whether it becomes the Cal.com
- * popup or a plain link. */
+ * popup or a plain link.
+ *
+ * Where to try again, and where "back" goes, follow the service too:
+ * /services leaves the Codebase Diagnostic out, so its buyer is sent to
+ * the Diagnostic's own pages. The service comes from the purchase row when
+ * the lookup found one, and otherwise from ?from=, which DepositCheckout
+ * adds only for a service it was given the slug of. That hint is
+ * browser-set like everything else on the URL: it counts only when it is
+ * the Diagnostic's slug, it only chooses between fixed internal links and
+ * the words around them, and it is never rendered. The paid state never
+ * reads it -- only a paid row chooses what that state says. */
 
 const bodyClass =
   'mt-6 text-lg leading-relaxed text-zinc-600 dark:text-zinc-400'
@@ -90,15 +101,15 @@ function Shell({ kicker = 'deposit', title, children }) {
 /* An explicit ?status=error with no paid row to show for it. Only the old
    embed ever appended one. Nothing was charged, so the one useful thing is
    another try. */
-function PaymentFailed() {
+function PaymentFailed({ links }) {
   return (
     <Shell title="That payment did not go through.">
       <p className={bodyClass}>
-        Nothing was charged. You can try again from the engagement you chose, or
-        get in touch and we will sort it out by hand.
+        Nothing was charged. You can try again {links.retryLine}, or get in
+        touch and we will sort it out by hand.
       </p>
       <p className={actionsClass}>
-        <Link href="/services" className={ctaClass}>
+        <Link href={links.retryHref} className={ctaClass}>
           Try again
         </Link>
         <Link href="/contact" className={quietLinkClass}>
@@ -114,14 +125,13 @@ function PaymentFailed() {
    calLinkFromUrl decides what it becomes, as it does on the service card:
    a Cal.com link flows straight into the intro call, the same popup the
    card's "Book an intro call" opens, and any other opens where it points. */
-function Reserved({ bookingUrl, serviceName }) {
+function Reserved({ bookingUrl, serviceName, serviceSlug }) {
   const cal = calLinkFromUrl(bookingUrl)
+  const terms = depositTerms(serviceSlug)
   return (
-    <Shell kicker="deposit received" title="Your start is reserved.">
+    <Shell kicker="deposit received" title={terms.reservedTitle}>
       <p className={bodyClass}>
-        {bookingUrl
-          ? 'The deposit is credited in full against your first month. A receipt is on its way — one thing left: pick a time for the intro call.'
-          : 'The deposit is credited in full against your first month. A receipt is on its way, and I will be in touch within one business day to set the engagement up.'}
+        {bookingUrl ? terms.reservedWithCall : terms.reservedWithoutCall}
       </p>
       <p className={actionsClass}>
         {bookingUrl ? (
@@ -145,13 +155,13 @@ function Reserved({ bookingUrl, serviceName }) {
                 Book the intro call
               </Link>
             )}
-            <Link href="/services" className={quietLinkClass}>
-              Back to engagements →
+            <Link href={terms.backHref} className={quietLinkClass}>
+              {terms.backLabel} →
             </Link>
           </>
         ) : (
-          <Link href="/services" className={ctaClass}>
-            Back to engagements
+          <Link href={terms.backHref} className={ctaClass}>
+            {terms.backLabel}
           </Link>
         )}
       </p>
@@ -166,7 +176,7 @@ function Reserved({ bookingUrl, serviceName }) {
    deposit or an email that may not exist, and another try is offered only
    once the checks have run out -- never while the webhook may just be
    late. */
-function Confirming({ checkoutRef, attempt, keep }) {
+function Confirming({ checkoutRef, attempt, keep, links }) {
   return (
     <Shell title="Confirming your deposit">
       <p className={bodyClass}>
@@ -187,11 +197,14 @@ function Confirming({ checkoutRef, attempt, keep }) {
       ) : (
         <p className={noteClass}>
           If your bank or card step did not finish, nothing was taken.{' '}
-          <Link href="/services" className={inlineLinkClass}>
+          <Link href={links.retryHref} className={inlineLinkClass}>
             Try again
           </Link>{' '}
-          from the engagement you chose,{' '}
-          <Link href={retryHref(checkoutRef, keep)} className={inlineLinkClass}>
+          {links.retryLine},{' '}
+          <Link
+            href={refreshHref(checkoutRef, keep)}
+            className={inlineLinkClass}
+          >
             refresh the page
           </Link>{' '}
           to check once more, or{' '}
@@ -233,7 +246,7 @@ function CheckEmail() {
 /* This page again for the same ref, keeping what the success state needs:
    the manual counterpart of PendingRefresh's automatic retry. No attempt,
    so a refresh starts the count over. */
-function retryHref(checkoutRef, keep) {
+function refreshHref(checkoutRef, keep) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(keep)) {
     if (value) params.set(key, value)
@@ -250,15 +263,32 @@ function isPaidDeposit(purchase) {
   return purchase?.status === 'paid' && purchase.itemType === 'service'
 }
 
-/* The booking link the owner set on the purchased service, as the lookup
-   populated it. Never the URL's. */
-function bookingUrlOf(purchase) {
+/* The purchased service as the lookup populated it. Never the URL's. */
+function purchasedService(purchase) {
   const item = purchase.item
-  const service =
-    item?.relationTo === 'services' && typeof item.value === 'object'
-      ? item.value
-      : null
-  return service?.bookingUrl || null
+  return item?.relationTo === 'services' && typeof item.value === 'object'
+    ? item.value
+    : null
+}
+
+/* The booking link the owner set on the purchased service. */
+function bookingUrlOf(purchase) {
+  return purchasedService(purchase)?.bookingUrl || null
+}
+
+/* The return URL's ?from=, kept only when it is the Diagnostic's slug.
+   Anything else is no hint at all. */
+function diagnosticHint(value) {
+  return value === DIAGNOSTIC_SLUG ? DIAGNOSTIC_SLUG : null
+}
+
+/* The links a buyer who has not paid is offered: from the row's service
+   when there is one, else from the hint. Only the links and the words
+   around them -- nothing here says what was bought or paid. */
+function unpaidLinks(purchase, hint) {
+  const service = purchase ? purchasedService(purchase) : null
+  const terms = depositTerms(service ? service.slug : hint)
+  return { retryHref: terms.retryHref, retryLine: terms.retryLine }
 }
 
 export default async function DepositReturn({ searchParams }) {
@@ -269,11 +299,18 @@ export default async function DepositReturn({ searchParams }) {
   const ref = validCheckoutRef(firstParam(params.ref))
   const attempt = Math.max(0, parseInt(firstParam(params.attempt), 10) || 0)
   const serviceName = firstParam(params.service)
+  const hint = diagnosticHint(firstParam(params.from))
 
   /* Without a valid ref there is nothing to look up, so nothing waits and
      the URL is all there is: an explicit ?status=error still says the
      payment failed, and anything else points at the email. */
-  if (!ref) return status === 'error' ? <PaymentFailed /> : <CheckEmail />
+  if (!ref) {
+    return status === 'error' ? (
+      <PaymentFailed links={unpaidLinks(null, hint)} />
+    ) : (
+      <CheckEmail />
+    )
+  }
 
   /* With one, the page looks first, whatever the URL says: a paid deposit
      wins over any parameter, because a client who paid must never read
@@ -287,11 +324,11 @@ export default async function DepositReturn({ searchParams }) {
       collection: 'purchases',
       where: { whopCheckoutRef: { equals: ref } },
       /* Whether the row exists, its status, what was bought, and -- for a
-         service -- the booking link the owner set on it. Never the email
-         or the amount. */
+         service -- the booking link and slug the owner set on it. Never the
+         email or the amount. */
       select: { status: true, itemType: true, item: true },
       depth: 1,
-      populate: { services: { bookingUrl: true } },
+      populate: { services: { bookingUrl: true, slug: true } },
       limit: 1,
       overrideAccess: true,
     })
@@ -308,12 +345,18 @@ export default async function DepositReturn({ searchParams }) {
 
   if (isPaidDeposit(deposit)) {
     return (
-      <Reserved bookingUrl={bookingUrlOf(deposit)} serviceName={serviceName} />
+      <Reserved
+        bookingUrl={bookingUrlOf(deposit)}
+        serviceName={serviceName}
+        serviceSlug={purchasedService(deposit)?.slug ?? null}
+      />
     )
   }
 
   // Only now may ?status=error decide: the ref has no paid deposit.
-  if (status === 'error') return <PaymentFailed />
+  if (status === 'error') {
+    return <PaymentFailed links={unpaidLinks(deposit, hint)} />
+  }
 
   if (!deposit) {
     return (
@@ -321,9 +364,10 @@ export default async function DepositReturn({ searchParams }) {
         checkoutRef={ref}
         attempt={attempt}
         /* What a retry carries: the service name, for the popup's own
-           reporting. Never the URL's booking link -- the paid state reads
-           the service's. */
-        keep={{ service: serviceName }}
+           reporting, and the Diagnostic hint when there is one. Never the
+           URL's booking link -- the paid state reads the service's. */
+        keep={{ service: serviceName, from: hint }}
+        links={unpaidLinks(null, hint)}
       />
     )
   }

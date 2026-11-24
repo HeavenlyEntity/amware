@@ -14,13 +14,16 @@ import { useMediaQuery, useMounted } from '@/hooks/use-client-value'
 /*
  * AsciiField: the services board's GradientASCII light (src/lib/fx).
  *
- * Two placements, one component:
+ * Three placements, one component:
  * - `hero`: the phone hero's live field (HeroMobile.dc.html), phones only
  *   (below 768px; the desktop hero has the work wall instead). The owner
  *   chose the live field over a still (F5), so it relaxes the desk gate for
  *   touch screens, at a device-pixel ratio capped at 1.5.
  * - `accent`: the quiet light behind the engagement cards, top right. Desk
  *   gate (wide screen, fine pointer), and only once it is near the viewport.
+ * - `panel`: a rounded hero panel at every width. Runs when either gate
+ *   allows (the phone gate, or the desk gate once near the viewport), and
+ *   keeps the `hero` poster otherwise.
  *
  * Static first: the server and the hydrating render draw the CSS poster (an
  * accent glow, no glyphs), which is also all that reduced motion gets, the
@@ -51,6 +54,16 @@ const SHARED = {
 
 export const ASCII_VARIANTS = {
   hero: {
+    shape: 'rise',
+    cellSize: 14,
+    density: 0.7,
+    scale: 1.2,
+    scrambleRadius: 0.1,
+    maxDpr: 1.5,
+  },
+  /* A hero panel that carries the field at every width: the hero's look,
+     run by whichever gate allows it. */
+  panel: {
     shape: 'rise',
     cellSize: 14,
     density: 0.7,
@@ -101,7 +114,11 @@ export function AsciiField({ variant = 'accent', className = '' }) {
   const near = useInView(hostRef, { once: true, margin: '200px' })
   const deskGate = useDeskWebGL()
   const phoneGate = usePhoneGate()
-  const allowed = variant === 'hero' ? phoneGate : deskGate && near
+  const allowed = {
+    hero: phoneGate,
+    accent: deskGate && near,
+    panel: phoneGate || (deskGate && near),
+  }[variant]
 
   const options = {
     ...SHARED,
