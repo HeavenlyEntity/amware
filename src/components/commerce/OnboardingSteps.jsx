@@ -151,6 +151,21 @@ export function OnboardingSteps({
             {/* The last thing between a buyer and a working kit. Rendered only
                 when there is a license page to send them to, or, once the purchase is too
                 old for a fresh link, the route that emails one. */}
+            {/* No key to add, so no step: only the way back to the license
+                page, where developers are added. */}
+            {!usesKey && (licenseUrl || licenseExpired) && (
+              <li className="pl-8">
+                <a
+                  href={licenseUrl || '/access/resend'}
+                  className="border-[var(--amw-line)] hover:border-[var(--amw-accent)] hover:text-[var(--amw-accent)] inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-zinc-700 transition-colors dark:text-zinc-300"
+                >
+                  {licenseUrl
+                    ? 'Manage your developers'
+                    : 'Email me a new license link'}
+                </a>
+              </li>
+            )}
+
             {usesKey && (licenseUrl || licenseExpired) && (
               <Step n={String(setupN + 1)} title="Add your key to .env">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">

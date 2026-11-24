@@ -173,4 +173,36 @@ describe('OnboardingSteps', () => {
       'git clone git@github.com:amwaredotdev/warekit-next-netsuite.git',
     ])
   })
+
+  it('links a Standard buyer to the license page without a numbered step', () => {
+    const { container } = render(
+      <OnboardingSteps
+        {...base}
+        stack="standard"
+        usesKey={false}
+        delivered
+        licenseUrl="/access/seats/tok"
+      />
+    )
+    expect(
+      screen.getByRole('link', { name: 'Manage your developers' })
+    ).toHaveAttribute('href', '/access/seats/tok')
+    expect(container.querySelectorAll('ol > li > span')).toHaveLength(2)
+  })
+
+  it('offers a Standard buyer with no fresh link the resend route, without the word key', () => {
+    const { container } = render(
+      <OnboardingSteps
+        {...base}
+        stack="standard"
+        usesKey={false}
+        delivered
+        licenseExpired
+      />
+    )
+    expect(
+      screen.getByRole('link', { name: /email me a new license link/i })
+    ).toHaveAttribute('href', '/access/resend')
+    expect(container.textContent).not.toMatch(/\bkey\b/i)
+  })
 })

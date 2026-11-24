@@ -133,8 +133,8 @@ const gains = ({ seats, accounts }) =>
 
 /* The terms of a quote, from the license's own overrides. Said only when both
    numbers are there, since half a quote is not one. */
-const quoteTerms = (license) => {
-  const counts = stackTracksAccounts(license?.stack)
+const quoteTerms = (license, product) => {
+  const counts = stackTracksAccounts(license?.stack ?? product?.stack)
   return Number.isFinite(license?.seatOverride) &&
     (!counts || Number.isFinite(license?.accountOverride))
     ? `Your quote covers ${gains({
@@ -146,8 +146,8 @@ const quoteTerms = (license) => {
 
 /* The Enterprise payment. It is the page's one action, so it is always the
    teal one. */
-function EnterpriseQuote({ token, license, name }) {
-  const terms = quoteTerms(license)
+function EnterpriseQuote({ token, license, product, name }) {
+  const terms = quoteTerms(license, product)
   return (
     <div>
       <UpgradeButton
@@ -247,7 +247,12 @@ export function LicensePanel({
         <>
           <Heading kicker="Enterprise quote">{name}</Heading>
           <div className="mt-6">
-            <EnterpriseQuote token={token} license={license} name={name} />
+            <EnterpriseQuote
+              token={token}
+              license={license}
+              product={product}
+              name={name}
+            />
           </div>
         </>
       )
@@ -268,7 +273,11 @@ export function LicensePanel({
 
   const seats = listSeats(license.seatMembers)
   const tracksAccounts = limits.accounts != null
-  const showsKey = license.tier !== 'lite' && stackTracksAccounts(license.stack)
+  /* The same source `licenseLimits` reads, so the key can never show where
+     the accounts it sits beside are not counted. */
+  const stack = license.stack ?? product?.stack
+  const showsKey =
+    license.tier !== 'lite' && stackTracksAccounts(stack) && tracksAccounts
 
   /* One action at most. A payment on its way hides the button entirely
      rather than disabling it, and so does a missing price: with no number to
@@ -303,7 +312,12 @@ export function LicensePanel({
     license.tier !== 'enterprise'
   ) {
     upgradeAction = (
-      <EnterpriseQuote token={token} license={license} name={name} />
+      <EnterpriseQuote
+        token={token}
+        license={license}
+        product={product}
+        name={name}
+      />
     )
   } else if (action?.kind === 'enterprise-contact' && license.tier === 'team') {
     upgradeAction = (

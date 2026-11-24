@@ -470,6 +470,7 @@ export default async function OnboardingPage({
             requestId={link.r}
             signature={link.s}
             initialUsername={setup.liteUsername}
+            usesKey={usesKey}
           />
         </>
       ) : canRetry ? (
@@ -481,6 +482,7 @@ export default async function OnboardingPage({
             requestId={link.r}
             signature={link.s}
             retryUsername={stored}
+            usesKey={usesKey}
           />
         </>
       ) : (

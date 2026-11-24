@@ -249,4 +249,44 @@ describe('OnboardingGithubForm', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent(/covers 1/)
     })
   })
+
+  describe('the license-page line after the invitation', () => {
+    const sent = async (extra = {}) => {
+      completeOnboarding.mockResolvedValue({
+        error: null,
+        ok: {
+          username: 'octocat',
+          repo: 'amwaredotdev/warekit-standard',
+          inviteUrl: 'https://github.com/invite/1',
+          alreadyHadAccess: false,
+          manual: false,
+          licenseUrl: '/access/seats/tok',
+        },
+      })
+      const view = render(<OnboardingGithubForm {...props} {...extra} />)
+      fireEvent.change(screen.getByLabelText(/github username/i), {
+        target: { value: 'octocat' },
+      })
+      fireEvent.submit(view.container.querySelector('form'))
+      await screen.findByRole('status')
+      return view
+    }
+
+    it('still asks a key kit buyer to add the key', async () => {
+      const { container } = await sent()
+      expect(container.textContent).toContain('Last step: add your key to')
+      expect(container.textContent).toContain('WAREKIT_LICENSE_KEY')
+    })
+
+    it('tells a keyless kit buyer the license page is for developers', async () => {
+      const { container } = await sent({ usesKey: false })
+      expect(container.textContent).toContain(
+        'Your license page is where you add developers.'
+      )
+      expect(container.textContent).not.toMatch(/key|\.env/i)
+      expect(
+        screen.getByRole('link', { name: /open your license page/i })
+      ).toHaveAttribute('href', '/access/seats/tok')
+    })
+  })
 })

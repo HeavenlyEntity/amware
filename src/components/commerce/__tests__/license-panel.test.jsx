@@ -801,4 +801,30 @@ describe('LicensePanel Enterprise', () => {
       expect(container.textContent).not.toMatch(/key/i)
     })
   })
+
+  it('shows no key section for a paid license with no stack and no accounts', () => {
+    const { container } = panel({
+      license: { ...pro.license, accounts: [] },
+      product: { name: 'WareKit Standard (Pro)' },
+      limits: { seats: 1, accounts: null },
+      upgrade: null,
+      action: { kind: null, urgent: false },
+    })
+    expect(container.textContent).not.toMatch(
+      /netsuite|NS_ACCOUNT_ID|license key/i
+    )
+  })
+
+  it('shows no key section when the stack comes from the product and has no accounts', () => {
+    const { container } = panel({
+      license: { ...pro.license, accounts: [] },
+      product: { name: 'WareKit Standard (Pro)', stack: 'standard' },
+      limits: { seats: 1, accounts: null },
+      upgrade: null,
+      action: { kind: null, urgent: false },
+    })
+    expect(container.textContent).not.toMatch(
+      /netsuite|NS_ACCOUNT_ID|license key/i
+    )
+  })
 })

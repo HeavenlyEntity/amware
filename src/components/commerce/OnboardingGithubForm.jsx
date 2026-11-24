@@ -25,6 +25,7 @@ export function OnboardingGithubForm({
   signature,
   initialUsername = '',
   retryUsername = '',
+  usesKey = true,
 }) {
   const [state, formAction, isPending] = useActionState(completeOnboarding, {
     error: null,
@@ -100,11 +101,23 @@ export function OnboardingGithubForm({
 
         {state.ok.licenseUrl && (
           <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-            Last step: add your key to <code className="amw-mono">.env</code>.{' '}
-            <a href={state.ok.licenseUrl} className="font-medium underline">
-              Open your license page
-            </a>{' '}
-            for <code className="amw-mono">WAREKIT_LICENSE_KEY</code>.
+            {usesKey ? (
+              <>
+                Last step: add your key to{' '}
+                <code className="amw-mono">.env</code>.{' '}
+                <a href={state.ok.licenseUrl} className="font-medium underline">
+                  Open your license page
+                </a>{' '}
+                for <code className="amw-mono">WAREKIT_LICENSE_KEY</code>.
+              </>
+            ) : (
+              <>
+                Your license page is where you add developers.{' '}
+                <a href={state.ok.licenseUrl} className="font-medium underline">
+                  Open your license page
+                </a>
+              </>
+            )}
           </p>
         )}
 
