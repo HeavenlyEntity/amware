@@ -65,6 +65,7 @@ const standardPro = {
   tier: 'pro',
   type: 'boilerplate',
   price: 149,
+  seats: 1,
   status: 'published',
   githubRepo: 'amware/warekit-standard',
   creemProductId: 'prod_live_pro',

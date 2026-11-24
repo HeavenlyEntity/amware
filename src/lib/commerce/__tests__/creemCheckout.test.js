@@ -308,6 +308,7 @@ describe('startCreemCheckout for a Standard row', () => {
     stack: 'standard',
     tier: 'pro',
     price: 149,
+    seats: 1,
     status: 'published',
     githubRepo: 'amwaredotdev/warekit-standard',
     creemProductId: 'prod_std_pro',

@@ -4,8 +4,9 @@
  * `/products/standard` sells two kit rows (Pro and Team) through Creem. A
  * checkout must never be offered for a row that cannot be delivered, because
  * the buyer would pay and get nothing: no repository to invite them to, no
- * Creem product for this environment, a price of 0, or a slug the
- * post-payment page cannot read a tier from.
+ * Creem product for this environment, a price of 0, a seat count that is not
+ * the one the page promises, or a slug the post-payment page cannot read a
+ * tier from.
  *
  * The rows come straight from Payload, so every field is treated as possibly
  * missing or of the wrong type. A malformed row is simply not ready; nothing
@@ -35,10 +36,27 @@ export function buildingAnswer(value) {
 }
 
 /* `checkoutRoute` only checks that an id is truthy, so a number, an object or
- * a blank string would pass it and Creem would then reject the checkout. */
+ * a blank string would pass it and Creem would then reject the checkout. The
+ * id is sent to Creem as stored, so a padded one fails there too. */
 function hasCreemId(row, env) {
   const id = env === 'sandbox' ? row.creemSandboxProductId : row.creemProductId
-  return typeof id === 'string' && id.trim() !== ''
+  return typeof id === 'string' && id !== '' && id === id.trim()
+}
+
+/* The `owner/repo` shape `inviteToRepo` (githubInvite.ts) accepts after it
+ * trims; a URL or a bare repository name cannot be invited to. */
+const REPO = /^[\w.-]+\/[\w.-]+$/
+
+function hasRepo(row) {
+  return typeof row.githubRepo === 'string' && REPO.test(row.githubRepo.trim())
+}
+
+/* The page promises one developer for Pro and five for Team from static copy,
+ * while the licence enforces the row's `seats`, so the two must agree. */
+const TIER_SEATS = { pro: 1, team: 5 }
+
+function hasTierSeats(row, tier) {
+  return row.seats === TIER_SEATS[tier]
 }
 
 function isReady(row, tier, env) {
@@ -51,8 +69,8 @@ function isReady(row, tier, env) {
     typeof row.price === 'number' &&
     Number.isFinite(row.price) &&
     row.price > 0 &&
-    typeof row.githubRepo === 'string' &&
-    row.githubRepo.trim() !== '' &&
+    hasRepo(row) &&
+    hasTierSeats(row, tier) &&
     row.slug === `warekit-standard-${tier}` &&
     tierFromSlug(row.slug) === tier &&
     hasCreemId(row, env) &&

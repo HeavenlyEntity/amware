@@ -19,6 +19,7 @@ function row(over = {}) {
     githubRepo: 'amwaredotdev/warekit-standard',
     creemProductId: 'prod_live',
     creemSandboxProductId: 'prod_test',
+    seats: over.tier === 'team' ? 5 : 1,
     ...over,
   }
 }
@@ -48,6 +49,23 @@ const NOT_READY = [
   ['a slug with a suffix', { slug: 'warekit-standard-pro-early' }],
   ['another stack’s slug', { slug: 'warekit-next-netsuite-pro' }],
   ['only a Whop plan id', { creemProductId: null, whopPlanId: 'plan_1' }],
+  [
+    'a repository given as a URL',
+    { githubRepo: 'https://github.com/amwaredotdev/warekit-standard' },
+  ],
+  ['a repository with no owner', { githubRepo: 'warekit-standard' }],
+  ['a Pro row with five seats', { seats: 5 }],
+  ['a missing seat count', { seats: undefined }],
+  ['a seat count that is a string', { seats: '1' }],
+  ['a fractional seat count', { seats: 1.5 }],
+  ['a padded Creem product id', { creemProductId: ' prod_live ' }],
+]
+
+/* The Team tier promises five developers, so its row must say exactly 5. */
+const TEAM_NOT_READY = [
+  ['a Team row with one seat', { seats: 1 }],
+  ['a Team row with no seat count', { seats: undefined }],
+  ['a Team row with six seats', { seats: 6 }],
 ]
 
 const closed = {
@@ -143,6 +161,33 @@ describe('standardPresale', () => {
 
   it.each(NOT_READY)('does not sell a row with %s', (_name, over) => {
     expect(standardPresale([row(over)], 'production').pro.state).toBe('planned')
+  })
+
+  it.each(TEAM_NOT_READY)('does not sell %s', (_name, over) => {
+    const candidate = row({
+      tier: 'team',
+      slug: 'warekit-standard-team',
+      ...over,
+    })
+    expect(standardRowReady(candidate, 'production')).toBe(false)
+    expect(standardPresale([candidate], 'production').team.state).toBe(
+      'planned'
+    )
+  })
+
+  it('does not sell a padded sandbox id in the sandbox', () => {
+    const padded = row({ creemSandboxProductId: 'prod_test ' })
+    expect(standardRowReady(padded, 'sandbox')).toBe(false)
+    expect(standardRowReady(padded, 'production')).toBe(true)
+  })
+
+  it('sells a repository written with surrounding spaces, as the invite trims it', () => {
+    expect(
+      standardRowReady(
+        row({ githubRepo: ' amwaredotdev/warekit-standard ' }),
+        'production'
+      )
+    ).toBe(true)
   })
 
   it('sells a row with both a Whop plan id and a Creem id', () => {
