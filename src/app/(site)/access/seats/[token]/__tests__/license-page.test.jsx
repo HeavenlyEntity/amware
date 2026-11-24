@@ -842,4 +842,37 @@ describe('License page', () => {
       screen.getByText('Updates have ended. Renew to add developers.')
     ).toBeInTheDocument()
   })
+
+  it('offers no Renew for a kit row whose renewal price is zero', async () => {
+    mockDb({
+      license: license({
+        tier: 'pro',
+        updatesComputedUntil: '2027-12-10T15:00:00.000Z',
+      }),
+      purchase: { id: 42, license: 9 },
+      product: {
+        ...proKit,
+        renewalPrice: 0,
+        creemRenewalProductId: 'prod_renew',
+      },
+    })
+    await renderPage(token())
+    expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
+    expect(screen.getByText('Get in touch to renew.')).toBeInTheDocument()
+  })
+
+  it('shows the UTC date for an end instant near midnight', async () => {
+    mockDb({
+      license: license({
+        tier: 'pro',
+        updatesComputedUntil: '2027-12-10T23:30:00.000Z',
+      }),
+      purchase: { id: 42, license: 9 },
+      product: { ...proKit, renewalPrice: 199 },
+    })
+    await renderPage(token())
+    expect(
+      screen.getByText('Updates until 10 December 2027.')
+    ).toBeInTheDocument()
+  })
 })

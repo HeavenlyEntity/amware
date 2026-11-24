@@ -877,8 +877,14 @@ describe('LicensePanel Enterprise', () => {
       ).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
       cleanup()
+      // A renewed license is 12 months from its end, so not in the window.
       renderPanel({
-        term: { ...open, until: '2028-12-10T15:00:00.000Z' },
+        term: {
+          ...open,
+          until: '2028-12-10T15:00:00.000Z',
+          renewOpen: false,
+          canRenew: false,
+        },
         renewed: open.until,
       })
       expect(
@@ -891,6 +897,82 @@ describe('LicensePanel Enterprise', () => {
       expect(
         screen.getByText(/checks again automatically/i)
       ).toBeInTheDocument()
+    })
+
+    it('never says Renewed on an ended license, whatever ?renewed= holds', () => {
+      renderPanel({
+        term: { ...open, ended: true },
+        renewed: '2026-12-10T15:00:00.000Z',
+      })
+      expect(
+        screen.getByText('Updates ended on 10 December 2027.')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Renew · $199.00' })
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Renewed\./)).toBeNull()
+    })
+
+    it('never says Renewed inside the renew window, whatever ?renewed= holds', () => {
+      renderPanel({ term: open, renewed: '2026-12-10T15:00:00.000Z' })
+      expect(
+        screen.getByText('Updates until 10 December 2027.')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Renew · $199.00' })
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Renewed\./)).toBeNull()
+    })
+
+    it('says Renewed for a genuine renewal, far from the next end', () => {
+      renderPanel({
+        term: {
+          ...open,
+          until: '2028-12-10T15:00:00.000Z',
+          renewOpen: false,
+          canRenew: false,
+        },
+        renewed: open.until,
+      })
+      expect(
+        screen.getByText('Renewed. Updates now run until 10 December 2028.')
+      ).toBeInTheDocument()
+    })
+
+    it('says only that it ended, to get in touch, and the closing line, with no price or renewal product', () => {
+      for (const over of [
+        { price: null, canRenew: false },
+        { canRenew: false },
+      ]) {
+        renderPanel({ term: { ...open, ended: true, ...over } })
+        expect(
+          screen.getByText('Updates ended on 10 December 2027.')
+        ).toBeInTheDocument()
+        expect(screen.getByText('Get in touch to renew.')).toBeInTheDocument()
+        expect(
+          screen.getByText(
+            'Your code and your license key keep working either way.'
+          )
+        ).toBeInTheDocument()
+        expect(document.body.textContent).not.toMatch(/Renewing/)
+        expect(document.body.textContent).not.toMatch(/\$\d/)
+        expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
+        cleanup()
+      }
+    })
+
+    it('shows the UTC date for an end instant near midnight', () => {
+      renderPanel({ term: { ...open, until: '2027-12-10T23:30:00.000Z' } })
+      expect(
+        screen.getByText('Updates until 10 December 2027.')
+      ).toBeInTheDocument()
+    })
+
+    it('treats a zero price as no price', () => {
+      renderPanel({ term: { ...open, price: 0, canRenew: true } })
+      expect(screen.queryByRole('button', { name: /Renew/ })).toBeNull()
+      expect(screen.getByText('Get in touch to renew.')).toBeInTheDocument()
+      expect(document.body.textContent).not.toMatch(/\$\d/)
     })
 
     it('shows nothing about a term for Lite', () => {

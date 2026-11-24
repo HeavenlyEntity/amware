@@ -221,7 +221,7 @@ export default async function LicensePage({ params, searchParams }) {
   let term = null
   if (state.until) {
     const price = product?.renewalPrice ?? null
-    const hasPrice = Number.isFinite(price)
+    const hasPrice = Number.isFinite(price) && price > 0
     const hasProduct = Boolean(
       creemRenewalProductIdFor(product, creemEnvironment())
     )

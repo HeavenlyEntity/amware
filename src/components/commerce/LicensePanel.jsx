@@ -262,8 +262,19 @@ function GetInTouchToRenew() {
 function TermNotice({ token, license, name, term, renewed, attempt }) {
   const until = formatTermDate(term.until)
   const nextUntil = formatTermDate(term.nextUntil)
-  const price = priceLabel(term.price)
-  const phase = renewalReturn(term.until, renewed)
+  /* A price of zero or less is no price: nothing is shown or sold for it. */
+  const price = term.price > 0 ? priceLabel(term.price) : null
+  const canRenew = term.canRenew && Boolean(price)
+  /* `renewed` comes from the URL, and the checkout's return link is bookmarked
+     and reopened later. A real renewal moves the end at least 12 months out, so
+     "Renewed" is said only when the term is neither ended nor inside its renew
+     window; otherwise the normal notice and Renew button show. "Confirming"
+     stays, since a payment still on its way leaves the term ended or due. */
+  const returnPhase = renewalReturn(term.until, renewed)
+  const phase =
+    returnPhase === 'done' && (term.ended || term.renewOpen)
+      ? null
+      : returnPhase
 
   if (phase === 'confirming') {
     return (
@@ -317,14 +328,16 @@ function TermNotice({ token, license, name, term, renewed, attempt }) {
         <>
           {term.ended ? (
             <>
-              {/* TODO(alec): confirm this wording. */}
-              <p className={`mt-2 ${termTextClass}`}>
-                {`${
-                  price ? `Renewing costs ${price} and gives` : 'Renewing gives'
-                } 12 months of updates from the day you pay, to ${nextUntil}, and repository access back for everyone on this license.`}
-              </p>
+              {canRenew && (
+                <>
+                  {/* TODO(alec): confirm this wording. */}
+                  <p className={`mt-2 ${termTextClass}`}>
+                    {`Renewing costs ${price} and gives 12 months of updates from the day you pay, to ${nextUntil}, and repository access back for everyone on this license.`}
+                  </p>
+                </>
+              )}
               <div className="mt-4">
-                {term.canRenew ? renewButton(true) : <GetInTouchToRenew />}
+                {canRenew ? renewButton(true) : <GetInTouchToRenew />}
               </div>
               {/* TODO(alec): confirm this wording. */}
               <p className={`mt-3 ${termTextClass}`}>
@@ -340,7 +353,7 @@ function TermNotice({ token, license, name, term, renewed, attempt }) {
                   : `Renewing adds 12 months, to ${nextUntil}.`}
               </p>
               <div className="mt-4">
-                {term.canRenew ? (
+                {canRenew ? (
                   renewButton(false)
                 ) : term.renewOpen ? (
                   <GetInTouchToRenew />
