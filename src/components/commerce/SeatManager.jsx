@@ -31,7 +31,11 @@ import { GithubAccountField } from '@/components/commerce/GithubAccountField'
    prop, not a one-time flag read on first render, because the page that owns
    this component is server-rendered and refreshed in place: the prop turns
    true on a refresh that keeps this component mounted, and it has to work
-   there as well as on a fresh load. */
+   there as well as on a fresh load.
+
+   `addLockedReason` replaces the add form with that sentence while adding is
+   held back (updates have ended). The usage card and the remove buttons stay,
+   and the server refuses the add as well: hiding the form is not the lock. */
 
 /* The add-developer button is the secondary style. The license page has one
    teal button, the upgrade or Enterprise action, and adding a developer is
@@ -46,6 +50,7 @@ const quietButtonClass =
  *   repo?: string | null,
  *   afterUsage?: import('react').ReactNode,
  *   focusAdd?: boolean,
+ *   addLockedReason?: string | null,
  *   children?: import('react').ReactNode,
  * }} props
  */
@@ -55,6 +60,7 @@ export function SeatManager({
   repo,
   afterUsage,
   focusAdd = false,
+  addLockedReason = null,
   children,
 }) {
   const [state, formAction, isPending] = useActionState(
@@ -240,38 +246,44 @@ export function SeatManager({
 
       {afterUsage && <div className="mt-8">{afterUsage}</div>}
 
-      <form action={formAction} className="mt-8">
-        <input type="hidden" name="intent" value="add" />
-        <input type="hidden" name="token" value={token} />
+      {addLockedReason ? (
+        <p className="mt-8 text-sm text-zinc-700 dark:text-zinc-300">
+          {addLockedReason}
+        </p>
+      ) : (
+        <form action={formAction} className="mt-8">
+          <input type="hidden" name="intent" value="add" />
+          <input type="hidden" name="token" value={token} />
 
-        <GithubAccountField
-          serverError={fieldError}
-          inputRef={usernameRef}
-          onGateChange={setGated}
-        />
+          <GithubAccountField
+            serverError={fieldError}
+            inputRef={usernameRef}
+            onGateChange={setGated}
+          />
 
-        <button
-          type="submit"
-          className={quietButtonClass}
-          disabled={isPending || gated}
-        >
-          {isPending
-            ? 'Working…'
-            : gated
-            ? 'Confirm the account'
-            : 'Add to the license'}
-        </button>
+          <button
+            type="submit"
+            className={quietButtonClass}
+            disabled={isPending || gated}
+          >
+            {isPending
+              ? 'Working…'
+              : gated
+              ? 'Confirm the account'
+              : 'Add to the license'}
+          </button>
 
-        {/* Shown rather than disabling the form: someone already on the
+          {/* Shown rather than disabling the form: someone already on the
             license can still be re-invited when a full team needs it, and a
             dead form with no explanation is the worse failure. */}
-        {full && (
-          <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-            All developers are in use. You can still re-send an invitation to
-            someone already on the license.
-          </p>
-        )}
-      </form>
+          {full && (
+            <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
+              All developers are in use. You can still re-send an invitation to
+              someone already on the license.
+            </p>
+          )}
+        </form>
+      )}
     </div>
   )
 }

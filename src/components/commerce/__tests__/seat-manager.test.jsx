@@ -573,6 +573,48 @@ const remove = (username, tok, extra = {}) => {
 
 const writtenSeats = () => update.mock.calls.at(-1)[0].data.seatMembers
 
+describe('while updates have ended', () => {
+  beforeEach(() => {
+    removeFromRepo.mockResolvedValue({ ok: true, state: 'nothing-to-remove' })
+  })
+
+  it('refuses to add a developer while updates have ended, and invites nobody', async () => {
+    world({ license: { updatesComputedUntil: '2020-01-01T00:00:00.000Z' } })
+    const state = await add('newdev')
+    expect(state.error.message).toBe(
+      'Updates for this license ended on 1 January 2020, so developers can be added again once it is renewed. Nothing was charged and nobody was invited.'
+    )
+    expect(inviteToRepo).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('still lets the owner remove a developer while updates have ended', async () => {
+    world({
+      license: {
+        updatesComputedUntil: '2020-01-01T00:00:00.000Z',
+        seatMembers: invited('owner', 'dev2'),
+      },
+    })
+    const state = await remove('dev2')
+    expect(state.error).toBeNull()
+    expect(state.removed.username).toBe('dev2')
+  })
+
+  it('shows the reason instead of the add form when adding is locked', () => {
+    render(
+      <SeatManager
+        token="t"
+        initialSeats={{ used: ['owner'], limit: 5 }}
+        addLockedReason="Renew to add developers."
+      />
+    )
+    expect(screen.getByText('Renew to add developers.')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Add to the license' })
+    ).toBeNull()
+  })
+})
+
 describe('removeSeat', () => {
   beforeEach(() => {
     removeFromRepo.mockResolvedValue({ ok: true, state: 'removed' })

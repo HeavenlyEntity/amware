@@ -124,6 +124,13 @@ describe('which key answers', () => {
     expect(sendOverLimitEmail).not.toHaveBeenCalled()
   })
 
+  it('still accepts the key of a license whose updates have ended', async () => {
+    const payload = world({
+      license: { updatesComputedUntil: '2020-01-01T00:00:00.000Z' },
+    })
+    expect(await report(payload, '7654321')).toMatchObject({ status: 'ok' })
+  })
+
   it('returns invalid for a key from another kit', async () => {
     const payload = world()
     const out = await report(payload, '7654321', { kit: 'react-netsuite' })

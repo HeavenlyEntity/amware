@@ -31,6 +31,7 @@ import {
 import type { License } from '@/payload-types'
 import { reserveSeat, setSeatInvite } from '@/lib/commerce/licenseSeats'
 import { withLicenseLock } from '@/lib/commerce/licenseLock'
+import { formatTermDate, termState } from '@/lib/commerce/licenseTerm'
 import {
   canAddSeat,
   listSeats,
@@ -146,6 +147,20 @@ export async function addSeat(
   // A refunded license has no tier, and no developers to add.
   if (!license.tier) {
     return fail(null, 'This license is no longer active. Get in touch.')
+  }
+  /* Updates have ended: nobody new until the license is renewed. Read from
+     the license row on every call, and before any GitHub call or write, so a
+     hand-made POST meets the same refusal as the form. Removing a developer
+     (`removeSeat`) is deliberately not held back. */
+  const term = termState(license, new Date())
+  if (term.ended) {
+    // TODO(alec): confirm this wording.
+    return fail(
+      null,
+      `Updates for this license ended on ${formatTermDate(
+        term.until
+      )}, so developers can be added again once it is renewed. Nothing was charged and nobody was invited.`
+    )
   }
   /* Enterprise has no kit row and takes its limits from the license itself.
      Any other tier without its row has no limit to read, and guessing one

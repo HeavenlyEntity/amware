@@ -7,6 +7,7 @@ import { createCheckoutSession } from './creem'
 import { verifyAccessToken } from './accessToken'
 import { creemEnvironment, creemUpgradeProductIdFor } from './creemEnv'
 import { tierRank } from './license'
+import { formatTermDate, termState } from './licenseTerm'
 import {
   licenseFromClaims,
   quoteProductIdFor,
@@ -99,6 +100,19 @@ export async function startUpgrade(_prevState, formData) {
        the difference is not their price, and a refunded license holds
        nothing to upgrade from. Both buy Team in full instead. */
     if (license.tier !== 'pro') return fail(UNAVAILABLE)
+    /* Updates have ended: renew first, then move up. Read from the license
+       on every call, before any checkout, so a hand-made POST is refused as
+       the page is. Only this target: the Enterprise quote is a deal arranged
+       by hand, with its own date. */
+    const term = termState(license, new Date())
+    if (term.ended) {
+      // TODO(alec): confirm this wording.
+      return fail(
+        `Updates for this license ended on ${formatTermDate(
+          term.until
+        )}. Renew first, then move to Team. Nothing was charged.`
+      )
+    }
     productId = creemUpgradeProductIdFor(teamRow, env)
   } else {
     if (license.tier === 'enterprise')

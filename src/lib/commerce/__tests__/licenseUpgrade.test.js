@@ -128,6 +128,17 @@ beforeEach(() => {
   })
 })
 
+describe('startUpgrade: an ended license', () => {
+  it('refuses to move an ended license to Team and says to renew first', async () => {
+    world({ license: { updatesComputedUntil: '2020-01-01T00:00:00.000Z' } })
+    const result = await run()
+    expect(result.error.message).toBe(
+      'Updates for this license ended on 1 January 2020. Renew first, then move to Team. Nothing was charged.'
+    )
+    expect(createCheckoutSession).not.toHaveBeenCalled()
+  })
+})
+
 describe('startUpgrade: Pro to Team', () => {
   it('starts a Pro to Team checkout at the upgrade product', async () => {
     world()
