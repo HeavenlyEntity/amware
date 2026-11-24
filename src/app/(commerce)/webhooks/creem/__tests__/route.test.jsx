@@ -108,7 +108,13 @@ beforeEach(() => {
     ownerEmail: 'owner@example.com',
     updatesComputedUntil: '2099-01-01T00:00:00.000Z',
   })
-  restoreLicenseAccess.mockResolvedValue({ state: 'restored' })
+  // The shape restoreLicenseAccess really returns: every developer invited.
+  restoreLicenseAccess.mockResolvedValue({
+    state: 'restored',
+    invited: 1,
+    already: 0,
+    failed: 0,
+  })
 })
 
 describe('Creem checkout.completed', () => {
@@ -823,6 +829,115 @@ describe('Creem checkout.completed for a kit', () => {
       )
       expect(sendRenewalConfirmationEmail).not.toHaveBeenCalled()
       expect(restoreLicenseAccess).not.toHaveBeenCalled()
+    })
+    it('flags, marks the row failed and sends no receipt when the renewal did not move the end date', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const stuck = {
+        ...ownerLicense,
+        ownerEmail: 'owner@example.com',
+        updatesComputedUntil: '2099-01-01T00:00:00.000Z',
+        accessWithdrawnAt: '2027-12-11T06:00:00.000Z',
+      }
+      attachRenewal.mockResolvedValue({ ...stuck })
+      const payload = withItem(proRenewable, { license: stuck })
+      expect((await POST(completed(renewal()))).status).toBe(200)
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          collection: 'licenses',
+          id: 41,
+          data: { needsReview: true },
+        })
+      )
+      expect(failedUpdate(payload)).toBe(true)
+      expect(sendRenewalConfirmationEmail).not.toHaveBeenCalled()
+      expect(restoreLicenseAccess).not.toHaveBeenCalled()
+      expect(console.error).toHaveBeenCalledWith(
+        'Renewal did not move the end date for order',
+        'ord_1',
+        expect.objectContaining({ license: 41 })
+      )
+    })
+    it('still sends the receipt when the renewal moved a stored end date', async () => {
+      const before = {
+        ...ownerLicense,
+        ownerEmail: 'owner@example.com',
+        updatesComputedUntil: '2098-01-01T00:00:00.000Z',
+      }
+      attachRenewal.mockResolvedValue({
+        ...before,
+        updatesComputedUntil: '2099-01-01T00:00:00.000Z',
+      })
+      const payload = withItem(proRenewable, { license: before })
+      await POST(completed(renewal()))
+      expect(failedUpdate(payload)).toBe(false)
+      expect(sendRenewalConfirmationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ until: '2099-01-01T00:00:00.000Z' })
+      )
+    })
+    it('says access is back only when every developer was invited again', async () => {
+      restoreLicenseAccess.mockResolvedValue({
+        state: 'restored',
+        invited: 1,
+        already: 0,
+        failed: 1,
+      })
+      attachRenewal.mockResolvedValue({
+        ...ownerLicense,
+        ownerEmail: 'owner@example.com',
+        updatesComputedUntil: '2099-01-01T00:00:00.000Z',
+        accessWithdrawnAt: '2027-12-11T06:00:00.000Z',
+      })
+      withItem(proRenewable, { license: ownerLicense })
+      expect((await POST(completed(renewal()))).status).toBe(200)
+      expect(restoreLicenseAccess).toHaveBeenCalledTimes(1)
+      expect(sendRenewalConfirmationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ restored: false })
+      )
+    })
+    it('flags the license when a renewal is paid with a product that is not its renewal product', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const payload = withItem(proRenewable, { license: ownerLicense })
+      expect(
+        (await POST(completed(renewal({ productId: 'prod_pro' })))).status
+      ).toBe(200)
+      expect(failedUpdate(payload)).toBe(true)
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          collection: 'licenses',
+          id: 41,
+          data: { needsReview: true },
+        })
+      )
+      expect(attachRenewal).not.toHaveBeenCalled()
+    })
+    it('flags the license when a renewal names a license on the other stack', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const payload = withItem(proRenewable, {
+        license: { ...ownerLicense, stack: 'react-netsuite' },
+      })
+      expect((await POST(completed(renewal()))).status).toBe(200)
+      expect(failedUpdate(payload)).toBe(true)
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          collection: 'licenses',
+          id: 41,
+          data: { needsReview: true },
+        })
+      )
+      expect(attachRenewal).not.toHaveBeenCalled()
+    })
+    it('flags nothing for a plain sale with a product mismatch', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const payload = withItem(proRenewable, { license: ownerLicense })
+      await POST(
+        completed(
+          kit({ productId: 'prod_other', metadata: { licenseId: '41' } })
+        )
+      )
+      expect(failedUpdate(payload)).toBe(true)
+      expect(
+        payload.update.mock.calls.some(([arg]) => arg.collection === 'licenses')
+      ).toBe(false)
     })
     it('marks an upgrade row as an upgrade and a first sale as a sale', async () => {
       const a = withItem(team, { license: ownerLicense })

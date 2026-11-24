@@ -15,7 +15,11 @@ import {
 } from '@/lib/commerce/licenseRecord'
 import { revokeLicenseAccess } from '@/lib/commerce/licenseRevoke'
 import { restoreLicenseAccess } from '@/lib/commerce/licenseRestore'
-import { TERM_TIERS, termState } from '@/lib/commerce/licenseTerm'
+import {
+  TERM_TIERS,
+  renewalReturn,
+  termState,
+} from '@/lib/commerce/licenseTerm'
 import { reserveSeat } from '@/lib/commerce/licenseSeats'
 import { listSeats } from '@/lib/commerce/seats'
 import { onboardingPath } from '@/lib/commerce/onboardingLink'
@@ -726,6 +730,12 @@ async function handleCheckout(event) {
         data: { fulfillmentStatus: 'failed' },
       })
       .catch(() => {})
+    /* A refused renewal took the money and added no time: a person must see
+       it on the license, not only in a scan of failed rows. */
+    if (isRenewal && license?.id)
+      await flagForReview(payload, license.id).catch((err) =>
+        console.error('Renewal review flag failed for order', orderId, err)
+      )
   } else if (engagement || creemDelivered) {
     // Neither needs delivery from here. A retainer is scheduled with the
     // client out of band, and Creem sends a digital product's file itself.
@@ -745,6 +755,13 @@ async function handleCheckout(event) {
         data: { fulfillmentStatus: 'failed' },
       })
       .catch(() => {})
+    /* A renewal naming a license that exists but cannot take it is flagged on
+       that license. One naming no license that exists has nothing to flag:
+       the row's `failed` status is what a person finds. */
+    if (isRenewal && license?.id)
+      await flagForReview(payload, license.id).catch((err) =>
+        console.error('Renewal review flag failed for order', orderId, err)
+      )
   } else if (renewalRefused) {
     /* The money is in, but this renewal does not fit the license: no paid
        Pro or Team tier, another tier's product, or marked as an upgrade too.
@@ -772,6 +789,8 @@ async function handleCheckout(event) {
        is no onboarding. The only access work is giving it back when the
        renewal ends a withdrawal, and that goes by the license as it is read
        now, never the copy read above. */
+    /* The end date before this renewal, to tell whether attaching moved it. */
+    const before = termState(license, new Date()).until
     let fresh: any = null
     try {
       fresh = await attachRenewal(payload, { purchase, license })
@@ -790,21 +809,48 @@ async function handleCheckout(event) {
         })
         .catch(() => {})
     }
-    if (fresh) {
-      const term = termState(fresh, new Date())
+    const term = fresh ? termState(fresh, new Date()) : null
+    /* A renewal that did not move the end date was charged and added nothing
+       (a license whose original sale was refunded keeps its stored date and
+       ignores renewals). No receipt claims a new date and no access is given
+       back for it: a person decides, from the flag and the failed row. */
+    const moved = term
+      ? before
+        ? renewalReturn(term.until, before) === 'done'
+        : Boolean(term.until)
+      : false
+    if (fresh && !moved) {
+      console.error('Renewal did not move the end date for order', orderId, {
+        license: license.id,
+      })
+      await flagForReview(payload, license.id).catch((e) =>
+        console.error('Renewal review flag failed for order', orderId, e)
+      )
+      await payload
+        .update({
+          collection: 'purchases',
+          id: purchase.id,
+          overrideAccess: true,
+          data: { fulfillmentStatus: 'failed' },
+        })
+        .catch(() => {})
+    }
+    /* `moved` implies an end date in force; the check says so to the type
+       checker too. */
+    if (fresh && moved && term?.until) {
       let restored = false
       try {
         if (fresh.accessWithdrawnAt && !term.ended) {
           const result = await restoreLicenseAccess(payload, fresh)
-          restored = result.state === 'restored'
+          /* "Access is back for everyone" only when nobody's invitation was
+             refused; a refused seat is already flagged for a person. */
+          restored = result.state === 'restored' && result.failed === 0
         }
       } catch (err) {
         console.error('Renewal restore failed for order', orderId, err)
       }
-      // Best-effort: the date is recorded either way. With no end date to
-      // name there is no honest receipt to send.
+      // Best-effort: the date is recorded either way.
       try {
-        if (!term.until) throw new Error('no end date after a renewal')
         await sendRenewalConfirmationEmail({
           to: fresh.ownerEmail,
           kitName: item.name,
