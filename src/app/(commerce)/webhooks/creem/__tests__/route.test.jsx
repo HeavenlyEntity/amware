@@ -50,6 +50,7 @@ const completed = ({
   metadata = {},
   orderId = 'ord_1',
   amount = 1200,
+  amountPaid,
   licenseKeys,
 }) =>
   new Request('https://example.com/webhooks/creem', {
@@ -58,7 +59,12 @@ const completed = ({
       eventType: 'checkout.completed',
       object: {
         id: 'chk_1',
-        order: { id: orderId, amount, currency: 'USD' },
+        order: {
+          id: orderId,
+          amount,
+          amount_paid: amountPaid,
+          currency: 'USD',
+        },
         customer: { email: 'buyer@example.com' },
         product: { id: productId },
         metadata: { itemType, itemId: String(itemId), ...metadata },
@@ -673,6 +679,13 @@ describe('Creem checkout.completed for a kit', () => {
         expect.objectContaining({ price: 149.25 })
       )
     })
+    it('quotes amount_paid when a discount or tax makes it differ from amount', async () => {
+      withItem(proRenewable, { license: ownerLicense })
+      await POST(completed(renewal({ amount: 19900, amountPaid: 17910 })))
+      expect(sendRenewalConfirmationEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ price: 179.1 })
+      )
+    })
     it('uses the no-price wording when the paid amount cannot be read', async () => {
       withItem(proRenewable, { license: ownerLicense })
       await POST(completed(renewal({ amount: null })))
@@ -801,6 +814,13 @@ describe('Creem checkout.completed for a kit', () => {
       const payload = withItem(proRenewable, { license: ownerLicense })
       expect((await POST(completed(renewal()))).status).toBe(200)
       expect(failedUpdate(payload)).toBe(true)
+      expect(payload.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          collection: 'licenses',
+          id: 41,
+          data: { needsReview: true },
+        })
+      )
       expect(sendRenewalConfirmationEmail).not.toHaveBeenCalled()
       expect(restoreLicenseAccess).not.toHaveBeenCalled()
     })

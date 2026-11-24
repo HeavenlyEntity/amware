@@ -331,8 +331,9 @@ export async function attachPurchase(
  * again. The row grants no tier and carries no key, so only `license` and
  * `kind` are written. Returns a fresh read of the license.
  *
- * Throws on a database failure; the webhook catches it and answers 500, so
- * Creem redelivers.
+ * Throws on a database failure. The webhook catches it, answers 200, marks
+ * the purchase row `failed` and flags the license for review; a redelivery
+ * would stop at the duplicate check, so a person finishes the attach.
  */
 export async function attachRenewal(payload, { purchase, license }) {
   await payload.update({

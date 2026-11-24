@@ -652,10 +652,14 @@ async function handleCheckout(event) {
         item?.tier !== license.tier ||
         meta.upgrade)
   )
-  /* What this order paid, in dollars, for the receipt: the amount stored on
-     the purchase (cents), not the product row's current price. */
+  /* What this order actually paid, in dollars, for the receipt: the order's
+     `amount_paid` (cents; a discount or tax can make it differ from
+     `amount`), falling back to `amount`. Never the product row's price. */
+  const paidCents = obj.order?.amount_paid ?? amount
   const paidPrice =
-    typeof amount === 'number' && Number.isFinite(amount) ? amount / 100 : null
+    typeof paidCents === 'number' && Number.isFinite(paidCents)
+      ? paidCents / 100
+      : null
 
   // Create the Purchase first (need its id to sign the access token).
   let purchase
@@ -773,6 +777,10 @@ async function handleCheckout(event) {
       fresh = await attachRenewal(payload, { purchase, license })
     } catch (err) {
       console.error('Renewal attach failed for order', orderId, err)
+      // Visible from the license too, not only to someone scanning failed rows.
+      await flagForReview(payload, license.id).catch((e) =>
+        console.error('Renewal review flag failed for order', orderId, e)
+      )
       await payload
         .update({
           collection: 'purchases',
