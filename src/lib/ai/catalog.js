@@ -1,4 +1,5 @@
 import { serializeLexical } from './serialize.js'
+import { DIAGNOSTIC_SLUG } from '../services/deposit-terms.js'
 
 export const publicFields = {
   /* No service publishes a price (owner decision 2026-11-12): each is
@@ -67,7 +68,9 @@ export async function readCatalog(payload, collection, page = 1) {
       .filter(
         (doc) =>
           doc.status === 'published' &&
-          !(collection === 'articles' && doc.mdxSlug)
+          !(collection === 'articles' && doc.mdxSlug) &&
+          /* Its services row only takes a deposit; it is not an engagement. */
+          !(collection === 'services' && doc.slug === DIAGNOSTIC_SLUG)
       )
       .map((doc) => ({
         title: doc.name ?? doc.title,
