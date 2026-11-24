@@ -17,6 +17,7 @@ import {
   kitName,
   licenseLimits,
   nextAction,
+  tracksAccounts,
   upgradeCost,
   upgradeReturn,
 } from '@/lib/commerce/license'
@@ -219,13 +220,10 @@ export default async function LicensePage({ params, searchParams }) {
       const team = await teamProductFor(payload, license.stack)
       const cost = upgradeCost(product?.price, team?.price)
       const productId = creemUpgradeProductIdFor(team, creemEnvironment())
-      if (cost == null || !productId) {
-        console.error('No upgrade to offer', {
-          license: license.id,
-          hasTeamRow: Boolean(team),
-          hasUpgradeProduct: Boolean(productId),
-        })
-      } else {
+      /* Standard's Team row is not published yet, so a Standard Pro license
+         having no Team to move to is expected, not a fault to log. */
+      const awaitingStandardTeam = !team && !tracksAccounts(license.stack)
+      if (cost != null && productId) {
         const teamLimits = licenseLimits({ tier: 'team' }, team)
         upgrade = {
           cost,
@@ -234,6 +232,12 @@ export default async function LicensePage({ params, searchParams }) {
           slug: team.slug,
           name: team.name,
         }
+      } else if (!awaitingStandardTeam) {
+        console.error('No upgrade to offer', {
+          license: license.id,
+          hasTeamRow: Boolean(team),
+          hasUpgradeProduct: Boolean(productId),
+        })
       }
     } catch (err) {
       console.error('Upgrade price lookup failed', err)

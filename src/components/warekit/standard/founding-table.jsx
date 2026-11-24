@@ -81,6 +81,12 @@ export function FoundingTable({ presale }) {
   const [answer, setAnswer] = useState(null)
   const anyReady = TIERS.some((tier) => isReady(presale, tier))
   const waitlist = needsWaitlist(presale)
+  const plans = plansFor(presale)
+  /* "Half price" is true only while some plan has a higher price to strike. */
+  const { badge, ...plainToggle } = founding.toggle
+  const toggle = plans.some((plan) => plan.altPrice)
+    ? founding.toggle
+    : plainToggle
 
   const renderAction = (plan) => {
     /* Lite opens the same waitlist form as an unsold tier, which promises
@@ -118,9 +124,9 @@ export function FoundingTable({ presale }) {
         <BuildingQuestion answer={answer} onAnswer={setAnswer} />
       ) : null}
       <PricingCompare
-        plans={plansFor(presale)}
+        plans={plans}
         groups={founding.groups}
-        toggle={founding.toggle}
+        toggle={toggle}
         strike
         unit={founding.unit}
         corner={founding.corner}

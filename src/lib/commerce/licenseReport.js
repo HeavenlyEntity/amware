@@ -367,8 +367,11 @@ export async function reportAccount(payload, { key, accountId, kit }) {
 
   const { license, purchase, product } = found
   const tier = license.tier
-  // Every tier `findLicense` lets through tracks accounts, so this only stops
-  // a limit it could not read from being written against.
+  // `findLicense` lets through any tier from Pro up on the kit named, and a
+  // Standard license is one of them: it tracks no accounts, so its limit is
+  // null and it is answered here, before the lock, with nothing written. The
+  // same check inside the lock covers a limit that is gone by the time the
+  // license is read again.
   if (licenseLimits(license, product).accounts == null) {
     return { status: 'ok', tier }
   }

@@ -108,6 +108,19 @@ beforeEach(() => {
 })
 
 describe('which key answers', () => {
+  it('answers ok for a Standard license and writes nothing, since it tracks no accounts', async () => {
+    const payload = world({
+      license: { stack: 'standard' },
+      product: { seats: 1, stack: 'standard' },
+    })
+    const out = await report(payload, '7654321', { kit: 'standard' })
+    expect(out).toEqual({ status: 'ok', tier: 'pro' })
+    expect(payload.update).not.toHaveBeenCalled()
+    expect(payload.state.license.accounts).toEqual([])
+    expect(activateLicense).not.toHaveBeenCalled()
+    expect(sendOverLimitEmail).not.toHaveBeenCalled()
+  })
+
   it('returns invalid for an unknown key', async () => {
     const payload = world()
     const out = await report(payload, '7654321', { key: 'NOPE' })

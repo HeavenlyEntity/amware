@@ -260,14 +260,24 @@ export function PricingCompare({
         variants={part}
         className={toggle ? 'mt-12 sm:mt-16' : undefined}
       >
-        <div data-testid="compare-table" className="hidden lg:block">
-          <div style={columns}>
-            <div className={cn('flex items-end px-6 pb-8 text-sm', muted)}>
+        {/* A grid of divs for layout, given table roles so a screen reader
+            names the plan beside each value. */}
+        <div
+          data-testid="compare-table"
+          role="table"
+          className="hidden lg:block"
+        >
+          <div role="row" style={columns}>
+            <div
+              role="cell"
+              className={cn('flex items-end px-6 pb-8 text-sm', muted)}
+            >
               {corner ? <p>{corner}</p> : null}
             </div>
             {plans.map((plan) => (
               <div
                 key={plan.id}
+                role="columnheader"
                 data-plan-col={plan.id}
                 data-featured={plan.featured ? '' : undefined}
                 className={cn(
@@ -281,9 +291,9 @@ export function PricingCompare({
           </div>
 
           {groups.map((group) => (
-            <div key={group.title}>
-              <div style={columns}>
-                <div className="px-6 pt-10 pb-3">
+            <div key={group.title} role="rowgroup">
+              <div role="row" style={columns}>
+                <div role="rowheader" className="px-6 pt-10 pb-3">
                   <p
                     className={cn(
                       'font-[family-name:var(--amw-mono)] text-[11px] font-medium uppercase tracking-[0.14em]',
@@ -296,6 +306,7 @@ export function PricingCompare({
                 {plans.map((plan) => (
                   <div
                     key={plan.id}
+                    role="cell"
                     className={plan.featured ? tint : undefined}
                   />
                 ))}
@@ -303,15 +314,20 @@ export function PricingCompare({
               {(group.rows ?? []).map((row) => (
                 <div
                   key={row.label}
+                  role="row"
                   style={columns}
                   className="border-t border-dashed border-[color:var(--amw-line)]"
                 >
-                  <div className={cn('px-6 py-3.5 text-sm', muted)}>
+                  <div
+                    role="rowheader"
+                    className={cn('px-6 py-3.5 text-sm', muted)}
+                  >
                     {row.label}
                   </div>
                   {plans.map((plan, index) => (
                     <div
                       key={plan.id}
+                      role="cell"
                       className={cn(
                         'flex items-center px-6 py-3.5',
                         plan.featured && tint
@@ -325,7 +341,7 @@ export function PricingCompare({
             </div>
           ))}
 
-          <div style={columns}>
+          <div aria-hidden="true" style={columns}>
             <div />
             {plans.map((plan) => (
               <div

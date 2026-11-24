@@ -34,6 +34,7 @@ import {
 } from '@/lib/commerce/fulfillment'
 import { inviteToRepo } from '@/lib/commerce/githubInvite'
 import { attachPurchase } from '@/lib/commerce/licenseRecord'
+import { licenseLimits } from '@/lib/commerce/license'
 import { POST } from '../route'
 
 const completed = ({
@@ -210,6 +211,58 @@ describe('Creem checkout.completed for a kit', () => {
         collection: 'purchases',
         data: expect.objectContaining({ accessTokenJti: 'jti' }),
       })
+    )
+  })
+
+  it('attaches a Standard Pro sale to a Standard license, with no key in its mail', async () => {
+    const standardPro = {
+      id: 30,
+      type: 'boilerplate',
+      name: 'WareKit Standard (Pro)',
+      slug: 'warekit-standard-pro',
+      tier: 'pro',
+      stack: 'standard',
+      seats: 1,
+      price: 149,
+      status: 'published',
+      githubRepo: 'amwaredotdev/warekit-standard',
+      creemProductId: 'prod_std_pro',
+      creemSandboxProductId: 'prod_std_pro_sb',
+    }
+    const payload = withItem(standardPro)
+
+    const res = await POST(
+      completed(kit({ itemId: 30, productId: 'prod_std_pro' }))
+    )
+
+    expect(res.status).toBe(200)
+    expect(attachPurchase).toHaveBeenCalledTimes(1)
+    expect(attachPurchase).toHaveBeenCalledWith(payload, {
+      purchase: { id: 99 },
+      email: 'buyer@example.com',
+      stack: 'standard',
+      grantsTier: 'pro',
+      licenseId: undefined,
+      environment: 'production',
+    })
+    /* The license stores no limit of its own: its developers are read from
+       this row, and it counts no NetSuite accounts. */
+    expect(
+      licenseLimits({ stack: 'standard', tier: 'pro' }, standardPro)
+    ).toEqual({ seats: 1, accounts: null })
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        seatsUrl: 'https://example.com/access/seats/tok',
+        usesKey: false,
+      })
+    )
+  })
+
+  it('tells the mail a NetSuite kit has a key', async () => {
+    withItem(pro)
+    await POST(completed(kit()))
+    expect(sendBoilerplateConfirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ usesKey: true })
     )
   })
 

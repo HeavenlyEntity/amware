@@ -328,6 +328,36 @@ describe('License page', () => {
       expect(screen.getByText('1 / 1 developers')).toBeInTheDocument()
     })
 
+    it('logs no error for a Standard Pro license while its Team row is unpublished', async () => {
+      const standardPro = {
+        ...proKit,
+        id: 30,
+        name: 'WareKit Standard (Pro)',
+        stack: 'standard',
+        price: 149,
+        githubRepo: 'amwaredotdev/warekit-standard',
+      }
+      proPage({
+        license: { stack: 'standard' },
+        products: [standardPro],
+      })
+      await renderPage(token())
+      expect(screen.queryByRole('button', { name: /move to/i })).toBeNull()
+      expect(console.error).not.toHaveBeenCalledWith(
+        'No upgrade to offer',
+        expect.anything()
+      )
+    })
+
+    it('still logs an error for a NetSuite Pro license with no Team row', async () => {
+      proPage({ products: [proKit] })
+      await renderPage(token())
+      expect(console.error).toHaveBeenCalledWith(
+        'No upgrade to offer',
+        expect.objectContaining({ hasTeamRow: false })
+      )
+    })
+
     it('shows no button, and still loads, when the Team row cannot be read', async () => {
       proPage()
       const ok = db.find.getMockImplementation()

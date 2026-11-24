@@ -83,6 +83,28 @@ describe('FoundingTable', () => {
     expect(struck('team')).toBeNull()
   })
 
+  it('says Half price beside the switch while a founding price is below the regular one', () => {
+    render(<FoundingTable presale={both} />)
+    expect(screen.getByText(PRESALE.founding.toggle.badge)).toBeInTheDocument()
+    expect(
+      screen.getByRole('switch', { name: PRESALE.founding.toggle.label })
+    ).toBeInTheDocument()
+  })
+
+  it('drops Half price, but keeps the switch, once no price is below the regular one', () => {
+    render(
+      <FoundingTable
+        presale={presaleOf(ready('pro', 299), ready('team', 649))}
+      />
+    )
+    expect(
+      screen.queryByText(PRESALE.founding.toggle.badge)
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('switch', { name: PRESALE.founding.toggle.label })
+    ).toBeInTheDocument()
+  })
+
   it('offers the waitlist for a tier that is not on sale', () => {
     render(<FoundingTable presale={presaleOf(ready('pro', 149), planned)} />)
     expect(

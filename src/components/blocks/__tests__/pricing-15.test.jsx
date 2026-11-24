@@ -154,6 +154,33 @@ describe('PricingCompare', () => {
     expect(within(panel).queryByText('Not included')).toBeNull()
   })
 
+  it('gives the wide layout table semantics, so each value has its plan', () => {
+    setup()
+    const table = screen.getByTestId('compare-table')
+    expect(screen.getByRole('table')).toBe(table)
+    const headers = within(table).getAllByRole('columnheader')
+    expect(headers).toHaveLength(plans.length)
+    headers.forEach((header, index) => {
+      expect(
+        within(header).getByRole('heading', { name: plans[index].name })
+      ).toBeInTheDocument()
+    })
+
+    const billing = within(table)
+      .getAllByRole('row')
+      .find((row) => row.textContent.startsWith('Billing'))
+    const rowHeader = within(billing).getByRole('rowheader')
+    expect(rowHeader).toHaveTextContent('Billing')
+    expect(billing.firstElementChild).toBe(rowHeader)
+    const cells = within(billing).getAllByRole('cell')
+    expect(cells).toHaveLength(plans.length)
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      'Not included',
+      'Included',
+      'Included',
+    ])
+  })
+
   it("asks the page for each plan's action", () => {
     const renderAction = vi.fn(action)
     setup({ renderAction })
