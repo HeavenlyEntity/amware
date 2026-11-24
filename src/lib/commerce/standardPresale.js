@@ -60,8 +60,23 @@ function isReady(row, tier, env) {
   )
 }
 
+const SOLD_TIERS = ['pro', 'team']
+
+/**
+ * Whether a Standard row can be sold and delivered in `env`, judged for the
+ * tier the row itself declares. The page decides what to offer with it (via
+ * standardPresale) and the checkout action refuses with it, so the two can
+ * never disagree about a row.
+ */
+export function standardRowReady(row, env) {
+  if (!row || typeof row !== 'object') return false
+  return SOLD_TIERS.includes(row.tier) && isReady(row, row.tier, env)
+}
+
 function planFor(rows, tier, env) {
-  const row = rows.find((candidate) => isReady(candidate, tier, env))
+  const row = rows.find(
+    (candidate) => standardRowReady(candidate, env) && candidate.tier === tier
+  )
   return row
     ? { state: 'ready', price: row.price, slug: row.slug }
     : { state: 'planned', price: null, slug: null }

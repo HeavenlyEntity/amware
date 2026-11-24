@@ -5,6 +5,7 @@ import {
   STANDARD_STACK,
   buildingAnswer,
   standardPresale,
+  standardRowReady,
 } from '../standardPresale'
 
 function row(over = {}) {
@@ -21,6 +22,33 @@ function row(over = {}) {
     ...over,
   }
 }
+
+/* Each way a published Standard row can fail to be deliverable. */
+const NOT_READY = [
+  ['no repository', { githubRepo: '' }],
+  ['a missing repository', { githubRepo: undefined }],
+  ['a price of 0', { price: 0 }],
+  ['no price', { price: null }],
+  ['a price that is a string', { price: '149' }],
+  ['a price that is not finite', { price: Infinity }],
+  ['a slug that is null', { slug: null }],
+  [
+    'a slug the onboarding page reads as another tier',
+    { slug: 'warekit-standard-team' },
+  ],
+  ['a slug that is not a kit', { slug: 'standard-pro' }],
+  ['a NetSuite stack', { stack: 'next-netsuite' }],
+  ['a product type that is not a kit', { type: 'digital' }],
+  ['no Creem product for this environment', { creemProductId: null }],
+  ['a whitespace-only repository', { githubRepo: '   ' }],
+  ['a numeric Creem product id', { creemProductId: 123 }],
+  ['an object Creem product id', { creemProductId: {} }],
+  ['a boolean Creem product id', { creemProductId: true }],
+  ['a blank Creem product id', { creemProductId: '  ' }],
+  ['a slug with a suffix', { slug: 'warekit-standard-pro-early' }],
+  ['another stack’s slug', { slug: 'warekit-next-netsuite-pro' }],
+  ['only a Whop plan id', { creemProductId: null, whopPlanId: 'plan_1' }],
+]
 
 const closed = {
   open: false,
@@ -83,30 +111,37 @@ describe('standardPresale', () => {
   })
 
   it.each([
-    ['no repository', { githubRepo: '' }],
-    ['a missing repository', { githubRepo: undefined }],
-    ['a price of 0', { price: 0 }],
-    ['no price', { price: null }],
-    ['a price that is a string', { price: '149' }],
-    ['a price that is not finite', { price: Infinity }],
-    ['a slug that is null', { slug: null }],
+    ['a ready Pro row', {}, true],
+    ['a ready Team row', { tier: 'team', slug: 'warekit-standard-team' }, true],
+    ['a draft', { status: 'draft' }, false],
     [
-      'a slug the onboarding page reads as another tier',
-      { slug: 'warekit-standard-team' },
+      'a tier that is not sold',
+      { tier: 'lite', slug: 'warekit-standard-lite' },
+      false,
     ],
-    ['a slug that is not a kit', { slug: 'standard-pro' }],
-    ['a NetSuite stack', { stack: 'next-netsuite' }],
-    ['a product type that is not a kit', { type: 'digital' }],
-    ['no Creem product for this environment', { creemProductId: null }],
-    ['a whitespace-only repository', { githubRepo: '   ' }],
-    ['a numeric Creem product id', { creemProductId: 123 }],
-    ['an object Creem product id', { creemProductId: {} }],
-    ['a boolean Creem product id', { creemProductId: true }],
-    ['a blank Creem product id', { creemProductId: '  ' }],
-    ['a slug with a suffix', { slug: 'warekit-standard-pro-early' }],
-    ['another stack’s slug', { slug: 'warekit-next-netsuite-pro' }],
-    ['only a Whop plan id', { creemProductId: null, whopPlanId: 'plan_1' }],
-  ])('does not sell a row with %s', (_name, over) => {
+    ...NOT_READY.map(([name, over]) => [name, over, false]),
+  ])(
+    'standardRowReady agrees with standardPresale for %s',
+    (_name, over, ready) => {
+      const candidate = row(over)
+      expect(standardRowReady(candidate, 'production')).toBe(ready)
+      const tier = candidate.tier === 'team' ? 'team' : 'pro'
+      expect(
+        standardPresale([candidate], 'production')[tier].state === 'ready'
+      ).toBe(ready)
+    }
+  )
+
+  it('standardRowReady follows the environment and survives junk', () => {
+    const sandboxOnly = row({ creemProductId: null })
+    expect(standardRowReady(sandboxOnly, 'sandbox')).toBe(true)
+    expect(standardRowReady(sandboxOnly, 'production')).toBe(false)
+    for (const junk of [null, undefined, 7, 'x']) {
+      expect(standardRowReady(junk, 'production')).toBe(false)
+    }
+  })
+
+  it.each(NOT_READY)('does not sell a row with %s', (_name, over) => {
     expect(standardPresale([row(over)], 'production').pro.state).toBe('planned')
   })
 

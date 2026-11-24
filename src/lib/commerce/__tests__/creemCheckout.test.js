@@ -299,3 +299,78 @@ describe('startCreemCheckout building answer', () => {
     )
   })
 })
+
+describe('startCreemCheckout for a Standard row', () => {
+  const standardPro = {
+    id: 41,
+    slug: 'warekit-standard-pro',
+    type: 'boilerplate',
+    stack: 'standard',
+    tier: 'pro',
+    price: 149,
+    status: 'published',
+    githubRepo: 'amwaredotdev/warekit-standard',
+    creemProductId: 'prod_std_pro',
+    creemSandboxProductId: 'prod_std_pro_test',
+  }
+
+  beforeEach(() => {
+    process.env.ACCESS_LINK_SECRET = 'test-link-secret'
+  })
+
+  it.each([
+    ['no repository', { githubRepo: undefined }],
+    ['a blank repository', { githubRepo: '' }],
+    ['a price of 0', { price: 0 }],
+    [
+      'a slug that is not warekit-standard-pro',
+      { slug: 'warekit-standard-pro-early' },
+    ],
+  ])(
+    'refuses a published Standard Pro row with %s before calling Creem',
+    async (_name, over) => {
+      const doc = { ...standardPro, ...over }
+      withDoc(doc)
+      expect(await run({ slug: doc.slug })).toEqual(NOT_ON_SALE)
+      expect(createCheckoutSession).not.toHaveBeenCalled()
+      expect(redirect).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses a Standard row whose only Creem id belongs to the other environment', async () => {
+    process.env.CREEM_ENV = 'sandbox'
+    withDoc({ ...standardPro, creemSandboxProductId: null })
+    expect(await run({ slug: standardPro.slug })).toEqual(NOT_ON_SALE)
+    expect(createCheckoutSession).not.toHaveBeenCalled()
+  })
+
+  it('starts the checkout for a ready Standard Pro row with the same metadata as before', async () => {
+    withDoc(standardPro)
+    await expect(
+      run({ slug: standardPro.slug, building: 'ai-product' })
+    ).rejects.toThrow('NEXT_REDIRECT:https://creem.io/pay/abc')
+    const args = createCheckoutSession.mock.calls[0][0]
+    expect(args.productId).toBe('prod_std_pro')
+    expect(args.metadata).toEqual({
+      itemType: 'product',
+      itemId: '41',
+      slug: 'warekit-standard-pro',
+      building: 'ai-product',
+    })
+  })
+
+  it('still starts a NetSuite kit checkout with no repository, as before', async () => {
+    withDoc({ ...kit, stack: 'next-netsuite', tier: 'pro', githubRepo: null })
+    await expect(run({ slug: kit.slug })).rejects.toThrow(
+      'NEXT_REDIRECT:https://creem.io/pay/abc'
+    )
+    expect(createCheckoutSession.mock.calls[0][0]).toMatchObject({
+      productId: 'prod_kit',
+      metadata: {
+        itemType: 'product',
+        itemId: '31',
+        slug: 'warekit-next-netsuite-pro',
+      },
+    })
+  })
+})
