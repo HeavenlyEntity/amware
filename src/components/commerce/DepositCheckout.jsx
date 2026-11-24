@@ -100,11 +100,17 @@ export function DepositCheckout({
             a fresh checkout with its own reference. The service name and
             booking link ride on the return URL; /checkout/deposit treats
             the booking link as untrusted and only a Cal.com one becomes the
-            popup. */}
+            popup. Given a slug, the checkout adds it as ?from=, so the
+            return page can send a buyer whose payment did not finish back
+            to this service's own pages before any row exists. */}
         <WhopCheckout
           planId={planId}
           returnPath="/checkout/deposit"
-          returnParams={{ service: serviceName, booking: bookingUrl }}
+          returnParams={
+            serviceSlug
+              ? { service: serviceName, booking: bookingUrl, from: serviceSlug }
+              : { service: serviceName, booking: bookingUrl }
+          }
           className="mt-2 min-h-[28rem]"
         />
       </SheetContent>

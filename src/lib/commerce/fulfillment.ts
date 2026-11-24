@@ -1,5 +1,5 @@
 import { Resend } from 'resend'
-import { DIAGNOSTIC_SLUG, depositTerms } from '../services/deposit-terms'
+import { depositTerms } from '../services/deposit-terms'
 
 let resend: Resend | null = null
 
@@ -303,7 +303,7 @@ export async function sendDepositReceivedEmail(args: {
   serviceSlug?: string | null
 }): Promise<void> {
   const greeting = args.name ? `Hi ${args.name.split(' ')[0]},` : 'Hi,'
-  const diagnostic = args.serviceSlug === DIAGNOSTIC_SLUG
+  const terms = depositTerms(args.serviceSlug)
   const booking = args.bookingUrl
     ? `\n\nIf we have not spoken yet, book the intro call here and we will start from there:\n${args.bookingUrl}`
     : ''
@@ -316,11 +316,11 @@ export async function sendDepositReceivedEmail(args: {
     text: `${greeting}
 
 Your ${money(args.amount, args.currency)} deposit for the ${args.serviceName}${
-      diagnostic ? '' : ' engagement'
-    } is received. ${depositTerms(args.serviceSlug).emailLine}${booking}
+      terms.emailNoun
+    } is received. ${terms.emailLine}${booking}
 
 I will be in touch within one business day to ${
-      diagnostic ? 'agree the scope' : 'set the engagement up'
+      terms.emailClosing
     }. Reply to this email any time.
 
 — Alec`,

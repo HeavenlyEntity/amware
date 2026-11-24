@@ -658,3 +658,188 @@ describe('Deposit return page: nothing to confirm', () => {
     logged.mockRestore()
   })
 })
+
+/* /services leaves the Diagnostic out on purpose, so a Diagnostic buyer
+   sent there to try again hits a dead end. The page learns the service
+   from the purchase row when it has one, and otherwise from a ?from= hint
+   DepositCheckout puts on the return URL. The hint is browser-set: it is
+   honoured only when it names the Diagnostic, it only ever picks between
+   fixed internal links, and it is never rendered or allowed to choose
+   wording that says anything was paid. */
+describe('Deposit return page: where a Diagnostic buyer is sent', () => {
+  const DIAG = 'codebase-diagnostic'
+  const RESERVE = '/services/codebase-diagnostic/reserve'
+  const diagnosticService = (bookingUrl = CAL) => ({
+    relationTo: 'services',
+    value: { id: 7, slug: DIAG, bookingUrl },
+  })
+  const RETAINER_FAILED =
+    'Nothing was charged. You can try again from the engagement you chose, or get in touch and we will sort it out by hand.'
+  const RETAINER_OUT_OF_CHECKS =
+    'If your bank or card step did not finish, nothing was taken. Try again from the engagement you chose, refresh the page to check once more, or get in touch and I will sort it by hand.'
+
+  it('sends a failed Diagnostic payment back to the reserve page, from the row', async () => {
+    find.mockResolvedValue({
+      docs: [deposit({ status: 'refunded', item: diagnosticService() })],
+    })
+    const { container } = await renderPage({ status: 'error', ref: REF })
+
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      RESERVE
+    )
+    expect(container.textContent).toContain(
+      'You can try again from the link I sent you, or get in touch'
+    )
+    expect(container.textContent).not.toMatch(/engagement you chose/)
+  })
+
+  it('sends a failed Diagnostic payment back to the reserve page, from the hint, when there is no row', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      status: 'error',
+      ref: REF,
+      from: DIAG,
+    })
+
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      RESERVE
+    )
+    expect(container.textContent).not.toContain(DIAG)
+  })
+
+  it('keeps a retainer’s failed payment exactly as it was', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      status: 'error',
+      ref: REF,
+      service: 'Advisor',
+    })
+
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      '/services'
+    )
+    expect(container.textContent).toContain(RETAINER_FAILED)
+  })
+
+  it.each([
+    ['evil'],
+    ['//x.com'],
+    ['https://x.com'],
+    ['fractional-cto'],
+    [`${DIAG} `],
+  ])('treats ?from=%s as no hint at all', async (from) => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({ status: 'error', ref: REF, from })
+
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      '/services'
+    )
+    expect(container.textContent).toContain(RETAINER_FAILED)
+    expect(container.innerHTML).not.toContain('x.com')
+    expect(container.innerHTML).not.toContain('evil')
+  })
+
+  it('lets the row win over the hint', async () => {
+    find.mockResolvedValue({ docs: [deposit({ status: 'refunded' })] })
+    await renderPage({ status: 'error', ref: REF, from: DIAG })
+
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      '/services'
+    )
+  })
+
+  it('once the checks run out, offers another try from the reserve page', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Codebase Diagnostic',
+      from: DIAG,
+      attempt: '6',
+    })
+
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      RESERVE
+    )
+    expect(container.textContent).toContain(
+      'Try again from the link I sent you, refresh the page'
+    )
+    const refresh = new URL(
+      screen
+        .getByRole('link', { name: /refresh the page/i })
+        .getAttribute('href'),
+      'https://amware.dev'
+    )
+    expect(refresh.searchParams.get('from')).toBe(DIAG)
+  })
+
+  it('keeps a retainer’s run-out checks exactly as they were', async () => {
+    find.mockResolvedValue({ docs: [] })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Advisor',
+      attempt: '6',
+    })
+
+    expect(container.textContent).toContain(RETAINER_OUT_OF_CHECKS)
+    expect(screen.getByRole('link', { name: /try again/i })).toHaveAttribute(
+      'href',
+      '/services'
+    )
+  })
+
+  it('carries the Diagnostic hint on the automatic retry, and drops any other', async () => {
+    find.mockResolvedValue({ docs: [] })
+    vi.useFakeTimers()
+    render(await page({ ref: REF, service: 'Codebase Diagnostic', from: DIAG }))
+    expect(retryUrl().searchParams.get('from')).toBe(DIAG)
+  })
+
+  it('drops a hint that is not the Diagnostic from the automatic retry', async () => {
+    find.mockResolvedValue({ docs: [] })
+    vi.useFakeTimers()
+    render(await page({ ref: REF, service: 'Advisor', from: 'evil' }))
+    const url = retryUrl()
+    expect(url.searchParams.get('from')).toBeNull()
+    expect([...url.searchParams.keys()]).toEqual(['service', 'ref', 'attempt'])
+  })
+
+  it('sends a paid Diagnostic buyer back to the Diagnostic, not /services', async () => {
+    find.mockResolvedValue({ docs: [deposit({ item: diagnosticService() })] })
+    await renderPage({ ref: REF, service: 'Codebase Diagnostic' })
+
+    expect(
+      screen.getByRole('link', { name: 'Back to the Diagnostic →' })
+    ).toHaveAttribute('href', '/services/codebase-diagnostic')
+  })
+
+  it('sends a paid Diagnostic buyer with no booking link back to the Diagnostic', async () => {
+    find.mockResolvedValue({
+      docs: [deposit({ item: diagnosticService(null) })],
+    })
+    await renderPage({ ref: REF })
+
+    expect(
+      screen.getByRole('link', { name: 'Back to the Diagnostic' })
+    ).toHaveAttribute('href', '/services/codebase-diagnostic')
+  })
+
+  /* A paid row is the only thing that may choose the paid state's words
+     and links. A hint never turns a retainer into a Diagnostic there. */
+  it('ignores the hint once a deposit is paid', async () => {
+    find.mockResolvedValue({ docs: [deposit()] })
+    await renderPage({ ref: REF, service: 'Advisor', from: DIAG })
+
+    expect(
+      screen.getByRole('heading', { name: /your start is reserved/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Back to engagements →' })
+    ).toHaveAttribute('href', '/services')
+  })
+})
