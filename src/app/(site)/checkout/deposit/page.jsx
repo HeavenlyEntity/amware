@@ -10,6 +10,7 @@ import { firstParam } from '@/lib/commerce/onboardingDisplay'
    number, and every attempt would compare as done. */
 import { MAX_ATTEMPTS } from '@/lib/commerce/pendingRefresh'
 import { validCheckoutRef } from '@/lib/commerce/whop'
+import { depositTerms } from '@/lib/services/deposit-terms'
 
 export const dynamic = 'force-dynamic'
 export const metadata = {
@@ -114,14 +115,13 @@ function PaymentFailed() {
    calLinkFromUrl decides what it becomes, as it does on the service card:
    a Cal.com link flows straight into the intro call, the same popup the
    card's "Book an intro call" opens, and any other opens where it points. */
-function Reserved({ bookingUrl, serviceName }) {
+function Reserved({ bookingUrl, serviceName, serviceSlug }) {
   const cal = calLinkFromUrl(bookingUrl)
+  const terms = depositTerms(serviceSlug)
   return (
-    <Shell kicker="deposit received" title="Your start is reserved.">
+    <Shell kicker="deposit received" title={terms.reservedTitle}>
       <p className={bodyClass}>
-        {bookingUrl
-          ? 'The deposit is credited in full against your first month. A receipt is on its way — one thing left: pick a time for the intro call.'
-          : 'The deposit is credited in full against your first month. A receipt is on its way, and I will be in touch within one business day to set the engagement up.'}
+        {bookingUrl ? terms.reservedWithCall : terms.reservedWithoutCall}
       </p>
       <p className={actionsClass}>
         {bookingUrl ? (
@@ -250,15 +250,17 @@ function isPaidDeposit(purchase) {
   return purchase?.status === 'paid' && purchase.itemType === 'service'
 }
 
-/* The booking link the owner set on the purchased service, as the lookup
-   populated it. Never the URL's. */
-function bookingUrlOf(purchase) {
+/* The purchased service as the lookup populated it. Never the URL's. */
+function purchasedService(purchase) {
   const item = purchase.item
-  const service =
-    item?.relationTo === 'services' && typeof item.value === 'object'
-      ? item.value
-      : null
-  return service?.bookingUrl || null
+  return item?.relationTo === 'services' && typeof item.value === 'object'
+    ? item.value
+    : null
+}
+
+/* The booking link the owner set on the purchased service. */
+function bookingUrlOf(purchase) {
+  return purchasedService(purchase)?.bookingUrl || null
 }
 
 export default async function DepositReturn({ searchParams }) {
@@ -287,11 +289,11 @@ export default async function DepositReturn({ searchParams }) {
       collection: 'purchases',
       where: { whopCheckoutRef: { equals: ref } },
       /* Whether the row exists, its status, what was bought, and -- for a
-         service -- the booking link the owner set on it. Never the email
+         service -- the booking link and slug the owner set on it. Never the email
          or the amount. */
       select: { status: true, itemType: true, item: true },
       depth: 1,
-      populate: { services: { bookingUrl: true } },
+      populate: { services: { bookingUrl: true, slug: true } },
       limit: 1,
       overrideAccess: true,
     })
@@ -308,7 +310,11 @@ export default async function DepositReturn({ searchParams }) {
 
   if (isPaidDeposit(deposit)) {
     return (
-      <Reserved bookingUrl={bookingUrlOf(deposit)} serviceName={serviceName} />
+      <Reserved
+        bookingUrl={bookingUrlOf(deposit)}
+        serviceName={serviceName}
+        serviceSlug={purchasedService(deposit)?.slug ?? null}
+      />
     )
   }
 

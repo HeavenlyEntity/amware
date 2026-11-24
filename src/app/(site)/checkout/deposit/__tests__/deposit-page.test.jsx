@@ -187,6 +187,28 @@ describe('Deposit return page: ?status=error on the URL', () => {
     expect(screen.queryByRole('link', { name: /try again/i })).toBeNull()
   })
 
+  it('confirms a Diagnostic deposit without retainer wording', async () => {
+    find.mockResolvedValue({
+      docs: [
+        deposit({
+          item: {
+            relationTo: 'services',
+            value: { id: 3, slug: 'codebase-diagnostic', bookingUrl: CAL },
+          },
+        }),
+      ],
+    })
+    const { container } = await renderPage({
+      ref: REF,
+      service: 'Codebase Diagnostic',
+    })
+
+    expect(
+      screen.getByRole('heading', { name: 'Your Diagnostic is reserved.' })
+    ).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/first month/i)
+  })
+
   /* A failed lookup cannot rule out a paid row, so the URL does not get
      to say the payment failed: the page degrades to the neutral state. */
   it('shows the neutral email state, never the failure message, when the lookup fails', async () => {
@@ -332,7 +354,7 @@ describe('Deposit return page: a paid deposit found by its ref', () => {
         where: { whopCheckoutRef: { equals: REF } },
         select: { status: true, itemType: true, item: true },
         depth: 1,
-        populate: { services: { bookingUrl: true } },
+        populate: { services: { bookingUrl: true, slug: true } },
         limit: 1,
       })
     )

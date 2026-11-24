@@ -376,6 +376,7 @@ export async function POST(req: Request) {
       amount,
       currency,
       bookingUrl: service?.bookingUrl || null,
+      serviceSlug: service?.slug ?? null,
     }).catch((err) => console.error('Deposit receipt failed', paymentId, err)),
     notifyDepositReceived({
       email,

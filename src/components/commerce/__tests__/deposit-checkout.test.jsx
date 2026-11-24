@@ -143,4 +143,25 @@ describe('DepositCheckout', () => {
     )
     expect(screen.getByText(/sandbox: test cards only/i)).toBeInTheDocument()
   })
+
+  it('uses the Diagnostic wording when given its slug', () => {
+    render(
+      <DepositCheckout
+        planId="plan_x"
+        serviceName="Codebase Diagnostic"
+        serviceSlug="codebase-diagnostic"
+        amount={1500}
+      >
+        Reserve your start
+      </DepositCheckout>
+    )
+    open()
+    expect(
+      screen.getByRole('heading', { name: 'Reserve your Diagnostic' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Fully refunded if I can’t help/)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/first month/i)).toBeNull()
+  })
 })
