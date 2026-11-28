@@ -69,6 +69,14 @@ const MOVE = 'Move to Team · $500.00'
 const CONFIRMING = "Confirming your upgrade. You don't need to pay again."
 
 const panel = (over = {}) => render(<LicensePanel {...pro} {...over} />)
+
+/* The usage card is two labelled groups, "Developers" and "NetSuite accounts",
+   each a label, a count ("1 / 1") and a meter. */
+const usageOf = (name) => screen.getByRole('group', { name })
+/* The count alone, exactly: the paragraph beside the group's label. Matching
+   "1 / 5" anywhere in the group would also pass for "1 / 54", because the
+   limit runs straight into the "4 developers left" line that follows it. */
+const usageCount = (name) => usageOf(name).querySelector('h2 + p')?.textContent
 const cleanupAll = () => (document.body.innerHTML = '')
 
 describe('LicensePanel', () => {
@@ -78,7 +86,7 @@ describe('LicensePanel', () => {
       level: 1,
       name: 'WareKit Next NetSuite (Pro)',
     })
-    const usage = screen.getByText('1 / 1 developers')
+    const usage = usageOf('Developers')
     const upgrade = screen.getByRole('button', { name: MOVE })
     const add = screen.getByRole('button', { name: /add to the license/i })
 
@@ -88,23 +96,21 @@ describe('LicensePanel', () => {
     expect(before(heading, usage)).toBe(true)
     // Between the usage card and the add form, and after the account usage.
     expect(before(usage, upgrade)).toBe(true)
-    expect(before(screen.getByText('1 / 1 NetSuite accounts'), upgrade)).toBe(
-      true
-    )
+    expect(before(usageOf('NetSuite accounts'), upgrade)).toBe(true)
     expect(before(upgrade, add)).toBe(true)
   })
 
   it('shows 1 / 1 developers and 1 / 1 NetSuite accounts', () => {
     panel()
-    expect(screen.getByText('1 / 1 developers')).toBeInTheDocument()
-    expect(screen.getByText('1 / 1 NetSuite accounts')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('1 / 1')
+    expect(usageCount('NetSuite accounts')).toBe('1 / 1')
     expect(screen.getByText('7654321')).toBeInTheDocument()
   })
 
   it('says "Add your first developer" with no seats', () => {
     panel({ license: { ...pro.license, seatMembers: [] } })
     expect(screen.getByText('Add your first developer')).toBeInTheDocument()
-    expect(screen.getByText('0 / 1 developers')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('0 / 1')
     // Nobody is claimed on the buyer's behalf.
     expect(screen.queryByText(/already assigned/i)).toBeNull()
   })
@@ -118,7 +124,7 @@ describe('LicensePanel', () => {
           : false
       )
     ).toBeInTheDocument()
-    expect(screen.getByText('0 / 1 NetSuite accounts')).toBeInTheDocument()
+    expect(usageCount('NetSuite accounts')).toBe('0 / 1')
   })
 
   it('does not track NetSuite accounts on Lite', () => {
@@ -210,7 +216,7 @@ describe('LicensePanel', () => {
     const ok = screen.getByText('7654321').closest('li')
     expect(within(ok).queryByText('Over your limit')).toBeNull()
     // The over-limit account is listed, but does not use the allowance.
-    expect(screen.getByText('1 / 1 NetSuite accounts')).toBeInTheDocument()
+    expect(usageCount('NetSuite accounts')).toBe('1 / 1')
   })
 
   it('uses "license" and "developers" and never "licence"', () => {
@@ -809,8 +815,8 @@ describe('LicensePanel Enterprise', () => {
       const order = [
         'Updates until 10 December 2027.',
         'Renewing costs $199.00 and adds 12 months, to 10 December 2028.',
-        // The usage card, not the intro, which also says "developers".
-        '1 / 1 developers',
+        // The usage card's eyebrow, not the intro, which also says "developers".
+        '// usage',
       ]
       const at = order.map((s) => text.indexOf(s))
       expect(at.every((i) => i >= 0)).toBe(true)

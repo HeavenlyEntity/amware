@@ -20,6 +20,15 @@ import { createAccessToken } from '@/lib/commerce/accessToken'
 import { addSeat, removeAccount, removeSeat } from '@/lib/commerce/addSeat'
 import { AccountList, SeatManager } from '@/components/commerce/SeatManager'
 
+/* The usage card is two labelled groups, "Developers" and "NetSuite accounts",
+   each a label, a count ("2 / 5") and a meter. The count is asserted through
+   its group so a test reads the same way a screen reader does. */
+const usageOf = (name) => screen.getByRole('group', { name })
+/* The count alone, exactly: the paragraph beside the group's label. Matching
+   "1 / 5" anywhere in the group would also pass for "1 / 54", because the
+   limit runs straight into the "4 developers left" line that follows it. */
+const usageCount = (name) => usageOf(name).querySelector('h2 + p')?.textContent
+
 const REPO = 'amwaredotdev/warekit-next-netsuite'
 
 const teamProduct = {
@@ -488,7 +497,7 @@ describe('SeatManager', () => {
 
   it('shows seats used against the limit', () => {
     render(<SeatManager token="t" repo={REPO} initialSeats={seats} />)
-    expect(screen.getByText('2 / 5 developers')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('2 / 5')
     expect(screen.getByText(/3 developers left/i)).toBeInTheDocument()
   })
 
@@ -536,7 +545,7 @@ describe('SeatManager', () => {
       />
     )
     expect(screen.getByText('Add your first developer')).toBeInTheDocument()
-    expect(screen.getByText('0 / 1 developers')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('0 / 1')
   })
 
   it('does not claim removing someone on GitHub frees a seat', () => {
@@ -1178,7 +1187,7 @@ describe('SeatManager remove buttons', () => {
 
     const status = await screen.findByRole('status')
     expect(status).toHaveTextContent(/@octocat removed/i)
-    expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('1 / 5')
     expect(screen.queryByRole('button', { name: 'Remove @octocat' })).toBeNull()
   })
 
@@ -1194,7 +1203,7 @@ describe('SeatManager remove buttons', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/seat is kept/i)
     error.mockRestore()
-    expect(screen.getByText('2 / 5 developers')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('2 / 5')
   })
 
   it('says access was left as it is, and offers contact, when this license did not create it', async () => {
@@ -1212,7 +1221,7 @@ describe('SeatManager remove buttons', () => {
       'href',
       '/contact'
     )
-    expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('1 / 5')
   })
 
   it('does not claim access was lost when it was kept and the seat could not be freed', async () => {
@@ -1229,7 +1238,7 @@ describe('SeatManager remove buttons', () => {
     expect(status).toHaveTextContent(/could not free the seat/i)
     expect(status).toHaveTextContent(/press remove again/i)
     expect(status).toHaveTextContent(/repository access was not changed/i)
-    expect(screen.getByText('2 / 5 developers')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('2 / 5')
   })
 
   it('tells the owner to press Remove again when access went but the seat stayed', async () => {
@@ -1266,7 +1275,7 @@ describe('SeatManager remove buttons', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       /repository access was left as it is/i
     )
-    expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('1 / 5')
   })
 })
 
@@ -1281,7 +1290,7 @@ describe('AccountList', () => {
     const button = screen.getByRole('button', { name: 'Remove account 222' })
     expect(button.className).toMatch(/min-h-11/)
     expect(screen.getByText('Over your limit')).toBeInTheDocument()
-    expect(screen.getByText('1 / 1 NetSuite accounts')).toBeInTheDocument()
+    expect(usageCount('NetSuite accounts')).toBe('1 / 1')
   })
 
   it('removes an account through the form and updates the list', async () => {

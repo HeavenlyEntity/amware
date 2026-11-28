@@ -13,6 +13,15 @@ vi.mock('@/lib/commerce/addSeat', () => ({
 
 import { SeatManager } from '../SeatManager'
 
+/* The usage card is two labelled groups, "Developers" and "NetSuite accounts",
+   each a label, a count ("2 / 5") and a meter. The count is asserted through
+   its group so a test reads the same way a screen reader does. */
+const usageOf = (name) => screen.getByRole('group', { name })
+/* The count alone, exactly: the paragraph beside the group's label. Matching
+   "1 / 5" anywhere in the group would also pass for "1 / 54", because the
+   limit runs straight into the "4 developers left" line that follows it. */
+const usageCount = (name) => usageOf(name).querySelector('h2 + p')?.textContent
+
 describe('SeatManager when the seat could not be stored', () => {
   it('says the invitation went out, asks for a refresh, and does not count the account', async () => {
     render(
@@ -39,6 +48,6 @@ describe('SeatManager when the seat could not be stored', () => {
       'href',
       '/contact'
     )
-    expect(screen.getByText('1 / 5 developers')).toBeInTheDocument()
+    expect(usageCount('Developers')).toBe('1 / 5')
   })
 })

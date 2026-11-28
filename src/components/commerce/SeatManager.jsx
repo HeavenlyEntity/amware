@@ -1,6 +1,13 @@
 'use client'
 
-import { useActionState, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react'
 import { addSeat, removeAccount, removeSeat } from '@/lib/commerce/addSeat'
 import { GithubAccountField } from '@/components/commerce/GithubAccountField'
 
@@ -43,6 +50,62 @@ import { GithubAccountField } from '@/components/commerce/GithubAccountField'
 const quietButtonClass =
   'inline-flex min-h-11 w-full items-center justify-center rounded-md border border-[var(--amw-line-strong)] px-5 py-2.5 text-sm font-semibold leading-tight text-zinc-800 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amw-accent-ink)] disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-100 dark:hover:bg-zinc-800/60'
 
+/* The usage card is meter rows: for each thing the license counts, a label,
+   the count against its limit, a thin bar, and the people or accounts on
+   dashed rows under it. The surface is the site's soft panel (`--amw-muted`,
+   no border, no corner ticks). Each meter is a labelled group, so a screen
+   reader hears "Developers, 2 / 5" as one thing; the bar repeats the count
+   and is hidden from it.
+
+   A row is the unit: another counted thing, or a price per seat, is one more
+   row of the same shape rather than a new layout. */
+const usageLabelClass = 'text-sm font-medium text-zinc-900 dark:text-zinc-50'
+const usageCountClass =
+  'amw-mono text-sm tabular-nums text-zinc-900 dark:text-zinc-50'
+const usageHintClass = 'amw-mono text-xs text-[var(--amw-mut)]'
+const usageRowClass =
+  'border-[var(--amw-line)] min-h-11 flex items-center justify-between gap-3 border-t border-dashed'
+const usageNameClass =
+  'amw-mono text-[0.8125rem] text-[var(--amw-ink)] decoration-[var(--amw-line-strong)] hover:decoration-[var(--amw-accent)] truncate underline underline-offset-4'
+/* Quiet until it is pointed at: removing someone is routine next to the page's
+   one teal action, and red at rest on every row would shout. The label is
+   lowercased by the stylesheet, as the site's mono labels are; the accessible
+   name ("Remove @name") comes from aria-label. */
+const removeClass =
+  'amw-mono min-h-11 min-w-11 inline-flex items-center justify-end rounded-md pl-3 text-xs lowercase text-[var(--amw-mut)] underline-offset-4 transition-colors hover:text-red-700 hover:underline disabled:opacity-60 dark:hover:text-red-400'
+/* Not `amw-kicker`: that class sets its own colour outside Tailwind's layers,
+   so the red never applied and the warning read as a plain label. */
+const overLimitClass = 'amw-mono text-xs text-red-700 dark:text-red-400'
+
+/* "2 / 5": what is in use in full ink, the limit behind it in the muted ink. */
+function UsageCount({ used, limit }) {
+  return (
+    <p className={usageCountClass}>
+      {used}
+      <span className="text-[var(--amw-mut)]">{` / ${limit}`}</span>
+    </p>
+  )
+}
+
+/* The bar under a count. Decoration: the count beside the label carries the
+   meaning, so the bar is hidden from assistive technology. A limit that is
+   not a positive number draws no bar. */
+function UsageMeter({ used, limit }) {
+  if (!Number.isFinite(limit) || limit <= 0) return null
+  const share = Math.min(100, Math.max(0, (used / limit) * 100))
+  return (
+    <div
+      aria-hidden="true"
+      className="bg-[var(--amw-line)] mt-2.5 h-1.5 overflow-hidden rounded-full"
+    >
+      <span
+        className="bg-[var(--amw-accent)] block h-full rounded-full"
+        style={{ width: `${share}%` }}
+      />
+    </div>
+  )
+}
+
 /**
  * @param {{
  *   token: string,
@@ -71,6 +134,7 @@ export function SeatManager({
     { error: null, ok: null, removed: null, seats: null }
   )
   const usernameRef = useRef(null)
+  const developersId = useId()
   const [gated, setGatedState] = useState(false)
   const setGated = useCallback((next) => setGatedState(next), [])
 
@@ -93,62 +157,67 @@ export function SeatManager({
 
   return (
     <div>
-      <div className="amw-card amw-ticks p-6">
+      <div className="bg-[var(--amw-muted)] rounded-2xl p-6">
         <p className="amw-eyebrow">{'// usage'}</p>
-        <p className="amw-mono mt-3 text-3xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
-          {`${seats.used.length} / ${seats.limit} developers`}
-        </p>
-        <p className="amw-kicker mt-1">
-          {full
-            ? 'no developers left'
-            : `${remaining} ${
-                remaining === 1 ? 'developer' : 'developers'
-              } left`}
-        </p>
+        <div role="group" aria-labelledby={developersId} className="mt-5">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 id={developersId} className={usageLabelClass}>
+              Developers
+            </h2>
+            <UsageCount used={seats.used.length} limit={seats.limit} />
+          </div>
+          <UsageMeter used={seats.used.length} limit={seats.limit} />
+          <p className={`${usageHintClass} mt-2`}>
+            {full
+              ? 'no developers left'
+              : `${remaining} ${
+                  remaining === 1 ? 'developer' : 'developers'
+                } left`}
+          </p>
 
-        {seats.used.length > 0 ? (
-          <ul className="mt-5 space-y-2">
-            {seats.used.map((name) => (
-              <li
-                key={name.toLowerCase()}
-                className="min-h-11 flex items-center justify-between gap-3 text-sm text-zinc-700 dark:text-zinc-300"
-              >
-                <a
-                  href={`https://github.com/${name}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="truncate underline"
-                >
-                  @{name}
-                </a>
-                <form action={formAction}>
-                  <input type="hidden" name="intent" value="remove" />
-                  <input type="hidden" name="token" value={token} />
-                  <input type="hidden" name="githubUsername" value={name} />
-                  <button
-                    type="submit"
-                    className="min-h-11 min-w-11 rounded-md px-3 text-sm text-red-700 underline underline-offset-4 disabled:opacity-60 dark:text-red-400"
-                    aria-label={`Remove @${name}`}
-                    disabled={isPending}
+          {seats.used.length > 0 ? (
+            <ul className="mt-3">
+              {seats.used.map((name) => (
+                <li key={name.toLowerCase()} className={usageRowClass}>
+                  <a
+                    href={`https://github.com/${name}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={usageNameClass}
                   >
-                    Remove
-                  </button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-5 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            Add your first developer
-          </p>
-        )}
+                    @{name}
+                  </a>
+                  <form action={formAction}>
+                    <input type="hidden" name="intent" value="remove" />
+                    <input type="hidden" name="token" value={token} />
+                    <input type="hidden" name="githubUsername" value={name} />
+                    <button
+                      type="submit"
+                      className={removeClass}
+                      aria-label={`Remove @${name}`}
+                      disabled={isPending}
+                    >
+                      Remove
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p
+              className={`${usageRowClass} mt-3 text-sm font-medium text-zinc-900 dark:text-zinc-50`}
+            >
+              Add your first developer
+            </p>
+          )}
 
-        {repo && (
-          <p className="mt-5 text-xs text-zinc-600 dark:text-zinc-400">
-            Developers are counted per GitHub account on{' '}
-            <span className="font-medium">{repo}</span>.
-          </p>
-        )}
+          {repo && (
+            <p className="border-[var(--amw-line)] border-t border-dashed pt-3 text-xs text-zinc-600 dark:text-zinc-400">
+              Developers are counted per GitHub account on{' '}
+              <span className="font-medium">{repo}</span>.
+            </p>
+          )}
+        </div>
 
         {children}
       </div>
@@ -304,33 +373,42 @@ export function AccountList({ token, accounts, limit }) {
     ok: null,
     accounts: null,
   })
+  const labelId = useId()
   const rows = state.accounts ?? accounts
   const inUse = rows.filter((row) => row.status !== 'over_limit').length
 
   return (
-    <div className="border-[var(--amw-line)] mt-6 border-t pt-6">
-      <p className="amw-mono text-3xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
-        {`${inUse} / ${limit} NetSuite accounts`}
-      </p>
+    <div
+      role="group"
+      aria-labelledby={labelId}
+      className="border-[var(--amw-line)] mt-6 border-t pt-6"
+    >
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 id={labelId} className={usageLabelClass}>
+          NetSuite accounts
+        </h2>
+        <UsageCount used={inUse} limit={limit} />
+      </div>
+      <UsageMeter used={inUse} limit={limit} />
 
       {rows.length === 0 ? (
-        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
           Shows up after your first{' '}
           <code className="amw-mono">pnpm ns:deploy</code>.
         </p>
       ) : (
-        <ul className="mt-4 space-y-2">
+        <ul className="mt-3">
           {rows.map((row) => (
             <li
               key={row.accountId}
-              className="min-h-11 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-zinc-700 dark:text-zinc-300"
+              className={`${usageRowClass} flex-wrap gap-y-1`}
             >
               <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="amw-mono">{row.accountId}</span>
+                <span className="amw-mono text-[var(--amw-ink)] text-[0.8125rem]">
+                  {row.accountId}
+                </span>
                 {row.status === 'over_limit' && (
-                  <span className="amw-kicker text-red-700 dark:text-red-400">
-                    Over your limit
-                  </span>
+                  <span className={overLimitClass}>Over your limit</span>
                 )}
               </span>
               <form action={formAction}>
@@ -338,7 +416,7 @@ export function AccountList({ token, accounts, limit }) {
                 <input type="hidden" name="accountId" value={row.accountId} />
                 <button
                   type="submit"
-                  className="min-h-11 min-w-11 rounded-md px-3 text-sm text-red-700 underline underline-offset-4 disabled:opacity-60 dark:text-red-400"
+                  className={removeClass}
                   aria-label={`Remove account ${row.accountId}`}
                   disabled={isPending}
                 >
