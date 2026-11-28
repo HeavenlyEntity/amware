@@ -1343,3 +1343,44 @@ describe('AccountList', () => {
     expect(screen.getByText(/Shows up after your first/)).toBeInTheDocument()
   })
 })
+
+describe('usage card icons', () => {
+  const seats = { used: ['owner', 'octocat'], limit: 5 }
+
+  it('puts a decorative icon beside each label without changing its name', () => {
+    render(
+      <SeatManager token="t" repo={REPO} initialSeats={seats}>
+        <AccountList token="t" accounts={[{ accountId: '222' }]} limit={3} />
+      </SeatManager>
+    )
+    for (const name of ['Developers', 'NetSuite accounts']) {
+      // The group is still found by its plain name, so the icon adds nothing
+      // to what a screen reader announces.
+      const heading = usageOf(name).querySelector('h2')
+      expect(heading).toHaveTextContent(new RegExp(`^${name}$`))
+      const icon = heading.querySelector('svg')
+      expect(icon).not.toBeNull()
+      expect(icon).toHaveAttribute('aria-hidden', 'true')
+    }
+  })
+
+  it('marks an over-limit account with a warning icon as well as the words', () => {
+    render(
+      <AccountList
+        token="t"
+        accounts={[
+          { accountId: '7654321' },
+          { accountId: '222', status: 'over_limit' },
+        ]}
+        limit={1}
+      />
+    )
+    const warning = screen.getByText('Over your limit')
+    const icon = warning.querySelector('svg')
+    expect(icon).not.toBeNull()
+    expect(icon).toHaveAttribute('aria-hidden', 'true')
+    // Only the over-limit row carries it.
+    const ok = screen.getByText('7654321').closest('li')
+    expect(ok.querySelector('svg')).toBeNull()
+  })
+})

@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Building2, TriangleAlert, Users } from 'lucide-react'
 import { addSeat, removeAccount, removeSeat } from '@/lib/commerce/addSeat'
 import { GithubAccountField } from '@/components/commerce/GithubAccountField'
 
@@ -59,7 +60,13 @@ const quietButtonClass =
 
    A row is the unit: another counted thing, or a price per seat, is one more
    row of the same shape rather than a new layout. */
-const usageLabelClass = 'text-sm font-medium text-zinc-900 dark:text-zinc-50'
+const usageLabelClass =
+  'flex items-center gap-2 text-sm font-medium text-zinc-900 dark:text-zinc-50'
+/* The mark beside a label, and the warning beside "Over your limit". Lucide,
+   the site's icon set, at its 1.5 stroke. Decoration: the words carry the
+   meaning, so each is hidden from assistive technology. The label marks sit
+   in the muted ink, so the teal stays on the bars. */
+const usageIconClass = 'size-4 shrink-0 text-[var(--amw-mut)]'
 const usageCountClass =
   'amw-mono text-sm tabular-nums text-zinc-900 dark:text-zinc-50'
 const usageHintClass = 'amw-mono text-xs text-[var(--amw-mut)]'
@@ -75,7 +82,8 @@ const removeClass =
   'amw-mono min-h-11 min-w-11 inline-flex items-center justify-end rounded-md pl-3 text-xs lowercase text-[var(--amw-mut)] underline-offset-4 transition-colors hover:text-red-700 hover:underline disabled:opacity-60 dark:hover:text-red-400'
 /* Not `amw-kicker`: that class sets its own colour outside Tailwind's layers,
    so the red never applied and the warning read as a plain label. */
-const overLimitClass = 'amw-mono text-xs text-red-700 dark:text-red-400'
+const overLimitClass =
+  'amw-mono inline-flex items-center gap-1.5 text-xs text-red-700 dark:text-red-400'
 
 /* "2 / 5": what is in use in full ink, the limit behind it in the muted ink. */
 function UsageCount({ used, limit }) {
@@ -160,8 +168,13 @@ export function SeatManager({
       <div className="bg-[var(--amw-muted)] rounded-2xl p-6">
         <p className="amw-eyebrow">{'// usage'}</p>
         <div role="group" aria-labelledby={developersId} className="mt-5">
-          <div className="flex items-baseline justify-between gap-4">
+          <div className="flex items-center justify-between gap-4">
             <h2 id={developersId} className={usageLabelClass}>
+              <Users
+                className={usageIconClass}
+                strokeWidth={1.5}
+                aria-hidden="true"
+              />
               Developers
             </h2>
             <UsageCount used={seats.used.length} limit={seats.limit} />
@@ -383,8 +396,13 @@ export function AccountList({ token, accounts, limit }) {
       aria-labelledby={labelId}
       className="border-[var(--amw-line)] mt-6 border-t pt-6"
     >
-      <div className="flex items-baseline justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <h2 id={labelId} className={usageLabelClass}>
+          <Building2
+            className={usageIconClass}
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
           NetSuite accounts
         </h2>
         <UsageCount used={inUse} limit={limit} />
@@ -408,7 +426,14 @@ export function AccountList({ token, accounts, limit }) {
                   {row.accountId}
                 </span>
                 {row.status === 'over_limit' && (
-                  <span className={overLimitClass}>Over your limit</span>
+                  <span className={overLimitClass}>
+                    <TriangleAlert
+                      className="size-3.5 shrink-0"
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                    />
+                    Over your limit
+                  </span>
                 )}
               </span>
               <form action={formAction}>
